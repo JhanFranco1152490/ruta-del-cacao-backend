@@ -1,0 +1,5 @@
+-r requirements.txt
+
+black==26.5.1
+ruff==0.16.8
+pre_commit==4.6.2

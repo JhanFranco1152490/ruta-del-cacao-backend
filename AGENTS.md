@@ -23,6 +23,11 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
   `specs/003`** — este repo puede vivir clonado solo, sin el workspace al lado, así que esa
   referencia sería un enlace roto. Si hace falta el porqué de una decisión, se escribe
   completo en el comentario mismo.
+- **Los comentarios tampoco nombran el proveedor/herramienta de turno** (Railway, Vercel,
+  etc.) salvo que el código dependa de un detalle propio de ese proveedor. El mecanismo real
+  (variables de entorno, convención 12-factor) es el mismo sin importar el proveedor, y
+  nombrarlo de más ata el comentario a una decisión de infraestructura que puede cambiar.
+  Un ejemplo con nombre de proveedor sí es válido en `.env.example`, nunca en código.
 - **Toda feature con código lleva tests.** Lint/formato limpio antes de commitear.
 - **Nunca commitear secretos** (`.env`, `SECRET_KEY`, credenciales de base de datos).
 - **Seguridad y datos: activa desde el día uno.** Este sistema maneja datos personales

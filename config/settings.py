@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
@@ -44,12 +45,16 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "accounts",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     # Sirve los estáticos en producción (admin incluido); va justo tras SecurityMiddleware.
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -86,18 +91,19 @@ WSGI_APPLICATION = "config.wsgi.application"
 # DB_* del .env de cada quien.
 DATABASE_URL = config("DATABASE_URL", default="")
 if DATABASE_URL:
-    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
 else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": config("DB_NAME"),
-            "USER": config("DB_USER"),
-            "PASSWORD": config("DB_PASSWORD"),
-            "HOST": config("DB_HOST", default="localhost"),
-            "PORT": config("DB_PORT", default="5432"),
-        }
-    }
+     DATABASES = {
+         "default": {
+             "ENGINE": "django.db.backends.postgresql",
+             "NAME": config("DB_NAME"),
+             "USER": config("DB_USER"),
+             "PASSWORD": config("DB_PASSWORD"),
+             "HOST": config("DB_HOST", default="localhost"),
+             "PORT": config("DB_PORT", default="5432"),
+         }
+     }
+
 
 
 # Password validation
@@ -109,6 +115,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 15},
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -117,6 +124,29 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+AUTH_USER_MODEL = "accounts.User"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.authentication.CookieJWTAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+}
+
+AUTH_ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)
+AUTH_REFRESH_TOKEN_LIFETIME = timedelta(days=7)
+AUTH_PASSWORD_RESET_LIFETIME = timedelta(minutes=30)
+AUTH_JWT_SIGNING_KEY = config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY)
+AUTH_JWT_ISSUER = "ruta-del-cacao-api"
+AUTH_JWT_AUDIENCE = "ruta-del-cacao-web"
+AUTH_ACCESS_COOKIE = "cacao_access"
+AUTH_REFRESH_COOKIE = "cacao_refresh"
+AUTH_COOKIE_SECURE = config("AUTH_COOKIE_SECURE", default=not DEBUG, cast=bool)
+AUTH_COOKIE_SAMESITE = config("AUTH_COOKIE_SAMESITE", default="Lax")
+CSRF_COOKIE_SECURE = AUTH_COOKIE_SECURE
+CSRF_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
+
+CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Internationalization
@@ -160,8 +190,26 @@ if not DEBUG:
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
+MAILER_BACKEND = config(
+    "MAILER_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+MAILER_OPTIONS = {}
+if MAILER_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
+    MAILER_OPTIONS = {
+        "host": config("MAILER_HOST"),
+        "port": config("MAILER_PORT", default=587, cast=int),
+        "username": config("MAILER_USERNAME"),
+        "password": config("MAILER_PASSWORD"),
+        "use_tls": config("MAILER_USE_TLS", default=True, cast=bool),
+    }
+
 MAILERS = {
     "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
+        "BACKEND": MAILER_BACKEND,
+        "OPTIONS": MAILER_OPTIONS,
+    }
 }
+
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="no-reply@rutadelcacao.local")

@@ -33,6 +33,12 @@ class ProducerCreateSerializerTests(SimpleTestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("phone", serializer.errors)
 
+    def test_rejects_unknown_fields(self):
+        serializer = ProducerCreateSerializer(data={**self.valid_data(), "unexpected": "value"})
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("unexpected", serializer.errors)
+
 
 class ProducerUpdateSerializerTests(SimpleTestCase):
     def test_requires_a_field_besides_expected_version(self):
@@ -40,6 +46,14 @@ class ProducerUpdateSerializerTests(SimpleTestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn("non_field_errors", serializer.errors)
+
+    def test_rejects_unknown_fields(self):
+        serializer = ProducerUpdateSerializer(
+            data={"expected_version": 1, "first_name": "Ana", "unexpected": "value"}
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("unexpected", serializer.errors)
 
 
 class ProducerStatusSerializerTests(SimpleTestCase):

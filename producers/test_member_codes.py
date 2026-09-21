@@ -9,4 +9,6 @@ class MemberCodeTests(TransactionTestCase):
         second_code = next_member_code()
 
         self.assertRegex(first_code, r"^PROD-\d{6}$")
-        self.assertEqual(int(second_code.removeprefix("PROD-")), int(first_code.removeprefix("PROD-")) + 1)
+        self.assertEqual(
+            int(second_code.removeprefix("PROD-")), int(first_code.removeprefix("PROD-")) + 1
+        )

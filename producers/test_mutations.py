@@ -9,7 +9,15 @@ from producers.updates import StaleVersionError, update_producer
 
 class ProducerMutationTests(TestCase):
     def setUp(self):
-        self.producer = Producer.objects.create(member_code="PROD-000001", document_type="CC", identity_document="1", first_name="Ana", last_name="Perez", municipality_code="54001", joined_on=date.today())
+        self.producer = Producer.objects.create(
+            member_code="PROD-000001",
+            document_type="CC",
+            identity_document="1",
+            first_name="Ana",
+            last_name="Perez",
+            municipality_code="54001",
+            joined_on=date.today(),
+        )
 
     def test_updates_and_increments_version(self):
         producer = update_producer(self.producer.id, 1, {"first_name": "Bea"})

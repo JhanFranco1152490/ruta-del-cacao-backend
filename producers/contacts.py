@@ -1,6 +1,5 @@
 import re
 
-
 _PHONE_FORMAT = re.compile(r"^\d{7,10}$")
 
 

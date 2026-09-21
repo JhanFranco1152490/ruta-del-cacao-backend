@@ -1,6 +1,5 @@
 import re
 
-
 DOCUMENT_TYPES = frozenset({"CC", "CE", "PPT", "NIT"})
 _SEPARATORS = re.compile(r"[ .-]+")
 

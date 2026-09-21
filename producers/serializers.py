@@ -1,18 +1,35 @@
 from rest_framework import serializers
 
+
+class StrictFieldsSerializer(serializers.Serializer):
+    def to_internal_value(self, data):
+        unknown_fields = set(data.keys()) - set(self.fields)
+        if unknown_fields:
+            raise serializers.ValidationError(
+                {field_name: ["Campo no permitido."] for field_name in sorted(unknown_fields)}
+            )
+        return super().to_internal_value(data)
+
+
 from .contacts import InvalidPhoneNumber, normalize_phone
-from .documents import InvalidIdentityDocument, normalize_document_type, normalize_identity_document
+from .documents import (
+    InvalidIdentityDocument,
+    normalize_document_type,
+    normalize_identity_document,
+)
 from .models import Producer
 from .municipalities import InvalidMunicipalityCode, validate_municipality_code
 
 
-class ProducerFieldsSerializer(serializers.Serializer):
+class ProducerFieldsSerializer(StrictFieldsSerializer):
     document_type = serializers.CharField(max_length=3, required=False)
     identity_document = serializers.CharField(max_length=30, required=False, trim_whitespace=True)
     first_name = serializers.CharField(max_length=100, required=False, trim_whitespace=True)
     last_name = serializers.CharField(max_length=100, required=False, trim_whitespace=True)
     phone = serializers.CharField(max_length=25, required=False, allow_blank=True, allow_null=True)
-    email = serializers.CharField(max_length=254, required=False, allow_blank=True, allow_null=True)
+    email = serializers.CharField(
+        max_length=254, required=False, allow_blank=True, allow_null=True
+    )
     municipality_code = serializers.CharField(max_length=20, required=False, trim_whitespace=True)
     joined_on = serializers.DateField(required=False)
 
@@ -24,7 +41,9 @@ class ProducerFieldsSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"document_type": str(error)}) from error
         if "identity_document" in attrs:
             try:
-                attrs["identity_document"] = normalize_identity_document(attrs["identity_document"])
+                attrs["identity_document"] = normalize_identity_document(
+                    attrs["identity_document"]
+                )
             except InvalidIdentityDocument as error:
                 raise serializers.ValidationError({"identity_document": str(error)}) from error
         if "phone" in attrs:
@@ -34,11 +53,9 @@ class ProducerFieldsSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"phone": str(error)}) from error
         if "municipality_code" in attrs:
             try:
-                attrs["municipality_code"] = validate_municipality_code(
-            attrs["municipality_code"])
+                attrs["municipality_code"] = validate_municipality_code(attrs["municipality_code"])
             except InvalidMunicipalityCode as error:
-                raise serializers.ValidationError({"municipality_code": str(error)}
-        ) from error
+                raise serializers.ValidationError({"municipality_code": str(error)}) from error
         if "email" in attrs:
             attrs["email"] = attrs["email"].strip().lower() or None
         return attrs
@@ -63,12 +80,12 @@ class ProducerUpdateSerializer(ProducerFieldsSerializer):
         return attrs
 
 
-class ProducerStatusSerializer(serializers.Serializer):
+class ProducerStatusSerializer(StrictFieldsSerializer):
     status = serializers.ChoiceField(choices=[Producer.Status.INACTIVE])
     expected_version = serializers.IntegerField(min_value=1)
 
 
-class ProducerListQuerySerializer(serializers.Serializer):
+class ProducerListQuerySerializer(StrictFieldsSerializer):
     search = serializers.CharField(max_length=100, required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=Producer.Status.values, required=False)
     municipality_code = serializers.CharField(max_length=20, required=False)

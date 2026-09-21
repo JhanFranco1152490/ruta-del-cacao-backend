@@ -3,6 +3,7 @@ from rest_framework import serializers
 from .contacts import InvalidPhoneNumber, normalize_phone
 from .documents import InvalidIdentityDocument, normalize_document_type, normalize_identity_document
 from .models import Producer
+from .municipalities import InvalidMunicipalityCode, validate_municipality_code
 
 
 class ProducerFieldsSerializer(serializers.Serializer):
@@ -31,6 +32,13 @@ class ProducerFieldsSerializer(serializers.Serializer):
                 attrs["phone"] = normalize_phone(attrs["phone"])
             except InvalidPhoneNumber as error:
                 raise serializers.ValidationError({"phone": str(error)}) from error
+        if "municipality_code" in attrs:
+            try:
+                attrs["municipality_code"] = validate_municipality_code(
+            attrs["municipality_code"])
+            except InvalidMunicipalityCode as error:
+                raise serializers.ValidationError({"municipality_code": str(error)}
+        ) from error
         if "email" in attrs:
             attrs["email"] = attrs["email"].strip().lower() or None
         return attrs

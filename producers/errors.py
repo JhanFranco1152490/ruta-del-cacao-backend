@@ -16,3 +16,4 @@ def validation_error(fields):
         "validation_error",
         "Los datos enviados no son validos.",
         fields=fields,
+    )

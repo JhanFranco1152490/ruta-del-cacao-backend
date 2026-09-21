@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import models
 from .contacts import InvalidPhoneNumber, normalize_phone
+from .municipalities import InvalidMunicipalityCode, validate_municipality_code
 
 from .documents import InvalidIdentityDocument, normalize_document_type, normalize_identity_document
 
@@ -81,6 +82,14 @@ class Producer(models.Model):
             setattr(self, field_name, normalized)
             if not normalized:
                 errors[field_name] = "Este campo es obligatorio."
+        try:
+            self.municipality_code = validate_municipality_code(
+                self.municipality_code
+            )
+        except InvalidMunicipalityCode:
+            errors["municipality_code"] = (
+                "El municipio no pertenece a Norte de Santander."
+            )
 
         try:
             self.phone = normalize_phone(self.phone)

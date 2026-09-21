@@ -42,5 +42,24 @@ class ProducerAPICSRFTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["member_code"], "PROD-000001")
+        self.assertRegex(response.data["member_code"], r"^PROD-\d{6}$")
         self.assertEqual(response["Location"], f"/api/producers/{response.data['id']}")
+
+    def test_create_rejects_a_duplicate_document(self):
+        csrf_response = self.client.get("/api/auth/csrf")
+        self.client.force_authenticate(user=UserWithCreatePermission())
+        self.client.credentials(HTTP_X_CSRFTOKEN=csrf_response.data["csrf_token"])
+        data = {
+            "document_type": "CC",
+            "identity_document": "12345678",
+            "first_name": "Ana",
+            "last_name": "Gomez",
+            "municipality_code": "54001",
+            "joined_on": "2026-09-21",
+        }
+
+        self.client.post("/api/producers/", data, format="json")
+        response = self.client.post("/api/producers/", data, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "duplicate_document")

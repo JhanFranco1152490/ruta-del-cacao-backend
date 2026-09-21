@@ -36,3 +36,33 @@ class ProducerAPIListTests(APITestCase):
         self.assertNotIn("phone", result)
         self.assertNotIn("email", result)
         self.assertEqual(response["Cache-Control"], "no-store")
+
+    def test_filters_and_paginates_through_the_api(self):
+        Producer.objects.create(
+            member_code="PROD-000001",
+            document_type="CC",
+            identity_document="1",
+            first_name="Ana",
+            last_name="Alvarez",
+            municipality_code="54001",
+            joined_on=date.today(),
+        )
+        Producer.objects.create(
+            member_code="PROD-000002",
+            document_type="CC",
+            identity_document="2",
+            first_name="Beatriz",
+            last_name="Zuluaga",
+            municipality_code="54001",
+            joined_on=date.today(),
+        )
+        Producer.objects.create(
+            member_code="PROD-000003",
+            document_type="CC",
+            identity_document="3",
+            first_name="Carlos",
+            last_name="Perez",
+            municipality_code="54003",
+            joined_on=date.today(),
+        )
+        self.client.force_authenticate(user=UserWithViewPermission())

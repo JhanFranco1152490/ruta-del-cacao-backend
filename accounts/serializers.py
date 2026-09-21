@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import User
-from .validators import normalize_document
+from .validators import validate_document_number
 
 
 class LoginSerializer(serializers.Serializer):
@@ -28,7 +28,12 @@ class LoginSerializer(serializers.Serializer):
         ):
             raise serializers.ValidationError("El modo documento requiere tipo y número.")
         if attrs.get("identity_document"):
-            attrs["identity_document"] = normalize_document(attrs["identity_document"])
+            try:
+                attrs["identity_document"] = validate_document_number(
+                    attrs.get("document_type", ""), attrs["identity_document"]
+                )
+            except DjangoValidationError as error:
+                raise serializers.ValidationError({"identity_document": error.messages}) from error
         return attrs
 
 

@@ -5,6 +5,7 @@ from django.db import models
 from django.db.models.functions import Lower
 
 from .managers import UserManager
+from .validators import validate_document_number
 
 
 class User(AbstractUser):
@@ -12,6 +13,7 @@ class User(AbstractUser):
         CC = "CC", "Cédula de ciudadanía"
         CE = "CE", "Cédula de extranjería"
         PPT = "PPT", "Permiso por Protección Temporal"
+        NIT = "NIT", "Número de Identificación Tributaria"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = None
@@ -39,6 +41,9 @@ class User(AbstractUser):
     def clean(self):
         super().clean()
         self.email = self.__class__.objects.normalize_email(self.email).lower()
+        self.identity_document = validate_document_number(
+            self.document_type, self.identity_document
+        )
 
     def __str__(self):
         return self.email

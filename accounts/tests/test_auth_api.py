@@ -85,6 +85,31 @@ class AuthenticationAPITests(APITestCase):
         self.assertEqual(me_response.status_code, status.HTTP_200_OK)
         self.assertEqual(me_response.data["user"]["email"], self.user.email)
 
+    def test_document_login_normalizes_separators_and_validates_format(self):
+        response = self._login(identifier="1090-123.456")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        invalid = self._post(
+            "auth-login",
+            {
+                "login_method": "document",
+                "document_type": "CC",
+                "identity_document": "10A0123456",
+                "password": self.password,
+            },
+        )
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_nit_login_accepts_normalized_number(self):
+        nit_user = User.objects.create_user(
+            email="empresa.prueba@example.com",
+            document_type="NIT",
+            identity_document="900.123.456-7",
+            password=self.password,
+        )
+        response = self._login(identifier="9001234567", document_type="NIT")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(nit_user.identity_document, "9001234567")
+
     def test_invalid_credentials_use_same_message(self):
         wrong_password = self._login(password="contraseña equivocada")
         unknown_user = self._login(identifier="nadie@example.com")

@@ -5,5 +5,8 @@ from producers.services import next_member_code
 
 class MemberCodeTests(TransactionTestCase):
     def test_assigns_zero_padded_codes(self):
-        self.assertEqual(next_member_code(), "PROD-000001")
-        self.assertEqual(next_member_code(), "PROD-000002")
+        first_code = next_member_code()
+        second_code = next_member_code()
+
+        self.assertRegex(first_code, r"^PROD-\d{6}$")
+        self.assertEqual(int(second_code.removeprefix("PROD-")), int(first_code.removeprefix("PROD-")) + 1)

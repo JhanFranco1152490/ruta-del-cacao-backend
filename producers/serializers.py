@@ -1,5 +1,14 @@
 from rest_framework import serializers
 
+from .contacts import InvalidPhoneNumber, normalize_phone
+from .documents import (
+    InvalidIdentityDocument,
+    normalize_document_type,
+    normalize_identity_document,
+)
+from .models import Producer
+from .municipalities import InvalidMunicipalityCode, validate_municipality_code
+
 
 class StrictFieldsSerializer(serializers.Serializer):
     def to_internal_value(self, data):
@@ -9,16 +18,6 @@ class StrictFieldsSerializer(serializers.Serializer):
                 {field_name: ["Campo no permitido."] for field_name in sorted(unknown_fields)}
             )
         return super().to_internal_value(data)
-
-
-from .contacts import InvalidPhoneNumber, normalize_phone
-from .documents import (
-    InvalidIdentityDocument,
-    normalize_document_type,
-    normalize_identity_document,
-)
-from .models import Producer
-from .municipalities import InvalidMunicipalityCode, validate_municipality_code
 
 
 class ProducerFieldsSerializer(StrictFieldsSerializer):

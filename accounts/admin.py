@@ -8,10 +8,10 @@ from .models import AuthenticationEvent, User
 class CustomUserAdmin(UserAdmin):
     model = User
     ordering = ("email",)
-    list_display = ("email", "identity_document", "is_active", "is_staff")
+    list_display = ("email", "document_type", "identity_document", "is_active", "is_staff")
     search_fields = ("email", "identity_document", "first_name", "last_name")
     fieldsets = (
-        (None, {"fields": ("email", "identity_document", "password")}),
+        (None, {"fields": ("email", "document_type", "identity_document", "password")}),
         ("Información personal", {"fields": ("first_name", "last_name")}),
         (
             "Permisos",
@@ -30,6 +30,7 @@ class CustomUserAdmin(UserAdmin):
                 "classes": ("wide",),
                 "fields": (
                     "email",
+                    "document_type",
                     "identity_document",
                     "password1",
                     "password2",

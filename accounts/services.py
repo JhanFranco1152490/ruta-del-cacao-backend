@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import AuthenticationEvent, User
+from .validators import normalize_document
 
 LOCKOUT_MINUTES = (3, 6, 12, 24, 48, 60)
 DUMMY_PASSWORD_HASH = make_password("timing-only-password-value")
@@ -35,9 +36,16 @@ def record_authentication_event(event_type, outcome, request_id, user=None):
     )
 
 
-def authenticate_user(identifier, password, request_id):
-    normalized_identifier = identifier.strip()
-    query = Q(email__iexact=normalized_identifier) | Q(identity_document=normalized_identifier)
+def authenticate_user(
+    login_method, password, request_id, *, email=None, document_type=None, identity_document=None
+):
+    if login_method == "email":
+        query = Q(email__iexact=(email or "").strip())
+    else:
+        query = Q(
+            document_type=document_type,
+            identity_document=normalize_document(identity_document or ""),
+        )
     error = None
 
     with transaction.atomic():

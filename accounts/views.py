@@ -100,9 +100,12 @@ class LoginView(APIView):
 
         try:
             user = authenticate_user(
-                serializer.validated_data["identifier"],
-                serializer.validated_data["password"],
-                request_id,
+                login_method=serializer.validated_data["login_method"],
+                password=serializer.validated_data["password"],
+                request_id=request_id,
+                email=serializer.validated_data.get("email"),
+                document_type=serializer.validated_data.get("document_type"),
+                identity_document=serializer.validated_data.get("identity_document"),
             )
         except InvalidCredentialsError:
             return Response(
@@ -195,7 +198,6 @@ class PasswordResetRequestView(APIView):
     throttle_classes = [PasswordResetIPThrottle, PasswordResetIdentifierThrottle]
 
     def post(self, request):
-        enforce_csrf(request)
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data["email"].lower()

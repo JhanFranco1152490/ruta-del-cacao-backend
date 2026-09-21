@@ -2,10 +2,34 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from .models import User
+from .validators import normalize_document
+
 
 class LoginSerializer(serializers.Serializer):
-    identifier = serializers.CharField(max_length=254, trim_whitespace=True)
+    login_method = serializers.ChoiceField(choices=["email", "document"])
+    email = serializers.EmailField(required=False)
+    document_type = serializers.ChoiceField(choices=User.DocumentType.choices, required=False)
+    identity_document = serializers.CharField(max_length=50, required=False, trim_whitespace=True)
     password = serializers.CharField(max_length=128, trim_whitespace=False, write_only=True)
+
+    def validate(self, attrs):
+        if attrs["login_method"] == "email":
+            if (
+                not attrs.get("email")
+                or attrs.get("document_type")
+                or attrs.get("identity_document")
+            ):
+                raise serializers.ValidationError("El modo correo requiere únicamente email.")
+        elif (
+            not attrs.get("document_type")
+            or not attrs.get("identity_document")
+            or attrs.get("email")
+        ):
+            raise serializers.ValidationError("El modo documento requiere tipo y número.")
+        if attrs.get("identity_document"):
+            attrs["identity_document"] = normalize_document(attrs["identity_document"])
+        return attrs
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -15,14 +39,14 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     token = serializers.CharField(max_length=256, trim_whitespace=True, write_only=True)
     new_password = serializers.CharField(
-        min_length=15,
-        max_length=128,
+        min_length=8,
+        max_length=50,
         trim_whitespace=False,
         write_only=True,
     )
     new_password_confirmation = serializers.CharField(
-        min_length=15,
-        max_length=128,
+        min_length=8,
+        max_length=50,
         trim_whitespace=False,
         write_only=True,
     )

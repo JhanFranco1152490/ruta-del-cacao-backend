@@ -91,19 +91,18 @@ WSGI_APPLICATION = "config.wsgi.application"
 # DB_* del .env de cada quien.
 DATABASE_URL = config("DATABASE_URL", default="")
 if DATABASE_URL:
-     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
 else:
-     DATABASES = {
-         "default": {
-             "ENGINE": "django.db.backends.postgresql",
-             "NAME": config("DB_NAME"),
-             "USER": config("DB_USER"),
-             "PASSWORD": config("DB_PASSWORD"),
-             "HOST": config("DB_HOST", default="localhost"),
-             "PORT": config("DB_PORT", default="5432"),
-         }
-     }
-
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("DB_NAME"),
+            "USER": config("DB_USER"),
+            "PASSWORD": config("DB_PASSWORD"),
+            "HOST": config("DB_HOST", default="localhost"),
+            "PORT": config("DB_PORT", default="5432"),
+        }
+    }
 
 
 # Password validation
@@ -115,7 +114,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {"min_length": 15},
+        "OPTIONS": {"min_length": 8},
+    },
+    {
+        "NAME": "accounts.validators.MaximumLengthValidator",
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",

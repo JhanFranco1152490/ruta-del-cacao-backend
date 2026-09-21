@@ -22,6 +22,7 @@ class AuthenticationAPITests(APITestCase):
         self.client = APIClient(enforce_csrf_checks=True)
         self.user = User.objects.create_user(
             email="productor@example.com",
+            document_type="CC",
             identity_document="1090123456",
             password=self.password,
             first_name="Persona",
@@ -45,13 +46,19 @@ class AuthenticationAPITests(APITestCase):
             HTTP_X_CSRFTOKEN=self.csrf_token,
         )
 
-    def _login(self, identifier=None, password=None):
+    def _login(self, identifier=None, password=None, document_type="CC"):
+        is_email = identifier is None or "@" in (identifier or "")
+        data = {
+            "login_method": "email" if is_email else "document",
+            "password": password or self.password,
+        }
+        if is_email:
+            data["email"] = identifier or self.user.email
+        else:
+            data.update({"document_type": document_type, "identity_document": identifier})
         return self._post(
             "auth-login",
-            {
-                "identifier": identifier or self.user.email,
-                "password": password or self.password,
-            },
+            data,
         )
 
     def test_login_with_email_sets_secure_session_and_returns_identity(self):
@@ -233,8 +240,8 @@ class AuthenticationAPITests(APITestCase):
             "password-reset-confirm",
             {
                 "token": raw_token,
-                "new_password": "muy corta",
-                "new_password_confirmation": "muy corta",
+                "new_password": "corta",
+                "new_password_confirmation": "corta",
             },
         )
 
@@ -246,9 +253,56 @@ class AuthenticationAPITests(APITestCase):
 
         response = client.post(
             reverse("auth-login"),
-            {"identifier": self.user.email, "password": self.password},
+            {"login_method": "email", "email": self.user.email, "password": self.password},
             format="json",
             secure=True,
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_browser_csrf_token_and_cors_allow_frontend_login(self):
+        with override_settings(
+            CORS_ALLOWED_ORIGINS=["http://localhost:3000"],
+            CSRF_TRUSTED_ORIGINS=["http://localhost:3000"],
+        ):
+            client = APIClient(enforce_csrf_checks=True)
+            csrf = client.get(reverse("auth-csrf"), HTTP_ORIGIN="http://localhost:3000")
+            self.assertEqual(csrf["Access-Control-Allow-Origin"], "http://localhost:3000")
+            self.assertEqual(csrf["Access-Control-Allow-Credentials"], "true")
+            response = client.post(
+                reverse("auth-login"),
+                {"login_method": "email", "email": self.user.email, "password": self.password},
+                format="json",
+                HTTP_ORIGIN="http://localhost:3000",
+                HTTP_X_CSRFTOKEN=csrf.data["csrf_token"],
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(client.get(reverse("auth-me")).status_code, status.HTTP_200_OK)
+
+    def test_password_reset_accepts_eight_and_fifty_characters(self):
+        for password in ["C@cao!7x", "C@cao!7x" + "z" * 42]:
+            with self.subTest(length=len(password)):
+                self._post("password-reset", {"email": self.user.email})
+                token = re.search(r"token=([^\s]+)", mail.outbox[-1].body).group(1)
+                response = self._post(
+                    "password-reset-confirm",
+                    {
+                        "token": token,
+                        "new_password": password,
+                        "new_password_confirmation": password,
+                    },
+                )
+                self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+                self.assertEqual(self._login(password=password).status_code, status.HTTP_200_OK)
+
+    def test_password_reset_rejects_more_than_fifty_characters(self):
+        response = self._post(
+            "password-reset-confirm",
+            {
+                "token": "test-token",
+                "new_password": "C@cao!7x" + "z" * 43,
+                "new_password_confirmation": "C@cao!7x" + "z" * 43,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("new_password", response.data)

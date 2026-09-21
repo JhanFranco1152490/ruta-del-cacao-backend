@@ -8,10 +8,16 @@ from .managers import UserManager
 
 
 class User(AbstractUser):
+    class DocumentType(models.TextChoices):
+        CC = "CC", "Cédula de ciudadanía"
+        CE = "CE", "Cédula de extranjería"
+        PPT = "PPT", "Permiso por Protección Temporal"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = None
     email = models.EmailField(unique=True)
-    identity_document = models.CharField(max_length=50, unique=True)
+    document_type = models.CharField(max_length=3, choices=DocumentType.choices)
+    identity_document = models.CharField(max_length=50)
     failed_login_attempts = models.PositiveSmallIntegerField(default=0)
     lockout_level = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
@@ -19,11 +25,15 @@ class User(AbstractUser):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["identity_document"]
+    REQUIRED_FIELDS = ["document_type", "identity_document"]
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_unique")
+            models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_unique"),
+            models.UniqueConstraint(
+                fields=["document_type", "identity_document"],
+                name="accounts_user_document_type_number_unique",
+            ),
         ]
 
     def clean(self):

@@ -91,3 +91,36 @@ class ProducerAPIDetailTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(response.data["code"], "stale_version")
+
+    def test_returns_not_found_for_an_unknown_producer(self):
+        self.client.force_authenticate(user=UserWithProducerPermissions())
+        response = self.client.get("/api/producers/00000000-0000-0000-0000-000000000000")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_rejects_delete(self):
+        self.client.force_authenticate(user=UserWithProducerPermissions())
+        response = self.client.delete(f"/api/producers/{self.producer.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_rejects_an_update_with_a_duplicate_document(self):
+        Producer.objects.create(
+            member_code="PROD-000002",
+            document_type="CC",
+            identity_document="87654321",
+            first_name="Beatriz",
+            last_name="Lopez",
+            municipality_code="54001",
+            joined_on=date.today(),
+        )
+        self.authenticate_for_write()
+
+        response = self.client.patch(
+            f"/api/producers/{self.producer.id}",
+            {"identity_document": "87654321", "expected_version": 1},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["code"], "duplicate_document")

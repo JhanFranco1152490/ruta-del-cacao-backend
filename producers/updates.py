@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
 from .models import Producer
@@ -34,7 +35,10 @@ def update_producer(producer_id, expected_version, data):
     if not changed_fields:
         return producer
 
-    producer.full_clean()
+    try:
+        producer.full_clean()
+    except ValidationError as error:
+        raise DuplicateDocumentError("El documento ya se encuentra registrado.") from error
     producer.version += 1
     changed_fields.extend(["version", "updated_at"])
 

@@ -66,3 +66,15 @@ class ProducerAPIListTests(APITestCase):
             joined_on=date.today(),
         )
         self.client.force_authenticate(user=UserWithViewPermission())
+
+        response = self.client.get("/api/producers/?municipality_code=54001&page=1&page_size=1")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["results"][0]["member_code"], "PROD-000001")
+
+    def test_rejects_an_invalid_page_parameter(self):
+        self.client.force_authenticate(user=UserWithViewPermission())
+        response = self.client.get("/api/producers/?page=0")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -63,3 +63,13 @@ class ProducerAPICSRFTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(response.data["code"], "duplicate_document")
+
+    def test_create_returns_a_validation_error_for_unknown_fields(self):
+        csrf_response = self.client.get("/api/auth/csrf")
+        self.client.force_authenticate(user=UserWithCreatePermission())
+        self.client.credentials(HTTP_X_CSRFTOKEN=csrf_response.data["csrf_token"])
+        response = self.client.post("/api/producers/", {"unexpected": "value"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "validation_error")
+        self.assertIn("unexpected", response.data["fields"])

@@ -78,3 +78,22 @@ class ProducerAPIListTests(APITestCase):
         response = self.client.get("/api/producers/?page=0")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_searches_and_filters_by_status_through_the_api(self):
+        Producer.objects.create(
+            member_code="PROD-000001",
+            document_type="CC",
+            identity_document="1",
+            first_name="Ana",
+            last_name="Alvarez",
+            municipality_code="54001",
+            joined_on=date.today(),
+            status="inactive",
+        )
+        self.client.force_authenticate(user=UserWithViewPermission())
+
+        response = self.client.get("/api/producers/?search=000001&status=inactive")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["member_code"], "PROD-000001")

@@ -1,8 +1,19 @@
+import re
+
 from django.core.exceptions import ValidationError
 
 
 def normalize_document(value):
     return "".join(value.strip().upper().split()).replace(".", "").replace("-", "")
+
+
+def validate_document_number(document_type, value):
+    normalized = normalize_document(value)
+    if document_type in {"CC", "CE", "NIT"} and not normalized.isdigit():
+        raise ValidationError("El número de CC, CE o NIT debe contener solo dígitos.")
+    if document_type == "PPT" and not re.fullmatch(r"[A-Z0-9]+", normalized):
+        raise ValidationError("El número de PPT debe contener letras y dígitos.")
+    return normalized
 
 
 class MaximumLengthValidator:

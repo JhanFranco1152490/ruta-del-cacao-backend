@@ -31,7 +31,7 @@ class ProducerConcurrencyTests(TransactionTestCase):
                 close_old_connections()
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            codes = list(executor.map(create, ["100", "200"]))
+            codes = list(executor.map(create, ["100000", "200000"]))
 
         self.assertEqual(len(set(codes)), 2)
         self.assertRegex(codes[0], r"^PROD-\d{6}$")
@@ -45,7 +45,7 @@ class ProducerConcurrencyTests(TransactionTestCase):
             try:
                 barrier.wait()
                 try:
-                    create_producer(self.producer_data("300"))
+                    create_producer(self.producer_data("300000"))
                     return "created"
                 except DuplicateDocumentError:
                     return "duplicate"

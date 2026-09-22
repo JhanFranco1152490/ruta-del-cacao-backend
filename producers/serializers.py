@@ -25,7 +25,7 @@ class StrictFieldsSerializer(serializers.Serializer):
 
 class ProducerFieldsSerializer(StrictFieldsSerializer):
     document_type = serializers.CharField(max_length=3, required=False)
-    identity_document = serializers.CharField(max_length=30, required=False, trim_whitespace=True)
+    identity_document = serializers.CharField(max_length=15, required=False, trim_whitespace=True)
     first_name = serializers.CharField(max_length=100, required=False, trim_whitespace=True)
     last_name = serializers.CharField(max_length=100, required=False, trim_whitespace=True)
     phone = serializers.CharField(max_length=25, required=False, allow_blank=True, allow_null=True)
@@ -70,7 +70,7 @@ class ProducerFieldsSerializer(StrictFieldsSerializer):
 
 class ProducerCreateSerializer(ProducerFieldsSerializer):
     document_type = serializers.CharField(max_length=3, required=True)
-    identity_document = serializers.CharField(max_length=30, required=True, trim_whitespace=True)
+    identity_document = serializers.CharField(max_length=15, required=True, trim_whitespace=True)
     first_name = serializers.CharField(max_length=100, required=True, trim_whitespace=True)
     last_name = serializers.CharField(max_length=100, required=True, trim_whitespace=True)
     municipality_code = serializers.CharField(max_length=20, required=True, trim_whitespace=True)

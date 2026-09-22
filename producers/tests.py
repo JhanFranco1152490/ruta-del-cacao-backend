@@ -17,13 +17,15 @@ class NormalizeDocumentTypeTests(unittest.TestCase):
 
 
 class NormalizeIdentityDocumentTests(unittest.TestCase):
-    def test_removes_allowed_separators_and_preserves_leading_zeroes(self):
-        self.assertEqual(normalize_identity_document(" 00.123-abc "), "00123ABC")
+    def test_accepts_digits_and_preserves_leading_zeroes(self):
+        self.assertEqual(normalize_identity_document("001234"), "001234")
 
-    def test_rejects_a_document_without_content(self):
+    def test_rejects_a_document_shorter_than_six_digits(self):
         with self.assertRaises(InvalidIdentityDocument):
-            normalize_identity_document(" . - ")
+            normalize_identity_document("12345")
 
-    def test_rejects_characters_other_than_letters_and_digits(self):
+    def test_rejects_letters_formatting_and_documents_longer_than_fifteen_digits(self):
         with self.assertRaises(InvalidIdentityDocument):
-            normalize_identity_document("123/456")
+            normalize_identity_document("12.345-ABC")
+        with self.assertRaises(InvalidIdentityDocument):
+            normalize_identity_document("1234567890123456")

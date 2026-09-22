@@ -1,7 +1,7 @@
 import re
 
 DOCUMENT_TYPES = frozenset({"CC", "CE", "PPT", "NIT"})
-_SEPARATORS = re.compile(r"[ .-]+")
+IDENTITY_DOCUMENT_PATTERN = re.compile(r"^[0-9]{6,15}$")
 
 
 class InvalidIdentityDocument(ValueError):
@@ -16,7 +16,9 @@ def normalize_document_type(value: str) -> str:
 
 
 def normalize_identity_document(value: str) -> str:
-    normalized = _SEPARATORS.sub("", value.strip()).upper()
-    if not normalized or not normalized.isalnum():
-        raise InvalidIdentityDocument("Invalid identity document.")
+    normalized = value.strip()
+    if not IDENTITY_DOCUMENT_PATTERN.fullmatch(normalized):
+        raise InvalidIdentityDocument(
+            "El número de documento debe contener solo dígitos, entre 6 y 15 caracteres."
+        )
     return normalized

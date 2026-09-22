@@ -12,7 +12,7 @@ class ProducerMutationTests(TestCase):
         self.producer = Producer.objects.create(
             member_code="PROD-000001",
             document_type="CC",
-            identity_document="1",
+            identity_document="100000",
             first_name="Ana",
             last_name="Perez",
             municipality_code="54001",

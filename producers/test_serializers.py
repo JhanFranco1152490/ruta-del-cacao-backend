@@ -14,18 +14,26 @@ class ProducerCreateSerializerTests(SimpleTestCase):
     def valid_data(self):
         return {
             "document_type": "CC",
-            "identity_document": "00.123-abc",
+            "identity_document": "00123456",
             "first_name": "Ana",
             "last_name": "P?rez",
             "municipality_code": "54001",
             "joined_on": str(date.today()),
         }
 
-    def test_normalizes_document_and_optional_contact(self):
+    def test_accepts_a_numeric_document_and_optional_contact(self):
         serializer = ProducerCreateSerializer(data={**self.valid_data(), "phone": "3001234567"})
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
-        self.assertEqual(serializer.validated_data["identity_document"], "00123ABC")
+        self.assertEqual(serializer.validated_data["identity_document"], "00123456")
+
+    def test_rejects_a_document_with_letters_or_formatting(self):
+        serializer = ProducerCreateSerializer(
+            data={**self.valid_data(), "identity_document": "12.345-ABC"}
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("identity_document", serializer.errors)
 
     def test_rejects_a_phone_with_formatting_characters(self):
         serializer = ProducerCreateSerializer(data={**self.valid_data(), "phone": "300 123 4567"})

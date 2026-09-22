@@ -29,7 +29,7 @@ class Producer(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     member_code = models.CharField(max_length=11, unique=True, editable=False)
     document_type = models.CharField(max_length=3, choices=DocumentType.choices)
-    identity_document = models.CharField(max_length=30)
+    identity_document = models.CharField(max_length=15)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     phone = models.CharField(max_length=25, null=True, blank=True)

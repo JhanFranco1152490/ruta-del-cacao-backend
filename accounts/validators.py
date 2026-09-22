@@ -1,6 +1,4 @@
-import re
-
-from django.core.exceptions import ValidationError
+﻿from django.core.exceptions import ValidationError
 
 
 def normalize_document(value):
@@ -9,10 +7,10 @@ def normalize_document(value):
 
 def validate_document_number(document_type, value):
     normalized = normalize_document(value)
-    if document_type in {"CC", "CE", "NIT"} and not normalized.isdigit():
-        raise ValidationError("El número de CC, CE o NIT debe contener solo dígitos.")
-    if document_type == "PPT" and not re.fullmatch(r"[A-Z0-9]+", normalized):
-        raise ValidationError("El número de PPT debe contener letras y dígitos.")
+    if not normalized or not normalized.isdigit():
+        raise ValidationError("El número de documento debe contener solo dígitos.")
+    if len(normalized) > 15:
+        raise ValidationError("El número de documento debe tener máximo 15 dígitos.")
     return normalized
 
 

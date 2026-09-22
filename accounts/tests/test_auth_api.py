@@ -110,6 +110,30 @@ class AuthenticationAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(nit_user.identity_document, "9001234567")
 
+    def test_document_numbers_only_allow_digits_and_fifteen_digits(self):
+        for document_type in ("CC", "CE", "PPT", "NIT"):
+            response = self._post(
+                "auth-login",
+                {
+                    "login_method": "document",
+                    "document_type": document_type,
+                    "identity_document": "1" * 16,
+                    "password": self.password,
+                },
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self._post(
+            "auth-login",
+            {
+                "login_method": "document",
+                "document_type": "PPT",
+                "identity_document": "12345A",
+                "password": self.password,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_invalid_credentials_use_same_message(self):
         wrong_password = self._login(password="contraseña equivocada")
         unknown_user = self._login(identifier="nadie@example.com")

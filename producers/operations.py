@@ -9,13 +9,19 @@ class DuplicateDocumentError(ValueError):
     pass
 
 
+class ProducerValidationError(ValueError):
+    def __init__(self, errors):
+        self.errors = errors
+        super().__init__("Producer data is invalid.")
+
+
 @transaction.atomic
 def create_producer(data):
     producer = Producer(member_code=next_member_code(), **data)
     try:
-        producer.full_clean()
+        producer.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError as error:
-        raise DuplicateDocumentError("El documento ya se encuentra registrado.") from error
+        raise ProducerValidationError(error.message_dict) from error
 
     try:
         producer.save()

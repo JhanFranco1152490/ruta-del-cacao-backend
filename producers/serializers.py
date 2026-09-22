@@ -1,3 +1,6 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from rest_framework import serializers
 
 from .contacts import InvalidPhoneNumber, normalize_phone
@@ -26,7 +29,7 @@ class ProducerFieldsSerializer(StrictFieldsSerializer):
     first_name = serializers.CharField(max_length=100, required=False, trim_whitespace=True)
     last_name = serializers.CharField(max_length=100, required=False, trim_whitespace=True)
     phone = serializers.CharField(max_length=25, required=False, allow_blank=True, allow_null=True)
-    email = serializers.CharField(
+    email = serializers.EmailField(
         max_length=254, required=False, allow_blank=True, allow_null=True
     )
     municipality_code = serializers.CharField(max_length=20, required=False, trim_whitespace=True)
@@ -55,8 +58,13 @@ class ProducerFieldsSerializer(StrictFieldsSerializer):
                 attrs["municipality_code"] = validate_municipality_code(attrs["municipality_code"])
             except InvalidMunicipalityCode as error:
                 raise serializers.ValidationError({"municipality_code": str(error)}) from error
-        if "email" in attrs:
+        if "email" in attrs and attrs["email"] is not None:
             attrs["email"] = attrs["email"].strip().lower() or None
+        if (
+            "joined_on" in attrs
+            and attrs["joined_on"] > datetime.now(ZoneInfo("America/Bogota")).date()
+        ):
+            raise serializers.ValidationError({"joined_on": "La fecha no puede ser futura."})
         return attrs
 
 

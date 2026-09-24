@@ -1,18 +1,9 @@
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
+from .exceptions import DuplicateDocumentError, ProducerValidationError
 from .models import Producer
 from .services import next_member_code
-
-
-class DuplicateDocumentError(ValueError):
-    pass
-
-
-class ProducerValidationError(ValueError):
-    def __init__(self, errors):
-        self.errors = errors
-        super().__init__("Producer data is invalid.")
 
 
 @transaction.atomic

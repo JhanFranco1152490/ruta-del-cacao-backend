@@ -5,7 +5,8 @@ from threading import Barrier
 from django.db import close_old_connections
 from django.test import TransactionTestCase
 
-from producers.operations import DuplicateDocumentError, create_producer
+from producers.exceptions import DuplicateDocumentError
+from producers.operations import create_producer
 
 
 class ProducerConcurrencyTests(TransactionTestCase):

@@ -6,8 +6,9 @@ from accounts.views import enforce_csrf
 
 from .catalogs import list_municipalities
 from .errors import producer_error, validation_error
+from .exceptions import DuplicateDocumentError, ProducerValidationError
 from .listing import list_producers
-from .operations import DuplicateDocumentError, ProducerValidationError, create_producer
+from .operations import create_producer
 from .permissions import (
     CanAccessMunicipalityCatalog,
     CanChangeProducerStatus,
@@ -23,15 +24,9 @@ from .serializers import (
 )
 from .status import deactivate_producer
 from .updates import (
-    DuplicateDocumentError as UpdateDuplicateDocumentError,
-)
-from .updates import (
     ProducerNotFoundError,
     StaleVersionError,
     update_producer,
-)
-from .updates import (
-    ProducerValidationError as UpdateProducerValidationError,
 )
 
 
@@ -129,13 +124,13 @@ class ProducerDetailView(PrivateProducerAPIView):
                     update_producer(producer_id, expected_version, serializer.validated_data)
                 )
             )
-        except UpdateProducerValidationError as error:
+        except ProducerValidationError as error:
             return validation_error(error.errors)
         except ProducerNotFoundError:
             return producer_error("not_found", "El productor no existe.", status=404)
         except StaleVersionError:
             return producer_error("stale_version", "La ficha fue modificada.", status=409)
-        except UpdateDuplicateDocumentError:
+        except DuplicateDocumentError:
             return producer_error(
                 "duplicate_document", "El documento ya se encuentra registrado.", status=409
             )

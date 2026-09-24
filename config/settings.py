@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "accounts",
+    "producers.apps.ProducersConfig",
 ]
 
 MIDDLEWARE = [

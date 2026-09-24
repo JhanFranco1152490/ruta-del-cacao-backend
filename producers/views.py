@@ -22,7 +22,7 @@ from .serializers import (
     ProducerStatusSerializer,
     ProducerUpdateSerializer,
 )
-from .status import deactivate_producer
+from .status import activate_producer, deactivate_producer
 from .updates import (
     ProducerNotFoundError,
     StaleVersionError,
@@ -144,10 +144,12 @@ class ProducerStatusView(PrivateProducerAPIView):
         serializer = ProducerStatusSerializer(data=request.data)
         if not serializer.is_valid():
             return validation_error(serializer.errors)
+        requested_status = serializer.validated_data["status"]
+        change_status = activate_producer if requested_status == "active" else deactivate_producer
         try:
             return Response(
                 serialize_producer(
-                    deactivate_producer(producer_id, serializer.validated_data["expected_version"])
+                    change_status(producer_id, serializer.validated_data["expected_version"])
                 )
             )
         except ProducerNotFoundError:

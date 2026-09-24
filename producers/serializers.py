@@ -88,7 +88,7 @@ class ProducerUpdateSerializer(ProducerFieldsSerializer):
 
 
 class ProducerStatusSerializer(StrictFieldsSerializer):
-    status = serializers.ChoiceField(choices=[Producer.Status.INACTIVE])
+    status = serializers.ChoiceField(choices=Producer.Status.values)
     expected_version = serializers.IntegerField(min_value=1)
 
 

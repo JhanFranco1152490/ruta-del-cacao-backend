@@ -65,11 +65,12 @@ class ProducerUpdateSerializerTests(SimpleTestCase):
 
 
 class ProducerStatusSerializerTests(SimpleTestCase):
-    def test_rejects_reactivation(self):
-        serializer = ProducerStatusSerializer(data={"status": "active", "expected_version": 1})
+    def test_accepts_both_statuses(self):
+        active = ProducerStatusSerializer(data={"status": "active", "expected_version": 1})
+        inactive = ProducerStatusSerializer(data={"status": "inactive", "expected_version": 1})
 
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("status", serializer.errors)
+        self.assertTrue(active.is_valid(), active.errors)
+        self.assertTrue(inactive.is_valid(), inactive.errors)
 
 
 class ProducerListQuerySerializerTests(SimpleTestCase):

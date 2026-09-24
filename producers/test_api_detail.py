@@ -68,17 +68,23 @@ class ProducerAPIDetailTests(APITestCase):
         self.assertEqual(response.data["status"], "inactive")
         self.assertEqual(response.data["version"], 2)
 
-    def test_rejects_reactivation(self):
+    def test_reactivates_an_inactive_producer(self):
         self.authenticate_for_write()
 
+        self.client.patch(
+            f"/api/producers/{self.producer.id}/status",
+            {"status": "inactive", "expected_version": 1},
+            format="json",
+        )
         response = self.client.patch(
             f"/api/producers/{self.producer.id}/status",
-            {"status": "active", "expected_version": 1},
+            {"status": "active", "expected_version": 2},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("status", response.data["fields"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "active")
+        self.assertEqual(response.data["version"], 3)
 
     def test_rejects_an_update_with_a_stale_version(self):
         self.authenticate_for_write()

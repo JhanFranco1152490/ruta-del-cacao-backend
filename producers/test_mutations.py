@@ -3,7 +3,7 @@ from datetime import date
 from django.test import TestCase
 
 from producers.models import Producer
-from producers.status import deactivate_producer
+from producers.status import activate_producer, deactivate_producer
 from producers.updates import StaleVersionError, update_producer
 
 
@@ -30,10 +30,15 @@ class ProducerMutationTests(TestCase):
         with self.assertRaises(StaleVersionError):
             update_producer(self.producer.id, 2, {"first_name": "Bea"})
 
-    def test_deactivates_once_with_the_current_version(self):
-        producer = deactivate_producer(self.producer.id, 1)
-        repeated = deactivate_producer(producer.id, 2)
+    def test_changes_status_once_with_the_current_version(self):
+        inactive = deactivate_producer(self.producer.id, 1)
+        repeated_inactive = deactivate_producer(inactive.id, 2)
+        active = activate_producer(inactive.id, 2)
+        repeated_active = activate_producer(active.id, 3)
 
-        self.assertEqual(producer.status, "inactive")
-        self.assertEqual(producer.version, 2)
-        self.assertEqual(repeated.version, 2)
+        self.assertEqual(inactive.status, "inactive")
+        self.assertEqual(inactive.version, 2)
+        self.assertEqual(repeated_inactive.version, 2)
+        self.assertEqual(active.status, "active")
+        self.assertEqual(active.version, 3)
+        self.assertEqual(repeated_active.version, 3)

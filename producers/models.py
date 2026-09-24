@@ -17,10 +17,10 @@ from .municipalities import InvalidMunicipalityCode, validate_municipality_code
 
 class Producer(models.Model):
     class DocumentType(models.TextChoices):
-        CC = "CC", "C?dula de ciudadan?a"
-        CE = "CE", "C?dula de extranjer?a"
-        PPT = "PPT", "Permiso por Protecci?n Temporal"
-        NIT = "NIT", "N?mero de Identificaci?n Tributaria"
+        CC = "CC", "Cédula de ciudadanía"
+        CE = "CE", "Cédula de extranjería"
+        PPT = "PPT", "Permiso por Protección Temporal"
+        NIT = "NIT", "Número de Identificación Tributaria"
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Activo"
@@ -73,12 +73,12 @@ class Producer(models.Model):
         try:
             self.document_type = normalize_document_type(self.document_type)
         except (AttributeError, InvalidIdentityDocument):
-            errors["document_type"] = "El tipo de documento no es v?lido."
+            errors["document_type"] = "El tipo de documento no es válido."
 
         try:
             self.identity_document = normalize_identity_document(self.identity_document)
         except (AttributeError, InvalidIdentityDocument):
-            errors["identity_document"] = "El n?mero de documento no es v?lido."
+            errors["identity_document"] = "El número de documento no es válido."
 
         for field_name in ("first_name", "last_name", "municipality_code"):
             value = getattr(self, field_name)
@@ -103,16 +103,16 @@ class Producer(models.Model):
             try:
                 validate_email(self.email)
             except ValidationError:
-                errors["email"] = "El correo electr?nico no es v?lido."
+                errors["email"] = "El correo electrónico no es válido."
 
         if self.joined_on and self.joined_on > datetime.now(ZoneInfo("America/Bogota")).date():
-            errors["joined_on"] = "La fecha de vinculaci?n no puede ser futura."
+            errors["joined_on"] = "La fecha de vinculación no puede ser futura."
 
         if self.version < 1:
-            errors["version"] = "La versi?n debe ser un entero positivo."
+            errors["version"] = "La versión debe ser un entero positivo."
 
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
-        return f"{self.member_code} ? {self.first_name} {self.last_name}"
+        return f"{self.member_code} — {self.first_name} {self.last_name}"

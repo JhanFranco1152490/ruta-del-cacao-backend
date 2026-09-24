@@ -13,7 +13,7 @@ class ProducerValidationTests(SimpleTestCase):
             "document_type": "CC",
             "identity_document": "001234",
             "first_name": " Ana ",
-            "last_name": " P?rez ",
+            "last_name": " Pérez ",
             "municipality_code": "54001",
             "joined_on": date.today(),
         }
@@ -29,8 +29,14 @@ class ProducerValidationTests(SimpleTestCase):
         self.validate(producer)
 
         self.assertEqual(producer.first_name, "Ana")
-        self.assertEqual(producer.last_name, "P?rez")
+        self.assertEqual(producer.last_name, "Pérez")
         self.assertEqual(producer.municipality_code, "54001")
+
+    def test_exposes_utf8_document_labels_and_string_representation(self):
+        producer = self.build_producer(first_name="Ana", last_name="Pérez")
+
+        self.assertEqual(Producer.DocumentType.CC.label, "Cédula de ciudadanía")
+        self.assertEqual(str(producer), "PROD-000001 — Ana Pérez")
 
     def test_rejects_blank_required_text(self):
         producer = self.build_producer(first_name="   ")

@@ -9,3 +9,15 @@ repos:
     rev: 26.5.1
     hooks:
       - id: black
+
+  - repo: local
+    hooks:
+      # Un "?" entre letras en un texto en español suele ser una tilde o una ñ que se perdió
+      # al guardar el archivo con una codificación distinta de UTF-8. Se excluyen las URL con
+      # parámetros de consulta ("...?token=").
+      - id: no-question-mark-for-accents
+        name: detect accented characters replaced by "?"
+        language: pygrep
+        entry: '(?<!\\)[A-Za-zñÑ]\?[a-záéíóúñ]+(?![a-záéíóúñ]*=)'
+        types: [python]
+        exclude: ^producers/migrations/0001_

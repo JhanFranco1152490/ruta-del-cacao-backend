@@ -14,6 +14,6 @@ def producer_error(code, message, fields=None, status=400, **extra):
 def validation_error(fields):
     return producer_error(
         "validation_error",
-        "Los datos enviados no son validos.",
+        "Los datos enviados no son válidos.",
         fields=fields,
     )

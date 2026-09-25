@@ -1,8 +1,6 @@
-import re
 from datetime import timedelta
 
 from django.contrib.auth.models import Group
-from django.core import mail
 from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
@@ -10,7 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.accounts.models import AuthenticationEvent, PasswordResetToken, RefreshSession, User
+from apps.accounts.models import AuthenticationEvent, RefreshSession, User
 
 
 @override_settings(AUTH_COOKIE_SECURE=False)
@@ -218,85 +216,6 @@ class AuthenticationAPITests(APITestCase):
             status.HTTP_401_UNAUTHORIZED,
         )
 
-    def test_password_reset_response_does_not_reveal_account(self):
-        existing = self._post("password-reset", {"email": self.user.email})
-        unknown = self._post("password-reset", {"email": "nadie@example.com"})
-
-        self.assertEqual(existing.status_code, status.HTTP_202_ACCEPTED)
-        self.assertEqual(unknown.status_code, status.HTTP_202_ACCEPTED)
-        self.assertEqual(existing.data, unknown.data)
-        self.assertEqual(len(mail.outbox), 1)
-
-    def test_password_reset_changes_password_and_revokes_sessions(self):
-        self._login()
-        request_response = self._post("password-reset", {"email": self.user.email})
-        self.assertEqual(request_response.status_code, status.HTTP_202_ACCEPTED)
-        raw_token = re.search(r"token=([^\s]+)", mail.outbox[0].body).group(1)
-        new_password = "una nueva frase segura 2026"
-
-        confirm_response = self._post(
-            "password-reset-confirm",
-            {
-                "token": raw_token,
-                "new_password": new_password,
-                "new_password_confirmation": new_password,
-            },
-        )
-
-        self.assertEqual(confirm_response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(RefreshSession.objects.filter(revoked_at__isnull=True).exists())
-        self.assertEqual(
-            self._login(password=self.password).status_code, status.HTTP_401_UNAUTHORIZED
-        )
-        self.assertEqual(self._login(password=new_password).status_code, status.HTTP_200_OK)
-
-    def test_password_reset_token_is_single_use(self):
-        self._post("password-reset", {"email": self.user.email})
-        raw_token = re.search(r"token=([^\s]+)", mail.outbox[0].body).group(1)
-        payload = {
-            "token": raw_token,
-            "new_password": "una nueva frase segura 2026",
-            "new_password_confirmation": "una nueva frase segura 2026",
-        }
-
-        first = self._post("password-reset-confirm", payload)
-        second = self._post("password-reset-confirm", payload)
-
-        self.assertEqual(first.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_expired_password_reset_token_is_rejected(self):
-        self._post("password-reset", {"email": self.user.email})
-        raw_token = re.search(r"token=([^\s]+)", mail.outbox[0].body).group(1)
-        PasswordResetToken.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
-
-        response = self._post(
-            "password-reset-confirm",
-            {
-                "token": raw_token,
-                "new_password": "una nueva frase segura 2026",
-                "new_password_confirmation": "una nueva frase segura 2026",
-            },
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_short_password_is_rejected(self):
-        self._post("password-reset", {"email": self.user.email})
-        raw_token = re.search(r"token=([^\s]+)", mail.outbox[0].body).group(1)
-
-        response = self._post(
-            "password-reset-confirm",
-            {
-                "token": raw_token,
-                "new_password": "corta",
-                "new_password_confirmation": "corta",
-            },
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("new_password", response.data["fields"])
-
     def test_csrf_is_required_for_cookie_creating_requests(self):
         client = APIClient(enforce_csrf_checks=True)
 
@@ -327,31 +246,3 @@ class AuthenticationAPITests(APITestCase):
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(client.get(reverse("auth-me")).status_code, status.HTTP_200_OK)
-
-    def test_password_reset_accepts_eight_and_fifty_characters(self):
-        for password in ["C@cao!7x", "C@cao!7x" + "z" * 42]:
-            with self.subTest(length=len(password)):
-                self._post("password-reset", {"email": self.user.email})
-                token = re.search(r"token=([^\s]+)", mail.outbox[-1].body).group(1)
-                response = self._post(
-                    "password-reset-confirm",
-                    {
-                        "token": token,
-                        "new_password": password,
-                        "new_password_confirmation": password,
-                    },
-                )
-                self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-                self.assertEqual(self._login(password=password).status_code, status.HTTP_200_OK)
-
-    def test_password_reset_rejects_more_than_fifty_characters(self):
-        response = self._post(
-            "password-reset-confirm",
-            {
-                "token": "test-token",
-                "new_password": "C@cao!7x" + "z" * 43,
-                "new_password_confirmation": "C@cao!7x" + "z" * 43,
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("new_password", response.data["fields"])

@@ -1,5 +1,4 @@
 import hashlib
-import secrets
 import uuid
 from datetime import datetime
 from datetime import timezone as datetime_timezone
@@ -60,7 +59,3 @@ def issue_token_pair(user):
     access_expires_at = timezone.now() + settings.AUTH_ACCESS_TOKEN_LIFETIME
     access_payload = _base_payload(user, "access", access_expires_at, sid=str(session.pk))
     return _encode(access_payload), _encode(refresh_payload), session
-
-
-def generate_password_reset_token():
-    return secrets.token_urlsafe(32)

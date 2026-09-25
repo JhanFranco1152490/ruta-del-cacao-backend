@@ -114,6 +114,11 @@ else:
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        # Por defecto compara con username, nombre y correo; el documento también es un dato
+        # que un tercero puede conocer.
+        "OPTIONS": {
+            "user_attributes": ("email", "first_name", "last_name", "identity_document"),
+        },
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -140,7 +145,7 @@ REST_FRAMEWORK = {
 
 AUTH_ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)
 AUTH_REFRESH_TOKEN_LIFETIME = timedelta(days=7)
-AUTH_PASSWORD_RESET_LIFETIME = timedelta(minutes=30)
+PASSWORD_RESET_TIMEOUT = 60 * 30
 AUTH_JWT_SIGNING_KEY = config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY)
 AUTH_JWT_ISSUER = "ruta-del-cacao-api"
 AUTH_JWT_AUDIENCE = "ruta-del-cacao-web"
@@ -201,7 +206,9 @@ MAILER_BACKEND = config(
     default="django.core.mail.backends.console.EmailBackend",
 )
 MAILER_OPTIONS = {}
-if MAILER_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
+if MAILER_BACKEND == "anymail.backends.resend.EmailBackend":
+    MAILER_OPTIONS = {"api_key": config("RESEND_API_KEY")}
+elif MAILER_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
     MAILER_OPTIONS = {
         "host": config("MAILER_HOST"),
         "port": config("MAILER_PORT", default=587, cast=int),

@@ -2,7 +2,6 @@ import uuid
 
 import jwt
 from django.conf import settings
-from django.core.mail import EmailMessage
 from django.db import transaction
 from django.middleware.csrf import CsrfViewMiddleware, get_token
 from django.utils import timezone
@@ -14,7 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AuthenticationEvent, PasswordResetToken, RefreshSession, User
+from .models import AuthenticationEvent, RefreshSession
 from .serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -25,12 +24,14 @@ from .services import (
     InactiveAccountError,
     InvalidCredentialsError,
     authenticate_user,
+    confirm_password_reset,
     cookie_options,
     record_authentication_event,
+    request_password_reset,
     serialize_user,
 )
 from .throttles import LoginRateThrottle, PasswordResetIdentifierThrottle, PasswordResetIPThrottle
-from .tokens import decode_token, fingerprint, generate_password_reset_token, issue_token_pair
+from .tokens import decode_token, fingerprint, issue_token_pair
 
 
 def request_id_from(request):
@@ -192,6 +193,11 @@ class CurrentUserView(APIView):
         return Response({"user": serialize_user(request.user)})
 
 
+RESET_REQUESTED_DETAIL = (
+    "Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña."
+)
+
+
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -200,38 +206,8 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data["email"].lower()
-        user = User.objects.filter(email__iexact=email, is_active=True).first()
-
-        if user:
-            raw_token = generate_password_reset_token()
-            PasswordResetToken.objects.create(
-                user=user,
-                token_digest=fingerprint(raw_token),
-                expires_at=timezone.now() + settings.AUTH_PASSWORD_RESET_LIFETIME,
-            )
-            reset_url = (
-                f"{settings.FRONTEND_URL.rstrip('/')}/restablecer-contrasena?token={raw_token}"
-            )
-            EmailMessage(
-                subject="Restablece tu contraseña",
-                body=(
-                    "Usa el siguiente enlace para restablecer tu contraseña. "
-                    f"El enlace vence en 30 minutos:\n\n{reset_url}"
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[user.email],
-            ).send(using="default")
-
-        return Response(
-            {
-                "detail": (
-                    "Si el correo está registrado, recibirás instrucciones para "
-                    "restablecer tu contraseña."
-                )
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
+        request_password_reset(serializer.validated_data["email"])
+        return Response({"detail": RESET_REQUESTED_DETAIL}, status=status.HTTP_202_ACCEPTED)
 
 
 class PasswordResetConfirmView(APIView):
@@ -239,46 +215,13 @@ class PasswordResetConfirmView(APIView):
     authentication_classes = []
     throttle_classes = [PasswordResetIPThrottle]
 
-    @transaction.atomic
     def post(self, request):
         enforce_csrf(request)
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        try:
-            reset_token = (
-                PasswordResetToken.objects.select_for_update()
-                .select_related("user")
-                .get(
-                    token_digest=fingerprint(serializer.validated_data["token"]),
-                    used_at__isnull=True,
-                    expires_at__gt=timezone.now(),
-                )
-            )
-        except PasswordResetToken.DoesNotExist:
-            return Response(
-                {"detail": "El enlace no es válido o ha vencido."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        serializer.validate_password_for_user(reset_token.user)
-        user = reset_token.user
-        user.set_password(serializer.validated_data["new_password"])
-        user.failed_login_attempts = 0
-        user.lockout_level = 0
-        user.locked_until = None
-        user.save(
-            update_fields=["password", "failed_login_attempts", "lockout_level", "locked_until"]
-        )
-        reset_token.used_at = timezone.now()
-        reset_token.save(update_fields=["used_at"])
-        RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
-            revoked_at=timezone.now()
-        )
-        record_authentication_event(
-            AuthenticationEvent.EventType.PASSWORD_RESET,
-            AuthenticationEvent.Outcome.SUCCESS,
+        confirm_password_reset(
+            serializer.validated_data["user"],
+            serializer.validated_data["new_password"],
             request_id_from(request),
-            user,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)

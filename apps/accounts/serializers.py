@@ -5,6 +5,8 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.validators import strip_document_separators, validate_document_digits
 
+from .services import user_from_reset_link
+
 
 class LoginSerializer(serializers.Serializer):
     login_method = serializers.ChoiceField(choices=["email", "document"])
@@ -41,29 +43,24 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    token = serializers.CharField(max_length=256, trim_whitespace=True, write_only=True)
+    uid = serializers.CharField(max_length=64, write_only=True)
+    token = serializers.CharField(max_length=128, write_only=True)
     new_password = serializers.CharField(
-        min_length=8,
-        max_length=50,
-        trim_whitespace=False,
-        write_only=True,
+        min_length=8, max_length=50, trim_whitespace=False, write_only=True
     )
     new_password_confirmation = serializers.CharField(
-        min_length=8,
-        max_length=50,
-        trim_whitespace=False,
-        write_only=True,
+        min_length=8, max_length=50, trim_whitespace=False, write_only=True
     )
 
     def validate(self, attrs):
+        user = user_from_reset_link(attrs["uid"], attrs["token"])
         if attrs["new_password"] != attrs["new_password_confirmation"]:
             raise serializers.ValidationError(
                 {"new_password_confirmation": "Las contraseñas no coinciden."}
             )
-        return attrs
-
-    def validate_password_for_user(self, user):
         try:
-            validate_password(self.validated_data["new_password"], user=user)
+            validate_password(attrs["new_password"], user=user)
         except DjangoValidationError as error:
             raise serializers.ValidationError({"new_password": list(error.messages)}) from error
+        attrs["user"] = user
+        return attrs

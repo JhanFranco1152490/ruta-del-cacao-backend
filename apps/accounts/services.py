@@ -1,15 +1,25 @@
+import logging
 from dataclasses import dataclass
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from apps.common.validators import strip_document_separators
 
-from .models import AuthenticationEvent, User
+from .emails import send_password_reset_email
+from .exceptions import InvalidResetToken
+from .models import AuthenticationEvent, RefreshSession, User
+
+logger = logging.getLogger(__name__)
 
 LOCKOUT_MINUTES = (3, 6, 12, 24, 48, 60)
 DUMMY_PASSWORD_HASH = make_password("timing-only-password-value")
@@ -145,3 +155,56 @@ def cookie_options():
         "httponly": True,
         "samesite": settings.AUTH_COOKIE_SAMESITE,
     }
+
+
+def request_password_reset(email: str) -> None:
+    user = User.objects.filter(email__iexact=email.strip(), is_active=True).first()
+    if user is None:
+        return
+    query = urlencode(
+        {
+            "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+            "token": default_token_generator.make_token(user),
+        }
+    )
+    reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/restablecer-contrasena?{query}"
+    # Un fallo del envío no puede cambiar la respuesta: tiene que ser la misma exista o no la
+    # cuenta. Tampoco se registra el mensaje de la excepción: puede traer el destinatario.
+    try:
+        send_password_reset_email(user, reset_url)
+    except Exception as error:
+        logger.error(
+            "No se pudo enviar el correo de recuperación (usuario %s, %s)",
+            user.pk,
+            type(error).__name__,
+        )
+
+
+def user_from_reset_link(uid: str, token: str) -> User:
+    try:
+        user = User.objects.get(pk=force_str(urlsafe_base64_decode(uid)), is_active=True)
+    except (User.DoesNotExist, ValueError, TypeError, OverflowError, ValidationError):
+        raise InvalidResetToken() from None
+    # El token incluye el hash de la contraseña y la fecha del último login: deja de servir
+    # en cuanto se usa o la persona vuelve a entrar.
+    if not default_token_generator.check_token(user, token):
+        raise InvalidResetToken()
+    return user
+
+
+@transaction.atomic
+def confirm_password_reset(user, new_password: str, request_id) -> None:
+    user.set_password(new_password)
+    user.failed_login_attempts = 0
+    user.lockout_level = 0
+    user.locked_until = None
+    user.save(update_fields=["password", "failed_login_attempts", "lockout_level", "locked_until"])
+    RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+        revoked_at=timezone.now()
+    )
+    record_authentication_event(
+        AuthenticationEvent.EventType.PASSWORD_RESET,
+        AuthenticationEvent.Outcome.SUCCESS,
+        request_id,
+        user,
+    )

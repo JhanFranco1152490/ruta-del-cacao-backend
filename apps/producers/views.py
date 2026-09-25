@@ -65,7 +65,13 @@ class ProducerViewSet(GenericViewSet):
         "change_status": "producers.change_status",
     }
     filterset_class = ProducerFilter
-    search_fields = ["identity_document", "first_name", "last_name", "member_code"]
+    # `unaccent` compara sin tildes en ambos lados: "perez" encuentra "Pérez" y viceversa.
+    search_fields = [
+        "identity_document",
+        "first_name__unaccent",
+        "last_name__unaccent",
+        "member_code",
+    ]
     lookup_value_converter = "uuid"
 
     def list(self, request):

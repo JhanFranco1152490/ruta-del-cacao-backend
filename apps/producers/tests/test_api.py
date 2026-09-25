@@ -9,12 +9,6 @@ from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
 
-ALL_PERMISSIONS = [
-    "producers.view",
-    "producers.create",
-    "producers.update",
-    "producers.change_status",
-]
 VALID_DATA = {
     "document_type": "CC",
     "identity_document": "12345678",
@@ -23,19 +17,6 @@ VALID_DATA = {
     "municipality_code": "54001",
     "joined_on": "2026-09-21",
 }
-
-
-@pytest.fixture
-def client_with(auth_client):
-    def _client(*permissions):
-        return auth_client(UserFactory(permissions=list(permissions)))
-
-    return _client
-
-
-@pytest.fixture
-def admin_client(client_with):
-    return client_with(*ALL_PERMISSIONS)
 
 
 # --- Acceso ---

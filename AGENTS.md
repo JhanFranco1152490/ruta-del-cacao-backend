@@ -90,6 +90,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Paginación única:** `page` (desde 1) y `page_size` (1–100, 20 por defecto); respuesta
   `{"count", "next", "previous", "results"}`. Una página fuera de rango responde 404
   `not_found`.
+- **La búsqueda de productores ignora mayúsculas y tildes** (`perez` encuentra `Pérez`) con
+  la extensión `unaccent` de PostgreSQL, que habilita una migración de `producers`: el usuario
+  de la base de datos necesita permiso para crear extensiones (`unaccent` es de confianza
+  desde PostgreSQL 13, no exige ser superusuario).
 - **Todas las respuestas bajo `/api/` llevan `Cache-Control: no-store`** (traen datos
   personales).
 - **Esquema OpenAPI** con `drf-spectacular`: `GET /api/schema` y Swagger en `/api/docs`, **solo

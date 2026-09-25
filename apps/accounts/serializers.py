@@ -5,6 +5,7 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.validators import strip_document_separators, validate_document_digits
 
+from .models import User
 from .services import user_from_reset_link
 
 
@@ -64,3 +65,22 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             raise serializers.ValidationError({"new_password": list(error.messages)}) from error
         attrs["user"] = user
         return attrs
+
+
+class SessionUserSerializer(serializers.ModelSerializer):
+    roles = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "roles", "permissions"]
+
+    def get_roles(self, user) -> list[str]:
+        return list(user.groups.order_by("name").values_list("name", flat=True))
+
+    def get_permissions(self, user) -> list[str]:
+        return sorted(user.get_all_permissions())
+
+
+class SessionSerializer(serializers.Serializer):
+    user = SessionUserSerializer()

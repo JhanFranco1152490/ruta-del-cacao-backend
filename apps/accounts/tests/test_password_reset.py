@@ -169,6 +169,14 @@ def test_rejects_more_than_fifty_characters(api_client):
     assert "new_password" in response.data["fields"]
 
 
+def test_request_requires_csrf(anonymous_client):
+    response = anonymous_client.post(RESET_REQUEST_URL, {"email": "a@example.com"}, format="json")
+
+    assert response.status_code == 403
+    assert response.data["code"] == "permission_denied"
+    assert mail.outbox == []
+
+
 def test_confirm_requires_csrf(anonymous_client):
     response = anonymous_client.post(RESET_CONFIRM_URL, {}, format="json")
 

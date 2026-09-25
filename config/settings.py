@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "apps.common",
     "apps.accounts",
     "apps.producers",
@@ -143,12 +144,20 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.common.exceptions.api_exception_handler",
 }
 
-AUTH_ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)
-AUTH_REFRESH_TOKEN_LIFETIME = timedelta(days=7)
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    # Al cambiar la contraseña, todos los tokens de acceso ya emitidos dejan de servir.
+    "CHECK_REVOKE_TOKEN": True,
+    "UPDATE_LAST_LOGIN": False,
+    "USER_ID_FIELD": "id",
+    "SIGNING_KEY": config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY),
+    "AUDIENCE": "ruta-del-cacao-web",
+    "ISSUER": "ruta-del-cacao-api",
+}
 PASSWORD_RESET_TIMEOUT = 60 * 30
-AUTH_JWT_SIGNING_KEY = config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY)
-AUTH_JWT_ISSUER = "ruta-del-cacao-api"
-AUTH_JWT_AUDIENCE = "ruta-del-cacao-web"
 AUTH_ACCESS_COOKIE = "cacao_access"
 AUTH_REFRESH_COOKIE = "cacao_refresh"
 AUTH_COOKIE_SECURE = config("AUTH_COOKIE_SECURE", default=not DEBUG, cast=bool)

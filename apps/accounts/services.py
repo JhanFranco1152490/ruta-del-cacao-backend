@@ -6,18 +6,25 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.tokens import default_token_generator
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.common.validators import strip_document_separators
 
 from .emails import send_password_reset_email
-from .exceptions import InvalidResetToken
-from .models import AuthenticationEvent, RefreshSession, User
+from .exceptions import InvalidResetToken, SessionExpired
+from .models import AuthenticationEvent, User
 
 logger = logging.getLogger(__name__)
 
@@ -138,23 +145,43 @@ def _register_successful_login(user, request_id, now):
     )
 
 
-def serialize_user(user):
-    roles = list(user.groups.order_by("name").values_list("name", flat=True))
-    permissions = sorted(user.get_all_permissions())
-    return {
-        "id": str(user.pk),
-        "email": user.email,
-        "roles": roles,
-        "permissions": permissions,
-    }
+def issue_tokens(user) -> tuple[str, str]:
+    refresh = RefreshToken.for_user(user)
+    return str(refresh.access_token), str(refresh)
 
 
-def cookie_options():
-    return {
-        "secure": settings.AUTH_COOKIE_SECURE,
-        "httponly": True,
-        "samesite": settings.AUTH_COOKIE_SAMESITE,
-    }
+def rotate_tokens(raw_refresh: str) -> tuple[str, str]:
+    serializer = TokenRefreshSerializer(data={"refresh": raw_refresh})
+    try:
+        serializer.is_valid(raise_exception=True)
+    except (TokenError, AuthenticationFailed, ObjectDoesNotExist, DRFValidationError):
+        # Vencido, revocado, reutilizado, de un usuario inactivo o borrado: para el cliente
+        # todos significan lo mismo, volver a iniciar sesión.
+        raise SessionExpired() from None
+    return serializer.validated_data["access"], serializer.validated_data["refresh"]
+
+
+def end_session(raw_refresh: str | None, request_id) -> None:
+    """Revoca la renovación si sigue vigente; si no hay nada que revocar, no hace nada."""
+    if not raw_refresh:
+        return
+    try:
+        token = RefreshToken(raw_refresh)
+    except TokenError:
+        return
+    user = User.objects.filter(pk=token[api_settings.USER_ID_CLAIM]).first()
+    token.blacklist()
+    record_authentication_event(
+        AuthenticationEvent.EventType.SESSION_REVOKED,
+        AuthenticationEvent.Outcome.SUCCESS,
+        request_id,
+        user,
+    )
+
+
+def revoke_all_sessions(user) -> None:
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
 
 
 def request_password_reset(email: str) -> None:
@@ -199,9 +226,7 @@ def confirm_password_reset(user, new_password: str, request_id) -> None:
     user.lockout_level = 0
     user.locked_until = None
     user.save(update_fields=["password", "failed_login_attempts", "lockout_level", "locked_until"])
-    RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
-        revoked_at=timezone.now()
-    )
+    revoke_all_sessions(user)
     record_authentication_event(
         AuthenticationEvent.EventType.PASSWORD_RESET,
         AuthenticationEvent.Outcome.SUCCESS,

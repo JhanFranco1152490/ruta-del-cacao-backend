@@ -1,12 +1,22 @@
 import re
 
+from django.conf import settings
 from django.core import mail
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .factories import DEFAULT_PASSWORD
 
 LOGIN_URL = "/api/auth/login"
 RESET_REQUEST_URL = "/api/auth/password-reset/request"
 RESET_CONFIRM_URL = "/api/auth/password-reset/confirm"
+
+
+def open_session(client, user):
+    """Deja en el cliente las cookies JWT de una sesión real del usuario y lo devuelve."""
+    refresh = RefreshToken.for_user(user)
+    client.cookies[settings.AUTH_ACCESS_COOKIE] = str(refresh.access_token)
+    client.cookies[settings.AUTH_REFRESH_COOKIE] = str(refresh)
+    return client
 
 
 def login_by_email(client, email, password=DEFAULT_PASSWORD, **extra):

@@ -2,6 +2,8 @@ import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
+from apps.accounts.tests.helpers import open_session
+
 
 @pytest.fixture(autouse=True)
 def _clear_cache():
@@ -21,3 +23,13 @@ def api_client(anonymous_client):
     csrf_token = anonymous_client.get("/api/auth/csrf").data["csrf_token"]
     anonymous_client.credentials(HTTP_X_CSRFTOKEN=csrf_token)
     return anonymous_client
+
+
+@pytest.fixture
+def auth_client(api_client):
+    """Devuelve una función que abre una sesión real (cookies JWT) para el usuario dado."""
+
+    def _login(user):
+        return open_session(api_client, user)
+
+    return _login

@@ -1,32 +1,27 @@
-import jwt
 from django.conf import settings
-from django.utils import timezone
-from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.permissions import SAFE_METHODS
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import RefreshSession, User
-from .tokens import decode_token
+from apps.common.csrf import enforce_csrf
 
 
-class CookieJWTAuthentication(BaseAuthentication):
+class CookieJWTAuthentication(JWTAuthentication):
+    """Lee el token de acceso de la cookie HttpOnly en vez del header Authorization.
+
+    El navegador envía la cookie en cualquier petición al API, incluso desde otro sitio, así
+    que toda petición que modifica datos exige además el token CSRF.
+    """
+
     def authenticate(self, request):
-        token = request.COOKIES.get(settings.AUTH_ACCESS_COOKIE)
-        if not token:
+        raw_token = request.COOKIES.get(settings.AUTH_ACCESS_COOKIE)
+        if not raw_token:
             return None
-
-        try:
-            payload = decode_token(token, "access")
-            user = User.objects.get(pk=payload["sub"], is_active=True)
-            session = RefreshSession.objects.get(
-                pk=payload["sid"],
-                user=user,
-                revoked_at__isnull=True,
-                expires_at__gt=timezone.now(),
-            )
-        except (jwt.InvalidTokenError, User.DoesNotExist, RefreshSession.DoesNotExist, ValueError):
-            raise AuthenticationFailed("La sesión no es válida o ha vencido.") from None
-
-        return user, session
+        validated_token = self.get_validated_token(raw_token)
+        user = self.get_user(validated_token)
+        if request.method not in SAFE_METHODS:
+            enforce_csrf(request)
+        return user, validated_token
 
     def authenticate_header(self, request):
-        return "Cookie"
+        # Con un valor aquí DRF responde 401 (y no 403) cuando falta o vence la sesión.
+        return 'Cookie realm="api"'

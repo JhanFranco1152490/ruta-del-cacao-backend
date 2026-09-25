@@ -7,3 +7,9 @@ class InvalidResetToken(ApiError):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "El enlace no es válido o ya venció. Solicita uno nuevo."
     default_code = "invalid_reset_token"
+
+
+class SessionExpired(ApiError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    default_detail = "La sesión venció. Inicia sesión de nuevo."
+    default_code = "authentication_failed"

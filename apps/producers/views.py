@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.views import enforce_csrf
+from apps.common.csrf import enforce_csrf
 
 from .errors import producer_error, validation_error
 from .exceptions import DuplicateDocumentError, ProducerValidationError

@@ -50,18 +50,6 @@ class User(AbstractUser):
         return self.email
 
 
-class RefreshSession(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refresh_sessions")
-    token_fingerprint = models.CharField(max_length=64, unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-    revoked_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        indexes = [models.Index(fields=["user", "revoked_at"])]
-
-
 class AuthenticationEvent(models.Model):
     class EventType(models.TextChoices):
         LOGIN_SUCCEEDED = "login_succeeded", "Inicio de sesión exitoso"

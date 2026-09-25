@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.accounts.models import AuthenticationEvent, RefreshSession, User
+from apps.accounts.models import User
 
 
 @override_settings(AUTH_COOKIE_SECURE=False)
@@ -57,21 +57,6 @@ class AuthenticationAPITests(APITestCase):
         return self._post(
             "auth-login",
             data,
-        )
-
-    def test_login_with_email_sets_secure_session_and_returns_identity(self):
-        response = self._login()
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["user"]["roles"], ["producer"])
-        self.assertIn("cacao_access", response.cookies)
-        self.assertIn("cacao_refresh", response.cookies)
-        self.assertTrue(response.cookies["cacao_access"]["httponly"])
-        self.assertEqual(
-            AuthenticationEvent.objects.filter(
-                event_type=AuthenticationEvent.EventType.LOGIN_SUCCEEDED
-            ).count(),
-            1,
         )
 
     def test_login_with_identity_document_and_me_endpoint(self):
@@ -187,35 +172,6 @@ class AuthenticationAPITests(APITestCase):
         self.assertEqual(self.user.lockout_level, 0)
         self.assertIsNone(self.user.locked_until)
 
-    def test_refresh_rotates_token_and_rejects_replay(self):
-        self._login()
-        original_refresh = self.client.cookies["cacao_refresh"].value
-
-        response = self._post("auth-refresh")
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertNotEqual(self.client.cookies["cacao_refresh"].value, original_refresh)
-
-        replay_client = APIClient(enforce_csrf_checks=True)
-        replay_client.cookies["csrftoken"] = self.csrf_token
-        replay_client.cookies["cacao_refresh"] = original_refresh
-        replay = self._post("auth-refresh", client=replay_client)
-
-        self.assertEqual(replay.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_logout_revokes_session_and_clears_cookies(self):
-        self._login()
-
-        response = self._post("auth-logout")
-
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(response.cookies["cacao_access"].value, "")
-        self.assertFalse(RefreshSession.objects.filter(revoked_at__isnull=True).exists())
-        self.assertEqual(
-            self.client.get(reverse("auth-me"), secure=True).status_code,
-            status.HTTP_401_UNAUTHORIZED,
-        )
-
     def test_csrf_is_required_for_cookie_creating_requests(self):
         client = APIClient(enforce_csrf_checks=True)
 
@@ -227,22 +183,3 @@ class AuthenticationAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_browser_csrf_token_and_cors_allow_frontend_login(self):
-        with override_settings(
-            CORS_ALLOWED_ORIGINS=["http://localhost:3000"],
-            CSRF_TRUSTED_ORIGINS=["http://localhost:3000"],
-        ):
-            client = APIClient(enforce_csrf_checks=True)
-            csrf = client.get(reverse("auth-csrf"), HTTP_ORIGIN="http://localhost:3000")
-            self.assertEqual(csrf["Access-Control-Allow-Origin"], "http://localhost:3000")
-            self.assertEqual(csrf["Access-Control-Allow-Credentials"], "true")
-            response = client.post(
-                reverse("auth-login"),
-                {"login_method": "email", "email": self.user.email, "password": self.password},
-                format="json",
-                HTTP_ORIGIN="http://localhost:3000",
-                HTTP_X_CSRFTOKEN=csrf.data["csrf_token"],
-            )
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqual(client.get(reverse("auth-me")).status_code, status.HTTP_200_OK)

@@ -1,23 +1,23 @@
 import uuid
 
-import jwt
 from django.conf import settings
-from django.db import transaction
-from django.middleware.csrf import CsrfViewMiddleware, get_token
-from django.utils import timezone
+from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AuthenticationEvent, RefreshSession
+from apps.common.csrf import CsrfProtectedMixin
+
+from .cookies import clear_auth_cookies, set_auth_cookies
+from .exceptions import SessionExpired
 from .serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    SessionSerializer,
 )
 from .services import (
     AccountLockedError,
@@ -25,13 +25,12 @@ from .services import (
     InvalidCredentialsError,
     authenticate_user,
     confirm_password_reset,
-    cookie_options,
-    record_authentication_event,
+    end_session,
+    issue_tokens,
     request_password_reset,
-    serialize_user,
+    rotate_tokens,
 )
 from .throttles import LoginRateThrottle, PasswordResetIdentifierThrottle, PasswordResetIPThrottle
-from .tokens import decode_token, fingerprint, issue_token_pair
 
 
 def request_id_from(request):
@@ -39,44 +38,6 @@ def request_id_from(request):
         return uuid.UUID(request.headers.get("X-Request-ID", ""))
     except (TypeError, ValueError):
         return uuid.uuid4()
-
-
-def enforce_csrf(request):
-    check = CsrfViewMiddleware(lambda _: None)
-    failure = check.process_view(request._request, None, (), {})
-    if failure:
-        raise PermissionDenied("La validación CSRF falló.")
-
-
-def set_auth_cookies(response, access_token, refresh_token):
-    options = cookie_options()
-    response.set_cookie(
-        settings.AUTH_ACCESS_COOKIE,
-        access_token,
-        max_age=int(settings.AUTH_ACCESS_TOKEN_LIFETIME.total_seconds()),
-        path="/api/",
-        **options,
-    )
-    response.set_cookie(
-        settings.AUTH_REFRESH_COOKIE,
-        refresh_token,
-        max_age=int(settings.AUTH_REFRESH_TOKEN_LIFETIME.total_seconds()),
-        path="/api/auth/",
-        **options,
-    )
-
-
-def clear_auth_cookies(response):
-    response.delete_cookie(
-        settings.AUTH_ACCESS_COOKIE,
-        path="/api/",
-        samesite=settings.AUTH_COOKIE_SAMESITE,
-    )
-    response.delete_cookie(
-        settings.AUTH_REFRESH_COOKIE,
-        path="/api/auth/",
-        samesite=settings.AUTH_COOKIE_SAMESITE,
-    )
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -88,22 +49,20 @@ class CSRFTokenView(APIView):
         return Response({"csrf_token": get_token(request._request)})
 
 
-class LoginView(APIView):
+class LoginView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_classes = [LoginRateThrottle]
 
+    # Transitorio: el manejo de errores con Response directas se reemplaza en la Tarea 7.
     def post(self, request):
-        enforce_csrf(request)
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        request_id = request_id_from(request)
-
         try:
             user = authenticate_user(
                 login_method=serializer.validated_data["login_method"],
                 password=serializer.validated_data["password"],
-                request_id=request_id,
+                request_id=request_id_from(request),
                 email=serializer.validated_data.get("email"),
                 document_type=serializer.validated_data.get("document_type"),
                 identity_document=serializer.validated_data.get("identity_document"),
@@ -115,8 +74,7 @@ class LoginView(APIView):
             )
         except InactiveAccountError:
             return Response(
-                {"detail": "La cuenta está inactiva."},
-                status=status.HTTP_403_FORBIDDEN,
+                {"detail": "La cuenta está inactiva."}, status=status.HTTP_403_FORBIDDEN
             )
         except AccountLockedError as error:
             return Response(
@@ -126,61 +84,36 @@ class LoginView(APIView):
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )
-
-        access_token, refresh_token, _ = issue_token_pair(user)
-        response = Response({"user": serialize_user(user)})
-        set_auth_cookies(response, access_token, refresh_token)
+        response = Response(SessionSerializer({"user": user}).data)
+        set_auth_cookies(response, *issue_tokens(user))
         return response
 
 
-class RefreshView(APIView):
+class RefreshView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
-    @transaction.atomic
     def post(self, request):
-        enforce_csrf(request)
-        token = request.COOKIES.get(settings.AUTH_REFRESH_COOKIE)
-        if not token:
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
-
-        try:
-            payload = decode_token(token, "refresh")
-            session = RefreshSession.objects.select_for_update().get(
-                pk=payload["sid"],
-                token_fingerprint=fingerprint(payload["jti"]),
-                revoked_at__isnull=True,
-                expires_at__gt=timezone.now(),
-                user__is_active=True,
-            )
-        except (jwt.InvalidTokenError, RefreshSession.DoesNotExist, ValueError):
-            response = Response(status=status.HTTP_401_UNAUTHORIZED)
-            clear_auth_cookies(response)
-            return response
-
-        session.revoked_at = timezone.now()
-        session.save(update_fields=["revoked_at"])
-        access_token, refresh_token, _ = issue_token_pair(session.user)
+        access, refresh = rotate_tokens(request.COOKIES.get(settings.AUTH_REFRESH_COOKIE, ""))
         response = Response(status=status.HTTP_204_NO_CONTENT)
-        set_auth_cookies(response, access_token, refresh_token)
+        set_auth_cookies(response, access, refresh)
+        return response
+
+    def handle_exception(self, exc):
+        response = super().handle_exception(exc)
+        if isinstance(exc, SessionExpired):
+            clear_auth_cookies(response)
         return response
 
 
-class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+class LogoutView(CsrfProtectedMixin, APIView):
+    # No depende del token de acceso: vence a los 15 minutos y la persona debe poder cerrar
+    # la sesión (y revocar la renovación) aunque ya haya vencido.
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     def post(self, request):
-        enforce_csrf(request)
-        session = request.auth
-        if session.revoked_at is None:
-            session.revoked_at = timezone.now()
-            session.save(update_fields=["revoked_at"])
-            record_authentication_event(
-                AuthenticationEvent.EventType.SESSION_REVOKED,
-                AuthenticationEvent.Outcome.SUCCESS,
-                request_id_from(request),
-                request.user,
-            )
+        end_session(request.COOKIES.get(settings.AUTH_REFRESH_COOKIE), request_id_from(request))
         response = Response(status=status.HTTP_204_NO_CONTENT)
         clear_auth_cookies(response)
         return response
@@ -190,7 +123,7 @@ class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"user": serialize_user(request.user)})
+        return Response(SessionSerializer({"user": request.user}).data)
 
 
 RESET_REQUESTED_DETAIL = (
@@ -198,7 +131,7 @@ RESET_REQUESTED_DETAIL = (
 )
 
 
-class PasswordResetRequestView(APIView):
+class PasswordResetRequestView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_classes = [PasswordResetIPThrottle, PasswordResetIdentifierThrottle]
@@ -210,13 +143,12 @@ class PasswordResetRequestView(APIView):
         return Response({"detail": RESET_REQUESTED_DETAIL}, status=status.HTTP_202_ACCEPTED)
 
 
-class PasswordResetConfirmView(APIView):
+class PasswordResetConfirmView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_classes = [PasswordResetIPThrottle]
 
     def post(self, request):
-        enforce_csrf(request)
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         confirm_password_reset(

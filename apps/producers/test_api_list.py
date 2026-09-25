@@ -35,7 +35,7 @@ class ProducerAPIListTests(APITestCase):
         result = response.data["results"][0]
         self.assertNotIn("phone", result)
         self.assertNotIn("email", result)
-        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertIn("no-store", response["Cache-Control"])
 
     def test_filters_and_paginates_through_the_api(self):
         Producer.objects.create(

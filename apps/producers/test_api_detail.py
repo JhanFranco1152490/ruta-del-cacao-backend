@@ -40,7 +40,7 @@ class ProducerAPIDetailTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["email"], "ana@example.com")
-        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertIn("no-store", response["Cache-Control"])
 
     def test_updates_a_producer_with_the_current_version(self):
         self.authenticate_for_write()

@@ -295,7 +295,7 @@ class AuthenticationAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("new_password", response.data)
+        self.assertIn("new_password", response.data["fields"])
 
     def test_csrf_is_required_for_cookie_creating_requests(self):
         client = APIClient(enforce_csrf_checks=True)
@@ -354,4 +354,4 @@ class AuthenticationAPITests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("new_password", response.data)
+        self.assertIn("new_password", response.data["fields"])

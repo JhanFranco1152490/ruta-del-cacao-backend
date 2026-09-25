@@ -1,11 +1,14 @@
 import smtplib
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from threading import Barrier
 from unittest import mock
 
 import pytest
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.mail.backends.base import BaseEmailBackend
+from django.db import connection
 from django.test import override_settings
 
 from apps.accounts.models import AuthenticationEvent
@@ -14,8 +17,10 @@ from apps.accounts.tests.helpers import (
     RESET_CONFIRM_URL,
     RESET_REQUEST_URL,
     confirm_reset,
+    csrf_client,
     request_reset_link,
 )
+from apps.accounts.throttles import PasswordResetIPThrottle
 
 pytestmark = pytest.mark.django_db
 
@@ -100,6 +105,56 @@ def test_link_expires_after_thirty_minutes(api_client):
 
     assert response.status_code == 400
     assert response.data["code"] == "invalid_reset_token"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_simultaneous_confirmations_with_the_same_link_succeed_only_once():
+    user = UserFactory()
+    client = csrf_client()
+    uid, token = request_reset_link(client, user.email)
+    attempts = [
+        (client, "primera frase segura 2026"),
+        (csrf_client(), "segunda frase segura 2026"),
+    ]
+    barrier = Barrier(len(attempts))
+
+    def confirm(attempt):
+        attempt_client, password = attempt
+        try:
+            barrier.wait()
+            return confirm_reset(attempt_client, uid, token, password)
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(max_workers=len(attempts)) as executor:
+        responses = list(executor.map(confirm, attempts))
+
+    assert sorted(response.status_code for response in responses) == [204, 400]
+    winner = next(
+        password for (_, password), r in zip(attempts, responses) if r.status_code == 204
+    )
+    loser = next(response for response in responses if response.status_code == 400)
+    assert loser.data["code"] == "invalid_reset_token"
+    user.refresh_from_db()
+    assert user.check_password(winner)
+
+
+def test_confirm_has_its_own_request_quota(api_client):
+    for index in range(PasswordResetIPThrottle().num_requests):
+        api_client.post(RESET_REQUEST_URL, {"email": f"persona{index}@example.com"}, format="json")
+
+    response = confirm_reset(api_client, "uid", "token", NEW_PASSWORD)
+
+    assert response.status_code == 400
+    assert response.data["code"] == "invalid_reset_token"
+
+
+@pytest.mark.parametrize("body", ["[]", '["a@example.com"]', '"texto"', "1", "null"])
+def test_request_with_a_body_that_is_not_an_object_is_a_validation_error(api_client, body):
+    response = api_client.post(RESET_REQUEST_URL, body, content_type="application/json")
+
+    assert response.status_code == 400
+    assert response.data["code"] == "validation_error"
 
 
 @pytest.mark.parametrize("uid", ["no-es-base64", "MTIz"])

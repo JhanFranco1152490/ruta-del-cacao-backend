@@ -17,9 +17,6 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     document_type = models.CharField(max_length=3, choices=DocumentType.choices)
     identity_document = models.CharField(max_length=15)
-    failed_login_attempts = models.PositiveSmallIntegerField(default=0)
-    lockout_level = models.PositiveSmallIntegerField(default=0)
-    locked_until = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 

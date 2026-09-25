@@ -2,6 +2,7 @@ import re
 
 from django.conf import settings
 from django.core import mail
+from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .factories import DEFAULT_PASSWORD
@@ -9,6 +10,13 @@ from .factories import DEFAULT_PASSWORD
 LOGIN_URL = "/api/auth/login"
 RESET_REQUEST_URL = "/api/auth/password-reset/request"
 RESET_CONFIRM_URL = "/api/auth/password-reset/confirm"
+
+
+def csrf_client():
+    """Cliente que se comporta como el navegador: exige CSRF y ya trae el token."""
+    client = APIClient(enforce_csrf_checks=True)
+    client.credentials(HTTP_X_CSRFTOKEN=client.get("/api/auth/csrf").data["csrf_token"])
+    return client
 
 
 def open_session(client, user):
@@ -25,6 +33,19 @@ def login_by_email(client, email, password=DEFAULT_PASSWORD, **extra):
         {"login_method": "email", "email": email, "password": password},
         format="json",
         **extra,
+    )
+
+
+def login_by_document(client, number, document_type="CC", password=DEFAULT_PASSWORD):
+    return client.post(
+        LOGIN_URL,
+        {
+            "login_method": "document",
+            "document_type": document_type,
+            "identity_document": number,
+            "password": password,
+        },
+        format="json",
     )
 
 

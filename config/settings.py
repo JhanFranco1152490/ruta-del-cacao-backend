@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "corsheaders",
+    "axes",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "apps.common",
@@ -65,6 +66,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.common.middleware.ApiNoStoreMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -138,10 +140,57 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTH_USER_MODEL = "accounts.User"
 
+# Cuántos proxies de confianza hay delante de la app. DRF lo usa (NUM_PROXIES) para leer la IP
+# real desde X-Forwarded-For contando desde la derecha; con 0 se usa REMOTE_ADDR tal cual.
+TRUSTED_PROXY_COUNT = config("TRUSTED_PROXY_COUNT", default=0, cast=int)
+
+AUTHENTICATION_BACKENDS = [
+    # axes va primero: corta el intento si la pareja usuario + IP está bloqueada.
+    "axes.backends.AxesStandaloneBackend",
+    # Deja pasar cuentas inactivas con la contraseña correcta para poder avisarles que lo
+    # están; log_in las rechaza igual (en el admin lo hace su formulario de acceso).
+    "django.contrib.auth.backends.AllowAllUsersModelBackend",
+]
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+# Bloquear la pareja y no el usuario solo evita que alguien bloquee una cuenta ajena
+# conociendo su correo.
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+# Un intento durante el bloqueo no lo alarga: el bloqueo dura exactamente AXES_COOLOFF_TIME.
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+# axes toma por defecto USERNAME_FIELD ("email") como clave de las credenciales, pero
+# authenticate() y lockout_identifier las manejan como "username". Sin esto el identificador
+# sale vacío al comprobar el bloqueo y al reiniciar el conteo, y el bloqueo nunca se aplica.
+AXES_USERNAME_FORM_FIELD = "username"
+AXES_USERNAME_CALLABLE = "apps.accounts.axes.lockout_identifier"
+# La auditoría de accesos la lleva AuthenticationEvent, sin correos ni IP.
+AXES_DISABLE_ACCESS_LOG = True
+# axes lee la IP con la misma función que los límites de solicitudes de DRF: sin proxy usa
+# REMOTE_ADDR y con proxies cuenta solo los saltos de confianza desde la derecha de
+# X-Forwarded-For. Así las dos ven siempre la misma IP y el cliente no puede inventarse una
+# para esquivar el bloqueo.
+AXES_CLIENT_IP_CALLABLE = "apps.accounts.axes.client_ip"
+# axes guarda los parámetros del POST en claro salvo estos; con peticiones de formulario
+# llegarían el correo y el documento. También los enmascara en sus logs.
+AXES_SENSITIVE_PARAMETERS = ["username", "ip_address", "email", "identity_document"]
+# Sin el modo detallado, los logs de axes solo nombran los parámetros del bloqueo (usuario e IP),
+# que la lista de arriba enmascara, y no el user-agent. Tras un login exitoso axes nombra al
+# usuario por su correo: "username" no puede salir de esa lista.
+AXES_VERBOSE = False
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["apps.accounts.authentication.CookieJWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "apps.common.exceptions.api_exception_handler",
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT,
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "20/min",
+        "password_reset": "5/hour",
+        "password_reset_identifier": "5/hour",
+        "password_reset_confirm": "5/hour",
+    },
 }
 
 SIMPLE_JWT = {

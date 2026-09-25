@@ -2,7 +2,7 @@ import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
-from apps.accounts.tests.helpers import open_session
+from apps.accounts.tests.helpers import csrf_client, open_session
 
 
 @pytest.fixture(autouse=True)
@@ -18,11 +18,8 @@ def anonymous_client():
 
 
 @pytest.fixture
-def api_client(anonymous_client):
-    """Cliente que se comporta como el navegador: exige CSRF y ya trae el token."""
-    csrf_token = anonymous_client.get("/api/auth/csrf").data["csrf_token"]
-    anonymous_client.credentials(HTTP_X_CSRFTOKEN=csrf_token)
-    return anonymous_client
+def api_client():
+    return csrf_client()
 
 
 @pytest.fixture

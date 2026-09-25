@@ -4,15 +4,20 @@ import pytest
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.accounts.models import AuthenticationEvent
+from apps.accounts.services import revoke_all_sessions
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import (
     LOGIN_URL,
+    confirm_reset,
     login_by_email,
     open_session,
+    request_reset_link,
     reset_password,
 )
 from apps.accounts.throttles import LoginRateThrottle
@@ -178,8 +183,10 @@ def test_logout_with_garbage_refresh_clears_cookies_without_event(api_client):
 
 def test_repeated_logout_records_a_single_event(auth_client):
     client = auth_client(UserFactory())
+    refresh = client.cookies["cacao_refresh"].value
 
     client.post(LOGOUT_URL)
+    client.cookies["cacao_refresh"] = refresh
     assert client.post(LOGOUT_URL).status_code == 204
 
     assert AuthenticationEvent.objects.filter(event_type=SESSION_REVOKED).count() == 1
@@ -215,6 +222,35 @@ def test_password_reset_revokes_a_rotated_refresh(auth_client):
 
     client.cookies["cacao_refresh"] = rotated_refresh
     assert client.post(REFRESH_URL).status_code == 401
+
+
+def test_revoking_every_session_skips_expired_tokens_in_constant_queries(
+    django_assert_max_num_queries,
+):
+    user = UserFactory()
+    live_tokens = [RefreshToken.for_user(user) for _ in range(3)]
+    expired_token = RefreshToken.for_user(user)
+    OutstandingToken.objects.filter(jti=expired_token["jti"]).update(
+        expires_at=timezone.now() - timedelta(days=1)
+    )
+    BlacklistedToken.objects.create(token=OutstandingToken.objects.get(jti=live_tokens[0]["jti"]))
+
+    with django_assert_max_num_queries(2):
+        revoke_all_sessions(user)
+
+    revoked = set(BlacklistedToken.objects.values_list("token__jti", flat=True))
+    assert revoked == {token["jti"] for token in live_tokens}
+
+
+def test_logging_in_invalidates_a_pending_reset_link(api_client):
+    user = UserFactory()
+    uid, token = request_reset_link(api_client, user.email)
+
+    login_by_email(api_client, user.email)
+    response = confirm_reset(api_client, uid, token, NEW_PASSWORD)
+
+    assert response.status_code == 400
+    assert response.data["code"] == "invalid_reset_token"
 
 
 def test_csrf_rejected_posts_do_not_spend_the_login_quota(api_client):

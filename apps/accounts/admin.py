@@ -18,10 +18,6 @@ class CustomUserAdmin(UserAdmin):
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
         ),
         ("Fechas", {"fields": ("last_login", "date_joined")}),
-        (
-            "Seguridad",
-            {"fields": ("failed_login_attempts", "lockout_level", "locked_until")},
-        ),
     )
     add_fieldsets = (
         (

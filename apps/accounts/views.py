@@ -20,17 +20,20 @@ from .serializers import (
     SessionSerializer,
 )
 from .services import (
-    AccountLockedError,
-    InactiveAccountError,
-    InvalidCredentialsError,
-    authenticate_user,
     confirm_password_reset,
     end_session,
     issue_tokens,
+    log_in,
     request_password_reset,
+    resolve_login_username,
     rotate_tokens,
 )
-from .throttles import LoginRateThrottle, PasswordResetIdentifierThrottle, PasswordResetIPThrottle
+from .throttles import (
+    LoginRateThrottle,
+    PasswordResetConfirmThrottle,
+    PasswordResetIdentifierThrottle,
+    PasswordResetIPThrottle,
+)
 
 
 def request_id_from(request):
@@ -54,36 +57,21 @@ class LoginView(CsrfProtectedMixin, APIView):
     authentication_classes = []
     throttle_classes = [LoginRateThrottle]
 
-    # Transitorio: el manejo de errores con Response directas se reemplaza en la Tarea 7.
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            user = authenticate_user(
-                login_method=serializer.validated_data["login_method"],
-                password=serializer.validated_data["password"],
-                request_id=request_id_from(request),
-                email=serializer.validated_data.get("email"),
-                document_type=serializer.validated_data.get("document_type"),
-                identity_document=serializer.validated_data.get("identity_document"),
-            )
-        except InvalidCredentialsError:
-            return Response(
-                {"detail": "Usuario o contraseña incorrectos."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        except InactiveAccountError:
-            return Response(
-                {"detail": "La cuenta está inactiva."}, status=status.HTTP_403_FORBIDDEN
-            )
-        except AccountLockedError as error:
-            return Response(
-                {
-                    "detail": "La cuenta está bloqueada temporalmente.",
-                    "retry_after": error.retry_after,
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        data = serializer.validated_data
+        username = resolve_login_username(
+            email=data.get("email"),
+            document_type=data.get("document_type"),
+            identity_document=data.get("identity_document"),
+        )
+        user = log_in(
+            request,
+            username=username,
+            password=data["password"],
+            request_id=request_id_from(request),
+        )
         response = Response(SessionSerializer({"user": user}).data)
         set_auth_cookies(response, *issue_tokens(user))
         return response
@@ -146,14 +134,13 @@ class PasswordResetRequestView(CsrfProtectedMixin, APIView):
 class PasswordResetConfirmView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
-    throttle_classes = [PasswordResetIPThrottle]
+    throttle_classes = [PasswordResetConfirmThrottle]
 
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
         confirm_password_reset(
-            serializer.validated_data["user"],
-            serializer.validated_data["new_password"],
-            request_id_from(request),
+            data["user"], data["token"], data["new_password"], request_id_from(request)
         )
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -1,11 +1,20 @@
 import pytest
+from django.core.exceptions import NON_FIELD_ERRORS, RequestDataTooBig, SuspiciousOperation
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import Http404
 from django.test import override_settings
 from rest_framework import exceptions, status
+from rest_framework_simplejwt.exceptions import InvalidToken
 
-from apps.common.exceptions import ApiError, api_exception_handler
+from apps.common.exceptions import (
+    AUTHENTICATION_FAILED_DETAIL,
+    INTERNAL_ERROR_DETAIL,
+    PARSE_ERROR_DETAIL,
+    ApiError,
+    PayloadTooLarge,
+    api_exception_handler,
+)
 
 
 class Conflict(ApiError):
@@ -96,16 +105,126 @@ def test_custom_error_carries_code_fields_and_extra_keys():
     }
 
 
+TECHNICAL_MESSAGE = "detalle técnico con datos"
+
+
+def fail_deep_inside_a_service():
+    raise RuntimeError(TECHNICAL_MESSAGE)
+
+
+def caught(function):
+    try:
+        function()
+    except Exception as error:
+        return error
+
+
 @override_settings(DEBUG=False)
-def test_unhandled_error_returns_internal_error_without_details(caplog):
-    response = handle(RuntimeError("detalle técnico con datos"))
+def test_unhandled_error_returns_internal_error_without_details():
+    response = handle(caught(fail_deep_inside_a_service))
 
     assert response.status_code == 500
     assert response.data["code"] == "internal_error"
     assert "detalle técnico" not in response.data["detail"]
-    assert "detalle técnico con datos" in caplog.text
+
+
+@override_settings(DEBUG=False)
+def test_unhandled_error_log_has_class_and_frames_but_never_the_message(caplog):
+    handle(caught(fail_deep_inside_a_service))
+
+    assert "RuntimeError" in caplog.text
+    assert "fail_deep_inside_a_service" in caplog.text
+    assert "test_exceptions.py" in caplog.text
+    assert TECHNICAL_MESSAGE not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 @override_settings(DEBUG=True)
 def test_unhandled_error_is_reraised_in_debug():
     assert handle(RuntimeError("boom")) is None
+
+
+def test_request_data_too_big_is_a_413_with_the_uniform_error():
+    response = handle(RequestDataTooBig("El cuerpo supera el límite."))
+
+    assert response.status_code == 413
+    assert response.data == {
+        "detail": PayloadTooLarge.default_detail,
+        "code": "payload_too_large",
+        "fields": {},
+    }
+
+
+def test_any_other_suspicious_operation_is_a_parse_error():
+    response = handle(SuspiciousOperation("Host no permitido: ejemplo.invalid"))
+
+    assert response.status_code == 400
+    assert response.data["code"] == "parse_error"
+    assert "ejemplo.invalid" not in response.data["detail"]
+    assert response.data["fields"] == {}
+
+
+@pytest.mark.parametrize("exception_class", [DjangoValidationError, exceptions.ValidationError])
+def test_model_wide_error_is_the_detail_and_not_a_field(exception_class):
+    response = handle(exception_class({NON_FIELD_ERRORS: ["Las fechas no coinciden."]}))
+
+    assert response.status_code == 400
+    assert response.data["detail"] == "Las fechas no coinciden."
+    assert response.data["fields"] == {}
+
+
+def test_extra_keys_never_replace_the_standard_ones():
+    extra = {"detail": "otro", "code": "otro", "fields": {"name": ["x"]}, "existing_id": "abc"}
+
+    response = handle(Conflict(extra=extra))
+
+    assert response.data == {
+        "detail": "Conflicto de prueba.",
+        "code": "test_conflict",
+        "fields": {},
+        "existing_id": "abc",
+    }
+
+
+class ServiceUnavailable(exceptions.APIException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+@pytest.mark.parametrize("exception_class", [exceptions.APIException, ServiceUnavailable])
+def test_server_side_api_exception_hides_its_message(exception_class, caplog):
+    def fail_with_an_api_exception():
+        raise exception_class(TECHNICAL_MESSAGE)
+
+    response = handle(caught(fail_with_an_api_exception))
+
+    assert response.status_code == exception_class.status_code
+    assert response.data == {
+        "detail": INTERNAL_ERROR_DETAIL,
+        "code": "internal_error",
+        "fields": {},
+    }
+    assert exception_class.__name__ in caplog.text
+    assert TECHNICAL_MESSAGE not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("exc", "code", "detail"),
+    [
+        (
+            exceptions.ParseError("JSON parse error - Expecting value: line 1 column 2 (char 1)"),
+            "parse_error",
+            PARSE_ERROR_DETAIL,
+        ),
+        (InvalidToken(), "authentication_failed", AUTHENTICATION_FAILED_DETAIL),
+        (
+            exceptions.AuthenticationFailed("User not found"),
+            "authentication_failed",
+            AUTHENTICATION_FAILED_DETAIL,
+        ),
+    ],
+)
+def test_parse_and_authentication_errors_have_a_fixed_detail(exc, code, detail):
+    response = handle(exc)
+
+    assert response.data["code"] == code
+    assert response.data["detail"] == detail

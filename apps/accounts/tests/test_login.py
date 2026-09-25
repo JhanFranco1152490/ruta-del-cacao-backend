@@ -24,6 +24,7 @@ from apps.accounts.throttles import LoginRateThrottle
 
 pytestmark = pytest.mark.django_db
 
+ADMIN_LOGIN_URL = "/admin/login/"
 WRONG_PASSWORD = "contraseña equivocada"
 PROXY_ADDRESS = "10.0.0.1"
 CLIENT_ADDRESS = "203.0.113.5"
@@ -195,23 +196,29 @@ def test_login_requires_csrf(anonymous_client):
     assert login_by_email(anonymous_client, user.email).status_code == 403
 
 
-def test_lockout_never_stores_form_fields_in_the_clear(api_client):
+def test_lockout_never_stores_form_fields_in_the_clear(settings):
+    # El formulario de acceso del admin vuelve a mostrarse tras el intento fallido y sus
+    # estáticos usan el almacenamiento con manifiesto, que en pruebas no se ha generado.
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
     UserFactory(email="ana.gomez@example.com")
 
-    api_client.post(
-        LOGIN_URL,
-        {"login_method": "email", "email": "ana.gomez@example.com", "password": WRONG_PASSWORD},
-        format="multipart",
-    )
-    api_client.post(
-        LOGIN_URL,
+    # El login del admin es el único que sigue usando formulario. axes guarda todo el POST,
+    # así que se envían también los campos que la API recibiría como correo y documento.
+    admin_client = Client()
+    admin_client.post(
+        ADMIN_LOGIN_URL,
         {
-            "login_method": "document",
-            "document_type": "CC",
-            "identity_document": "77.777.777",
+            "username": "ana.gomez@example.com",
             "password": WRONG_PASSWORD,
+            "email": "ana.gomez@example.com",
         },
-        format="multipart",
+    )
+    admin_client.post(
+        ADMIN_LOGIN_URL,
+        {"username": "77.777.777", "password": WRONG_PASSWORD, "identity_document": "77.777.777"},
     )
 
     stored = "\n".join(AccessAttempt.objects.values_list("post_data", flat=True))
@@ -219,6 +226,19 @@ def test_lockout_never_stores_form_fields_in_the_clear(api_client):
     assert "ana.gomez@example.com" not in stored
     assert "77.777.777" not in stored
     assert WRONG_PASSWORD not in stored
+
+
+def test_form_post_to_the_login_api_is_rejected_without_recording_an_attempt(api_client):
+    UserFactory(email="ana.gomez@example.com")
+
+    response = api_client.post(
+        LOGIN_URL,
+        {"login_method": "email", "email": "ana.gomez@example.com", "password": WRONG_PASSWORD},
+        format="multipart",
+    )
+
+    assert response.status_code == 415
+    assert AccessAttempt.objects.count() == 0
 
 
 def test_lockout_identifier_is_a_keyed_hash():

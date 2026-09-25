@@ -11,6 +11,12 @@ def enforce_csrf(request):
     DRF desactiva el middleware CSRF en sus vistas y solo lo reactiva para su autenticación
     por sesión. Aquí la sesión viaja en cookies propias, así que hay que pedirlo explícito.
     """
+    # La verificación de Django lee request.POST, que agota el cuerpo de un formulario
+    # multipart; como la API ya no tiene parser de formularios, DRF respondería con datos
+    # vacíos en vez de 415. Leer los datos antes rechaza cualquier cuerpo que no sea JSON.
+    # Por eso un error del cuerpo (415, 400 por JSON mal formado, 413) tiene precedencia sobre
+    # el CSRF: se responde antes que el 403.
+    _ = request.data
     check = CSRFCheck(lambda _request: None)
     check.process_request(request._request)
     if check.process_view(request._request, None, (), {}):

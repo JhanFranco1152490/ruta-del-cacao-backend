@@ -56,6 +56,19 @@ def test_schema_and_docs_are_published_in_debug(client, reload_urls):
     assert client.get("/api/docs").status_code == 200
 
 
+def test_schema_and_docs_keep_their_own_renderers_with_json_only_api(client, reload_urls):
+    reload_urls(debug=True)
+
+    docs = client.get("/api/docs", HTTP_ACCEPT="text/html")
+    schema_json = client.get("/api/schema", HTTP_ACCEPT="application/json")
+
+    assert docs.status_code == 200
+    assert docs["Content-Type"].startswith("text/html")
+    assert schema_json.status_code == 200
+    assert schema_json["Content-Type"].startswith("application/json")
+    assert "paths" in schema_json.json()
+
+
 def responses_of(schema, path, method):
     return schema["paths"][path][method]["responses"]
 

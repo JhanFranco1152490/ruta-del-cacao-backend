@@ -1,5 +1,7 @@
 from django.utils.cache import add_never_cache_headers
 
+from .paths import is_api_request
+
 
 class ApiNoStoreMiddleware:
     """Marca como no almacenables todas las respuestas del API.
@@ -13,6 +15,6 @@ class ApiNoStoreMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        if request.path.startswith("/api/"):
+        if is_api_request(request):
             add_never_cache_headers(response)
         return response

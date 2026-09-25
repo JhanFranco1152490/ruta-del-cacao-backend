@@ -1,9 +1,8 @@
-from django.urls import path
+from rest_framework.routers import SimpleRouter
 
-from .views import ProducerDetailView, ProducerListCreateView, ProducerStatusView
+from .views import ProducerViewSet
 
-urlpatterns = [
-    path("", ProducerListCreateView.as_view()),
-    path("<uuid:producer_id>", ProducerDetailView.as_view()),
-    path("<uuid:producer_id>/status", ProducerStatusView.as_view()),
-]
+router = SimpleRouter(trailing_slash=False, use_regex_path=False)
+router.register("producers", ProducerViewSet, basename="producer")
+
+urlpatterns = router.urls

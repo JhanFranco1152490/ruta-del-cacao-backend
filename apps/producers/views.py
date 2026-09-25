@@ -1,156 +1,74 @@
+from django.urls import reverse
 from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
 
-from apps.common.csrf import enforce_csrf
+from apps.common.permissions import ActionPermission
 
-from .errors import producer_error, validation_error
-from .exceptions import DuplicateDocumentError, ProducerValidationError
-from .listing import list_producers
-from .operations import create_producer
-from .permissions import (
-    CanChangeProducerStatus,
-    CanCreateProducers,
-    CanUpdateProducers,
-    CanViewProducers,
-)
+from .exceptions import DuplicateDocument
+from .filters import ProducerFilter
+from .models import Producer
 from .serializers import (
-    ProducerCreateSerializer,
-    ProducerListQuerySerializer,
+    ProducerListSerializer,
+    ProducerSerializer,
     ProducerStatusSerializer,
     ProducerUpdateSerializer,
 )
-from .status import activate_producer, deactivate_producer
-from .updates import (
-    ProducerNotFoundError,
-    StaleVersionError,
-    update_producer,
-)
+from .services import change_producer_status, create_producer, get_producer, update_producer
 
 
-def serialize_producer(producer):
-    return {
-        "id": str(producer.id),
-        "member_code": producer.member_code,
-        "document_type": producer.document_type,
-        "identity_document": producer.identity_document,
-        "first_name": producer.first_name,
-        "last_name": producer.last_name,
-        "phone": producer.phone,
-        "email": producer.email,
-        "municipality_code": producer.municipality_code,
-        "joined_on": producer.joined_on,
-        "status": producer.status,
-        "version": producer.version,
-        "created_at": producer.created_at,
-        "updated_at": producer.updated_at,
+class ProducerViewSet(GenericViewSet):
+    queryset = Producer.objects.all()
+    serializer_class = ProducerSerializer
+    permission_classes = [IsAuthenticated, ActionPermission]
+    action_permissions = {
+        "list": "producers.view",
+        "retrieve": "producers.view",
+        "create": "producers.create",
+        "partial_update": "producers.update",
+        "change_status": "producers.change_status",
     }
+    filterset_class = ProducerFilter
+    search_fields = ["identity_document", "first_name", "last_name", "member_code"]
+    lookup_value_converter = "uuid"
 
+    def list(self, request):
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        return self.get_paginated_response(ProducerListSerializer(page, many=True).data)
 
-def serialize_producer_list_item(producer):
-    return {
-        "id": str(producer.id),
-        "member_code": producer.member_code,
-        "document_type": producer.document_type,
-        "identity_document": producer.identity_document,
-        "first_name": producer.first_name,
-        "last_name": producer.last_name,
-        "municipality_code": producer.municipality_code,
-        "status": producer.status,
-    }
+    def retrieve(self, request, pk):
+        return Response(ProducerSerializer(get_producer(pk)).data)
 
-
-class PrivateProducerAPIView(APIView):
-    def finalize_response(self, request, response, *args, **kwargs):
-        response = super().finalize_response(request, response, *args, **kwargs)
-        response["Cache-Control"] = "no-store"
-        return response
-
-
-class ProducerListCreateView(PrivateProducerAPIView):
-    def get_permissions(self):
-        return [CanViewProducers()] if self.request.method == "GET" else [CanCreateProducers()]
-
-    def get(self, request):
-        serializer = ProducerListQuerySerializer(data=request.query_params)
+    def create(self, request):
+        serializer = ProducerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        result = list_producers(serializer.validated_data)
-        result["results"] = [serialize_producer_list_item(item) for item in result["results"]]
-        return Response(result)
-
-    def post(self, request):
-        enforce_csrf(request)
-        serializer = ProducerCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return validation_error(serializer.errors)
-        try:
-            producer = create_producer(serializer.validated_data)
-        except ProducerValidationError as error:
-            return validation_error(error.errors)
-        except DuplicateDocumentError:
-            return producer_error(
-                "duplicate_document", "El documento ya se encuentra registrado.", status=409
-            )
+        producer = create_producer(serializer.validated_data)
         return Response(
-            serialize_producer(producer),
+            ProducerSerializer(producer).data,
             status=status.HTTP_201_CREATED,
-            headers={"Location": f"/api/producers/{producer.id}"},
+            headers={"Location": reverse("producer-detail", args=[producer.pk])},
         )
 
+    def partial_update(self, request, pk):
+        serializer = ProducerUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        expected_version = data.pop("expected_version")
+        return Response(ProducerSerializer(update_producer(pk, expected_version, data)).data)
 
-class ProducerDetailView(PrivateProducerAPIView):
-    def get_permissions(self):
-        return [CanViewProducers()] if self.request.method == "GET" else [CanUpdateProducers()]
-
-    def get(self, request, producer_id):
-        from .models import Producer
-
-        try:
-            return Response(serialize_producer(Producer.objects.get(pk=producer_id)))
-        except Producer.DoesNotExist:
-            return producer_error("not_found", "El productor no existe.", status=404)
-
-    def patch(self, request, producer_id):
-        enforce_csrf(request)
-        serializer = ProducerUpdateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return validation_error(serializer.errors)
-        expected_version = serializer.validated_data.pop("expected_version")
-        try:
-            return Response(
-                serialize_producer(
-                    update_producer(producer_id, expected_version, serializer.validated_data)
-                )
-            )
-        except ProducerValidationError as error:
-            return validation_error(error.errors)
-        except ProducerNotFoundError:
-            return producer_error("not_found", "El productor no existe.", status=404)
-        except StaleVersionError:
-            return producer_error("stale_version", "La ficha fue modificada.", status=409)
-        except DuplicateDocumentError:
-            return producer_error(
-                "duplicate_document", "El documento ya se encuentra registrado.", status=409
-            )
-
-
-class ProducerStatusView(PrivateProducerAPIView):
-    permission_classes = [CanChangeProducerStatus]
-
-    def patch(self, request, producer_id):
-        enforce_csrf(request)
+    @action(detail=True, methods=["patch"], url_path="status")
+    def change_status(self, request, pk):
         serializer = ProducerStatusSerializer(data=request.data)
-        if not serializer.is_valid():
-            return validation_error(serializer.errors)
-        requested_status = serializer.validated_data["status"]
-        change_status = activate_producer if requested_status == "active" else deactivate_producer
-        try:
-            return Response(
-                serialize_producer(
-                    change_status(producer_id, serializer.validated_data["expected_version"])
-                )
-            )
-        except ProducerNotFoundError:
-            return producer_error("not_found", "El productor no existe.", status=404)
-        except StaleVersionError:
-            return producer_error("stale_version", "La ficha fue modificada.", status=409)
+        serializer.is_valid(raise_exception=True)
+        producer = change_producer_status(
+            pk, serializer.validated_data["expected_version"], serializer.validated_data["status"]
+        )
+        return Response(ProducerSerializer(producer).data)
+
+    def handle_exception(self, exc):
+        # Solo quien puede consultar productores ve cuál expediente ya tiene el documento.
+        if isinstance(exc, DuplicateDocument) and not self.request.user.has_perm("producers.view"):
+            exc.extra = {}
+        return super().handle_exception(exc)

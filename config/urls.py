@@ -18,11 +18,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
-from producers.views import MunicipalityCatalogView
+from apps.producers.views import MunicipalityCatalogView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/auth/", include("accounts.urls")),
-    path("api/producers/", include("producers.urls")),
+    path("api/auth/", include("apps.accounts.urls")),
+    path("api/producers/", include("apps.producers.urls")),
     path("api/catalogs/municipalities", MunicipalityCatalogView.as_view()),
 ]

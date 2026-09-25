@@ -2,7 +2,7 @@ from django.contrib.auth.models import Permission
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from accounts.models import User
+from apps.accounts.models import User
 
 
 class ProducerAPIDatabasePermissionTests(APITestCase):

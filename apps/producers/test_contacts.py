@@ -1,6 +1,6 @@
 import unittest
 
-from producers.contacts import InvalidPhoneNumber, normalize_phone
+from apps.producers.contacts import InvalidPhoneNumber, normalize_phone
 
 
 class NormalizePhoneTests(unittest.TestCase):

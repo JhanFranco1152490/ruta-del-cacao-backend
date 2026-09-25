@@ -2,9 +2,9 @@ from datetime import date
 
 from django.test import TestCase
 
-from producers.models import Producer
-from producers.status import activate_producer, deactivate_producer
-from producers.updates import StaleVersionError, update_producer
+from apps.producers.models import Producer
+from apps.producers.status import activate_producer, deactivate_producer
+from apps.producers.updates import StaleVersionError, update_producer
 
 
 class ProducerMutationTests(TestCase):

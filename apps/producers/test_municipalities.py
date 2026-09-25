@@ -1,6 +1,6 @@
 import unittest
 
-from producers.municipalities import InvalidMunicipalityCode, validate_municipality_code
+from apps.producers.municipalities import InvalidMunicipalityCode, validate_municipality_code
 
 
 class MunicipalityCodeTests(unittest.TestCase):

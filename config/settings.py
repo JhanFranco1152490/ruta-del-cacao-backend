@@ -47,8 +47,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
-    "accounts",
-    "producers.apps.ProducersConfig",
+    "apps.accounts",
+    "apps.producers",
 ]
 
 MIDDLEWARE = [
@@ -118,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
         "OPTIONS": {"min_length": 8},
     },
     {
-        "NAME": "accounts.validators.MaximumLengthValidator",
+        "NAME": "apps.accounts.validators.MaximumLengthValidator",
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -131,7 +131,7 @@ AUTH_PASSWORD_VALIDATORS = [
 AUTH_USER_MODEL = "accounts.User"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.authentication.CookieJWTAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["apps.accounts.authentication.CookieJWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
 

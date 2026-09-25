@@ -2,7 +2,7 @@ from datetime import date
 
 from django.test import SimpleTestCase
 
-from producers.serializers import (
+from apps.producers.serializers import (
     ProducerCreateSerializer,
     ProducerListQuerySerializer,
     ProducerStatusSerializer,
@@ -16,7 +16,7 @@ class ProducerCreateSerializerTests(SimpleTestCase):
             "document_type": "CC",
             "identity_document": "00123456",
             "first_name": "Ana",
-            "last_name": "P?rez",
+            "last_name": "Pérez",
             "municipality_code": "54001",
             "joined_on": str(date.today()),
         }

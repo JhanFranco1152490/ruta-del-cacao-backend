@@ -2,8 +2,8 @@ from datetime import date
 
 from django.test import TestCase
 
-from producers.listing import list_producers
-from producers.models import Producer
+from apps.producers.listing import list_producers
+from apps.producers.models import Producer
 
 
 class ProducerListingTests(TestCase):

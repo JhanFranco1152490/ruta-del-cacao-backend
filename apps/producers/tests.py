@@ -1,6 +1,6 @@
 import unittest
 
-from producers.documents import (
+from apps.producers.documents import (
     InvalidIdentityDocument,
     normalize_document_type,
     normalize_identity_document,

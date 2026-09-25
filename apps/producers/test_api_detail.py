@@ -3,7 +3,7 @@ from datetime import date
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from producers.models import Producer
+from apps.producers.models import Producer
 
 
 class UserWithProducerPermissions:

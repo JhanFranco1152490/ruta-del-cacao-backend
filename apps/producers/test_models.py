@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase
 
-from producers.models import Producer
+from apps.producers.models import Producer
 
 
 class ProducerValidationTests(SimpleTestCase):

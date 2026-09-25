@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from accounts.models import AuthenticationEvent, PasswordResetToken, RefreshSession, User
+from apps.accounts.models import AuthenticationEvent, PasswordResetToken, RefreshSession, User
 
 
 @override_settings(AUTH_COOKIE_SECURE=False)

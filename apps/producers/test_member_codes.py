@@ -1,6 +1,6 @@
 from django.test import TransactionTestCase
 
-from producers.services import next_member_code
+from apps.producers.services import next_member_code
 
 
 class MemberCodeTests(TransactionTestCase):

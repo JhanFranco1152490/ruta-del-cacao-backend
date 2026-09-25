@@ -7,8 +7,9 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.common.validators import strip_document_separators
+
 from .models import AuthenticationEvent, User
-from .validators import normalize_document
 
 LOCKOUT_MINUTES = (3, 6, 12, 24, 48, 60)
 DUMMY_PASSWORD_HASH = make_password("timing-only-password-value")
@@ -44,7 +45,7 @@ def authenticate_user(
     else:
         query = Q(
             document_type=document_type,
-            identity_document=normalize_document(identity_document or ""),
+            identity_document=strip_document_separators(identity_document or ""),
         )
     error = None
 

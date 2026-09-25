@@ -1,20 +1,17 @@
 import uuid
 
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
+from apps.common.choices import DocumentType
+from apps.common.validators import strip_document_separators, validate_document_digits
+
 from .managers import UserManager
-from .validators import validate_document_number
 
 
 class User(AbstractUser):
-    class DocumentType(models.TextChoices):
-        CC = "CC", "Cédula de ciudadanía"
-        CE = "CE", "Cédula de extranjería"
-        PPT = "PPT", "Permiso por Protección Temporal"
-        NIT = "NIT", "Número de Identificación Tributaria"
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = None
     email = models.EmailField(unique=True)
@@ -41,9 +38,13 @@ class User(AbstractUser):
     def clean(self):
         super().clean()
         self.email = self.__class__.objects.normalize_email(self.email).lower()
-        self.identity_document = validate_document_number(
-            self.document_type, self.identity_document
-        )
+        self.identity_document = strip_document_separators(self.identity_document)
+        # Se valida aquí y no como validador del campo: los validadores de campo corren antes
+        # de clean(), y así rechazarían "900.123.456-7" sin dejar que se normalice.
+        try:
+            validate_document_digits(self.identity_document)
+        except ValidationError as error:
+            raise ValidationError({"identity_document": error.messages}) from error
 
     def __str__(self):
         return self.email

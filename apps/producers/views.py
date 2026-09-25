@@ -4,13 +4,11 @@ from rest_framework.views import APIView
 
 from apps.accounts.views import enforce_csrf
 
-from .catalogs import list_municipalities
 from .errors import producer_error, validation_error
 from .exceptions import DuplicateDocumentError, ProducerValidationError
 from .listing import list_producers
 from .operations import create_producer
 from .permissions import (
-    CanAccessMunicipalityCatalog,
     CanChangeProducerStatus,
     CanCreateProducers,
     CanUpdateProducers,
@@ -156,10 +154,3 @@ class ProducerStatusView(PrivateProducerAPIView):
             return producer_error("not_found", "El productor no existe.", status=404)
         except StaleVersionError:
             return producer_error("stale_version", "La ficha fue modificada.", status=409)
-
-
-class MunicipalityCatalogView(APIView):
-    permission_classes = [CanAccessMunicipalityCatalog]
-
-    def get(self, request):
-        return Response({"results": list_municipalities()})

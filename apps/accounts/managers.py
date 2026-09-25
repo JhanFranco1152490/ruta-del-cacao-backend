@@ -1,6 +1,6 @@
 from django.contrib.auth.base_user import BaseUserManager
 
-from .validators import validate_document_number
+from apps.common.validators import strip_document_separators, validate_document_digits
 
 
 class UserManager(BaseUserManager):
@@ -15,7 +15,8 @@ class UserManager(BaseUserManager):
             raise ValueError("El tipo de documento es obligatorio.")
 
         email = self.normalize_email(email).lower()
-        identity_document = validate_document_number(document_type, identity_document)
+        identity_document = strip_document_separators(identity_document)
+        validate_document_digits(identity_document)
         user = self.model(
             email=email,
             document_type=document_type,

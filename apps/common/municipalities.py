@@ -1,5 +1,7 @@
 import unicodedata
 
+from django.core.exceptions import ValidationError
+
 MUNICIPALITIES_BY_CODE = {
     "54001": "C\u00facuta",
     "54003": "\u00c1brego",
@@ -55,3 +57,8 @@ def list_municipalities():
             .casefold(),
         )
     ]
+
+
+def validate_municipality_code(value: str) -> None:
+    if value not in MUNICIPALITIES_BY_CODE:
+        raise ValidationError("El municipio no pertenece a Norte de Santander.")

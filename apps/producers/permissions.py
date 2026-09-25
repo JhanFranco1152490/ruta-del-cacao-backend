@@ -22,17 +22,3 @@ class CanUpdateProducers(ProducerPermission):
 
 class CanChangeProducerStatus(ProducerPermission):
     permission = "producers.change_status"
-
-
-class CanAccessMunicipalityCatalog(ProducerPermission):
-    permissions = (
-        "producers.view",
-        "producers.create",
-        "producers.update",
-    )
-
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and any(request.user.has_perm(permission) for permission in self.permissions)
-        )

@@ -84,3 +84,7 @@ class SessionUserSerializer(serializers.ModelSerializer):
 
 class SessionSerializer(serializers.Serializer):
     user = SessionUserSerializer()
+
+
+class CsrfTokenSerializer(serializers.Serializer):
+    csrf_token = serializers.CharField()

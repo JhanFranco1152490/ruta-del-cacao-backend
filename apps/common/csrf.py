@@ -17,8 +17,10 @@ def enforce_csrf(request):
         raise PermissionDenied(CSRF_FAILED_DETAIL)
 
 
+# Un comentario y no un docstring: el esquema OpenAPI toma el docstring del mixin como
+# descripción de cada operación de las vistas que lo usan.
 class CsrfProtectedMixin:
-    """Exige CSRF en vistas que modifican datos sin exigir sesión (login, recuperación)."""
+    # Exige CSRF en vistas que modifican datos sin exigir sesión (login, recuperación).
 
     def initial(self, request, *args, **kwargs):
         # Antes del límite de solicitudes: un POST rechazado por CSRF (típicamente desde otro

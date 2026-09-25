@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.common.serializers import RejectUnknownFieldsMixin
+from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
 
 from .models import Producer
 
@@ -63,8 +63,16 @@ class ProducerListSerializer(serializers.ModelSerializer):
             "municipality_code",
             "status",
         ]
+        # Solo de salida: así el esquema los marca como siempre presentes.
+        read_only_fields = fields
 
 
 class ProducerStatusSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     status = serializers.ChoiceField(choices=Producer.Status.choices)
     expected_version = serializers.IntegerField(min_value=1)
+
+
+class ProducerConflictErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: el 409 lo arma el manejador global de errores. La clave únicamente
+    # llega cuando el conflicto es un documento repetido y la persona puede ver productores.
+    existing_producer_id = serializers.UUIDField(required=False)

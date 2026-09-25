@@ -4,16 +4,20 @@ from django.conf import settings
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.csrf import CsrfProtectedMixin
+from apps.common.schema import error_responses
+from apps.common.serializers import DetailSerializer
 
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .exceptions import SessionExpired
 from .serializers import (
+    CsrfTokenSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -48,8 +52,9 @@ class CSRFTokenView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(responses=CsrfTokenSerializer)
     def get(self, request):
-        return Response({"csrf_token": get_token(request._request)})
+        return Response(CsrfTokenSerializer({"csrf_token": get_token(request._request)}).data)
 
 
 class LoginView(CsrfProtectedMixin, APIView):
@@ -57,6 +62,10 @@ class LoginView(CsrfProtectedMixin, APIView):
     authentication_classes = []
     throttle_classes = [LoginRateThrottle]
 
+    @extend_schema(
+        request=LoginSerializer,
+        responses={200: SessionSerializer, **error_responses(400, 401, 403, 429)},
+    )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -81,6 +90,7 @@ class RefreshView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(request=None, responses={204: None, **error_responses(401, 403)})
     def post(self, request):
         access, refresh = rotate_tokens(request.COOKIES.get(settings.AUTH_REFRESH_COOKIE, ""))
         response = Response(status=status.HTTP_204_NO_CONTENT)
@@ -100,6 +110,7 @@ class LogoutView(CsrfProtectedMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(request=None, responses={204: None, **error_responses(403)})
     def post(self, request):
         end_session(request.COOKIES.get(settings.AUTH_REFRESH_COOKIE), request_id_from(request))
         response = Response(status=status.HTTP_204_NO_CONTENT)
@@ -110,6 +121,7 @@ class LogoutView(CsrfProtectedMixin, APIView):
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses={200: SessionSerializer, **error_responses(401)})
     def get(self, request):
         return Response(SessionSerializer({"user": request.user}).data)
 
@@ -124,6 +136,10 @@ class PasswordResetRequestView(CsrfProtectedMixin, APIView):
     authentication_classes = []
     throttle_classes = [PasswordResetIPThrottle, PasswordResetIdentifierThrottle]
 
+    @extend_schema(
+        request=PasswordResetRequestSerializer,
+        responses={202: DetailSerializer, **error_responses(400, 403, 429)},
+    )
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -136,6 +152,10 @@ class PasswordResetConfirmView(CsrfProtectedMixin, APIView):
     authentication_classes = []
     throttle_classes = [PasswordResetConfirmThrottle]
 
+    @extend_schema(
+        request=PasswordResetConfirmSerializer,
+        responses={204: None, **error_responses(400, 403, 429)},
+    )
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

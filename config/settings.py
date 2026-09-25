@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "axes",
     "django_filters",
     "rest_framework",
+    "drf_spectacular",
     "rest_framework_simplejwt.token_blacklist",
     "apps.common",
     "apps.accounts",
@@ -182,6 +183,7 @@ AXES_SENSITIVE_PARAMETERS = ["username", "ip_address", "email", "identity_docume
 AXES_VERBOSE = False
 
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": ["apps.accounts.authentication.CookieJWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "apps.common.exceptions.api_exception_handler",
@@ -197,6 +199,23 @@ REST_FRAMEWORK = {
         "password_reset_identifier": "5/hour",
         "password_reset_confirm": "5/hour",
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Ruta del Cacao API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Tipos separados para lectura y escritura: el frontend no ve como editables los
+    # campos de solo lectura.
+    "COMPONENT_SPLIT_REQUEST": True,
+    # El esquema y Swagger no piden sesión: el navegador envía la cookie de acceso a
+    # /api/docs y, vencida o inválida, haría responder 401 a una página que es pública.
+    "SERVE_AUTHENTICATION": [],
+    # El primero es el que trae spectacular por defecto (unifica los enums repetidos).
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "apps.common.schema.require_patch_body_fields",
+    ],
 }
 
 SIMPLE_JWT = {

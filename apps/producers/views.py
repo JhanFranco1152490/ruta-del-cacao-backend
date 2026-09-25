@@ -1,4 +1,5 @@
 from django.urls import reverse
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -6,11 +7,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from apps.common.permissions import ActionPermission
+from apps.common.schema import error_responses
 
 from .exceptions import DuplicateDocument
 from .filters import ProducerFilter
 from .models import Producer
 from .serializers import (
+    ProducerConflictErrorSerializer,
     ProducerListSerializer,
     ProducerSerializer,
     ProducerStatusSerializer,
@@ -19,6 +22,37 @@ from .serializers import (
 from .services import change_producer_status, create_producer, get_producer, update_producer
 
 
+@extend_schema_view(
+    # 400: filtro con un valor inválido; 404: página fuera de rango.
+    list=extend_schema(
+        responses={200: ProducerListSerializer(many=True), **error_responses(400, 401, 403, 404)}
+    ),
+    retrieve=extend_schema(responses={200: ProducerSerializer, **error_responses(401, 403, 404)}),
+    create=extend_schema(
+        request=ProducerSerializer,
+        responses={
+            201: ProducerSerializer,
+            409: ProducerConflictErrorSerializer,
+            **error_responses(400, 401, 403),
+        },
+    ),
+    partial_update=extend_schema(
+        description=(
+            "Edición parcial. Requiere `expected_version` (la versión que se leyó; si cambió "
+            "responde 409) y al menos un campo editable más; si falta alguno responde 400."
+        ),
+        request=ProducerUpdateSerializer,
+        responses={
+            200: ProducerSerializer,
+            409: ProducerConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
+    change_status=extend_schema(
+        request=ProducerStatusSerializer,
+        responses={200: ProducerSerializer, **error_responses(400, 401, 403, 404, 409)},
+    ),
+)
 class ProducerViewSet(GenericViewSet):
     queryset = Producer.objects.all()
     serializer_class = ProducerSerializer

@@ -20,4 +20,4 @@ repos:
         language: pygrep
         entry: '(?<!\\)[A-Za-zñÑ]\?[a-záéíóúñ]+(?![a-záéíóúñ]*=)'
         types: [python]
-        exclude: ^producers/migrations/0001_
+        exclude: ^apps/producers/migrations/0001_

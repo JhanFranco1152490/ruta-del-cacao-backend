@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts",
     "producers.apps.ProducersConfig",
+    "farms.apps.FarmsConfig",
 ]
 
 MIDDLEWARE = [

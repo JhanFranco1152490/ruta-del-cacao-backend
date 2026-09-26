@@ -23,3 +23,23 @@ class Farm(models.Model):
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["producer", "name_normalized"],
+                name="farms_producer_name_normalized_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(area_hectares__gt=0),
+                name="farms_area_hectares_positive",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(latitude__gte=-90, latitude__lte=90),
+                name="farms_latitude_in_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(longitude__gte=-180, longitude__lte=180),
+                name="farms_longitude_in_range",
+            ),
+        ]

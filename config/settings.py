@@ -44,11 +44,17 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "django.contrib.postgres",
     "django.contrib.staticfiles",
     "corsheaders",
+    "axes",
+    "django_filters",
     "rest_framework",
-    "accounts",
-    "producers.apps.ProducersConfig",
+    "drf_spectacular",
+    "rest_framework_simplejwt.token_blacklist",
+    "apps.common",
+    "apps.accounts",
+    "apps.producers",
 ]
 
 MIDDLEWARE = [
@@ -62,6 +68,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.common.middleware.ApiNoStoreMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -112,13 +120,18 @@ else:
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        # Por defecto compara con username, nombre y correo; el documento también es un dato
+        # que un tercero puede conocer.
+        "OPTIONS": {
+            "user_attributes": ("email", "first_name", "last_name", "identity_document"),
+        },
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
         "OPTIONS": {"min_length": 8},
     },
     {
-        "NAME": "accounts.validators.MaximumLengthValidator",
+        "NAME": "apps.accounts.validators.MaximumLengthValidator",
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -130,17 +143,100 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTH_USER_MODEL = "accounts.User"
 
+# Cuántos proxies de confianza hay delante de la app. DRF lo usa (NUM_PROXIES) para leer la IP
+# real desde X-Forwarded-For contando desde la derecha; con 0 se usa REMOTE_ADDR tal cual.
+TRUSTED_PROXY_COUNT = config("TRUSTED_PROXY_COUNT", default=0, cast=int)
+
+AUTHENTICATION_BACKENDS = [
+    # axes va primero: corta el intento si la pareja usuario + IP está bloqueada.
+    "axes.backends.AxesStandaloneBackend",
+    # Deja pasar cuentas inactivas con la contraseña correcta para poder avisarles que lo
+    # están; log_in las rechaza igual (en el admin lo hace su formulario de acceso).
+    "django.contrib.auth.backends.AllowAllUsersModelBackend",
+]
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+# Bloquear la pareja y no el usuario solo evita que alguien bloquee una cuenta ajena
+# conociendo su correo.
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+# Un intento durante el bloqueo no lo alarga: el bloqueo dura exactamente AXES_COOLOFF_TIME.
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+# axes toma por defecto USERNAME_FIELD ("email") como clave de las credenciales, pero
+# authenticate() y lockout_identifier las manejan como "username". Sin esto el identificador
+# sale vacío al comprobar el bloqueo y al reiniciar el conteo, y el bloqueo nunca se aplica.
+AXES_USERNAME_FORM_FIELD = "username"
+AXES_USERNAME_CALLABLE = "apps.accounts.axes.lockout_identifier"
+# La auditoría de accesos la lleva AuthenticationEvent, sin correos ni IP.
+AXES_DISABLE_ACCESS_LOG = True
+# axes lee la IP con la misma función que los límites de solicitudes de DRF: sin proxy usa
+# REMOTE_ADDR y con proxies cuenta solo los saltos de confianza desde la derecha de
+# X-Forwarded-For. Así las dos ven siempre la misma IP y el cliente no puede inventarse una
+# para esquivar el bloqueo.
+AXES_CLIENT_IP_CALLABLE = "apps.accounts.axes.client_ip"
+# axes guarda los parámetros del POST en claro salvo estos; con peticiones de formulario
+# llegarían el correo y el documento. También los enmascara en sus logs.
+AXES_SENSITIVE_PARAMETERS = ["username", "ip_address", "email", "identity_document"]
+# Sin el modo detallado, los logs de axes solo nombran los parámetros del bloqueo (usuario e IP),
+# que la lista de arriba enmascara, y no el user-agent. Tras un login exitoso axes nombra al
+# usuario por su correo: "username" no puede salir de esa lista.
+AXES_VERBOSE = False
+
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.authentication.CookieJWTAuthentication"],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Solo JSON: sin la API navegable (HTML en producción) ni cuerpos de formulario, que un
+    # sitio ajeno puede enviar desde un <form> sin la comprobación previa de CORS.
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["apps.accounts.authentication.CookieJWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "EXCEPTION_HANDLER": "apps.common.exceptions.api_exception_handler",
+    "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPagination",
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+    ],
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT,
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "20/min",
+        "password_reset": "5/hour",
+        "password_reset_identifier": "5/hour",
+        "password_reset_confirm": "5/hour",
+    },
 }
 
-AUTH_ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)
-AUTH_REFRESH_TOKEN_LIFETIME = timedelta(days=7)
-AUTH_PASSWORD_RESET_LIFETIME = timedelta(minutes=30)
-AUTH_JWT_SIGNING_KEY = config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY)
-AUTH_JWT_ISSUER = "ruta-del-cacao-api"
-AUTH_JWT_AUDIENCE = "ruta-del-cacao-web"
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Ruta del Cacao API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Tipos separados para lectura y escritura: el frontend no ve como editables los
+    # campos de solo lectura.
+    "COMPONENT_SPLIT_REQUEST": True,
+    # El esquema y Swagger no piden sesión: el navegador envía la cookie de acceso a
+    # /api/docs y, vencida o inválida, haría responder 401 a una página que es pública.
+    "SERVE_AUTHENTICATION": [],
+    # El primero es el que trae spectacular por defecto (unifica los enums repetidos).
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "apps.common.schema.require_patch_body_fields",
+    ],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    # Al cambiar la contraseña, todos los tokens de acceso ya emitidos dejan de servir.
+    "CHECK_REVOKE_TOKEN": True,
+    "UPDATE_LAST_LOGIN": False,
+    "USER_ID_FIELD": "id",
+    "SIGNING_KEY": config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY),
+    "AUDIENCE": "ruta-del-cacao-web",
+    "ISSUER": "ruta-del-cacao-api",
+}
+PASSWORD_RESET_TIMEOUT = 60 * 30
 AUTH_ACCESS_COOKIE = "cacao_access"
 AUTH_REFRESH_COOKIE = "cacao_refresh"
 AUTH_COOKIE_SECURE = config("AUTH_COOKIE_SECURE", default=not DEBUG, cast=bool)
@@ -198,7 +294,9 @@ MAILER_BACKEND = config(
     default="django.core.mail.backends.console.EmailBackend",
 )
 MAILER_OPTIONS = {}
-if MAILER_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
+if MAILER_BACKEND == "anymail.backends.resend.EmailBackend":
+    MAILER_OPTIONS = {"api_key": config("RESEND_API_KEY")}
+elif MAILER_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
     MAILER_OPTIONS = {
         "host": config("MAILER_HOST"),
         "port": config("MAILER_PORT", default=587, cast=int),

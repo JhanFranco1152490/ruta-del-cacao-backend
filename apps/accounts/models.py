@@ -1,0 +1,76 @@
+import uuid
+
+from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.db.models.functions import Lower
+
+from apps.common.choices import DocumentType
+from apps.common.validators import strip_document_separators, validate_document_digits
+
+from .managers import UserManager
+
+
+class User(AbstractUser):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    username = None
+    email = models.EmailField(unique=True)
+    document_type = models.CharField(max_length=3, choices=DocumentType.choices)
+    identity_document = models.CharField(max_length=15)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["document_type", "identity_document"]
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_unique"),
+            models.UniqueConstraint(
+                fields=["document_type", "identity_document"],
+                name="accounts_user_document_type_number_unique",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        self.email = self.__class__.objects.normalize_email(self.email).lower()
+        self.identity_document = strip_document_separators(self.identity_document)
+        # Se valida aquí y no como validador del campo: los validadores de campo corren antes
+        # de clean(), y así rechazarían "900.123.456-7" sin dejar que se normalice.
+        try:
+            validate_document_digits(self.identity_document)
+        except ValidationError as error:
+            raise ValidationError({"identity_document": error.messages}) from error
+
+    def __str__(self):
+        return self.email
+
+
+class AuthenticationEvent(models.Model):
+    class EventType(models.TextChoices):
+        LOGIN_SUCCEEDED = "login_succeeded", "Inicio de sesión exitoso"
+        LOGIN_FAILED = "login_failed", "Inicio de sesión fallido"
+        ACCOUNT_LOCKED = "account_locked", "Cuenta bloqueada"
+        PASSWORD_RESET = "password_reset", "Contraseña restablecida"
+        SESSION_REVOKED = "session_revoked", "Sesión revocada"
+
+    class Outcome(models.TextChoices):
+        SUCCESS = "success", "Exitoso"
+        FAILURE = "failure", "Fallido"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    outcome = models.CharField(max_length=16, choices=Outcome.choices)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="authentication_events",
+    )
+    request_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]

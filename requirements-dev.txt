@@ -3,3 +3,7 @@
 black==26.5.1
 ruff==0.16.8
 pre_commit==4.6.2
+pytest==9.1.1
+pytest-django==4.14.0
+pytest-cov==7.1.0
+factory-boy==3.3.3

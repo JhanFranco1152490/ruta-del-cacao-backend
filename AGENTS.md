@@ -131,6 +131,19 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   los clientes comparten la IP del proxy y el límite de solicitudes y el bloqueo dejan de ser
   por cliente; con un valor mayor que el de proxies reales, un cliente puede inventarse su IP.
 
+## Admin de Django
+
+- Usuarios y eventos de autenticación en `apps/accounts/admin.py`; productores en
+  `apps/producers/admin.py`.
+- **Productores:** los permisos siguen a los de la API (`producers.view`, `producers.update`,
+  `producers.change_status`), no a los que Django genera. No se puede crear ni borrar desde el
+  admin (el alta asigna el código de asociado y detecta el documento repetido; al productor se
+  le cambia el estado, no se le borra). Se editan nombre, teléfono, correo, municipio y fecha de
+  ingreso; el documento, el código y el estado no. El estado cambia con las acciones "Activar" y
+  "Desactivar".
+- Todo cambio desde el admin pasa por `services` y sube `version`: la ficha lleva la versión con
+  la que se abrió y, si otra persona la cambió antes, no se guarda.
+
 ## Variables de entorno
 
 Se leen en `config/settings.py`; `.env` es local y nunca se commitea, y `.env.example` lista
@@ -179,8 +192,8 @@ python manage.py runserver
 - **Sin datos personales reales:** correos `@example.com` y documentos inventados, armados con
   fábricas y helpers, no copiando el mismo `objects.create(...)` en cada test.
 - Una prueba que renderiza una página HTML (el admin, por ejemplo) falla con "Missing
-  staticfiles manifest entry" porque en pruebas no corre `collectstatic`: en esa prueba,
-  cambia `settings.STORAGES["staticfiles"]` a `StaticFilesStorage`.
+  staticfiles manifest entry" porque en pruebas no corre `collectstatic`: usa la fixture
+  `plain_static_files` de `conftest.py`.
 
 ### Antes de proponer un PR
 

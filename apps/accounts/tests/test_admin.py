@@ -12,19 +12,10 @@ from apps.accounts.axes import lockout_identifier
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import login_by_email
 
-pytestmark = pytest.mark.django_db
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("plain_static_files")]
 
 WRONG_PASSWORD = "contraseña equivocada"
 REFRESH_URL = "/api/auth/refresh"
-
-
-@pytest.fixture(autouse=True)
-def plain_static_files(settings):
-    # Las páginas del admin piden estáticos con manifiesto, que no existen en las pruebas.
-    settings.STORAGES = {
-        **settings.STORAGES,
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    }
 
 
 @pytest.fixture

@@ -314,3 +314,14 @@ MAILERS = {
 
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="no-reply@rutadelcacao.local")
+
+
+# Monitoreo de errores (opcional): solo se activa si existe SENTRY_DSN.
+SENTRY_DSN = config("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    from apps.common.sentry import init_sentry
+
+    init_sentry(
+        SENTRY_DSN,
+        config("SENTRY_ENVIRONMENT", default="development" if DEBUG else "production"),
+    )

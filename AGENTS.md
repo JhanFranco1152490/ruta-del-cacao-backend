@@ -120,6 +120,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché
   local por proceso (no hay `CACHES` configurado): con varios workers no se comparten. El
   bloqueo de axes sí, porque va por base de datos.
+- **Desbloquear una cuenta antes de los 15 minutos:** borrar su fila en el admin de
+  `AccessAttempt` (se busca por IP) o correr `python manage.py axes_reset` (todas) o
+  `axes_reset_ip <ip>`; `axes_reset_username <correo>` no sirve, porque axes guarda el hash y no
+  el correo. El admin no expone los tokens de renovación: `token_blacklist` está dado de baja
+  de él (`apps/accounts/admin.py`).
 - **`TRUSTED_PROXY_COUNT` decide qué IP se toma como la del cliente**, y de ella dependen el
   límite de solicitudes y el bloqueo de axes: debe ser `1` si la app está detrás de un solo
   proxy que agrega `X-Forwarded-For`, y `0` si no hay proxy. Con `0` detrás de un proxy, todos

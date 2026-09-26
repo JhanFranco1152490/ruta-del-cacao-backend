@@ -1,7 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from .models import AuthenticationEvent, User
+
+# token_blacklist se registra sola en el admin y se instala antes que esta app, así que su
+# registro ya ocurrió al importar este módulo. La ficha de OutstandingToken muestra el token de
+# renovación completo (válido 7 días) y el admin de BlacklistedToken permite borrar filas, lo
+# que reactiva un token revocado: ninguno debe ser alcanzable desde el admin.
+admin.site.unregister(OutstandingToken)
+admin.site.unregister(BlacklistedToken)
 
 
 @admin.register(User)

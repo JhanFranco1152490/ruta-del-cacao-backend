@@ -30,3 +30,12 @@ def auth_client(api_client):
         return open_session(api_client, user)
 
     return _login
+
+
+@pytest.fixture
+def plain_static_files(settings):
+    # Las páginas del admin piden estáticos con manifiesto, que no existen en las pruebas.
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }

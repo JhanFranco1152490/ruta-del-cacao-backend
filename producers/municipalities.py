@@ -1,4 +1,7 @@
-from .catalogs import MUNICIPALITIES_BY_CODE
+from common.territorial import InvalidMunicipalityCode as TerritorialInvalidMunicipalityCode
+from common.territorial import get_municipality
+
+InvalidMunicipalityCode = TerritorialInvalidMunicipalityCode
 
 NORTE_DE_SANTANDER_CODES = frozenset(
     {
@@ -46,12 +49,5 @@ NORTE_DE_SANTANDER_CODES = frozenset(
 )
 
 
-class InvalidMunicipalityCode(ValueError):
-    pass
-
-
 def validate_municipality_code(value: str) -> str:
-    code = value.strip()
-    if code not in MUNICIPALITIES_BY_CODE:
-        raise InvalidMunicipalityCode("Invalid municipality code.")
-    return code
+    return get_municipality(value).code

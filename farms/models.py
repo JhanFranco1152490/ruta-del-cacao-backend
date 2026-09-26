@@ -110,3 +110,28 @@ class Farm(models.Model):
 
         if errors:
             raise ValidationError(errors)
+
+
+class FarmAuditEvent(models.Model):
+    class Action(models.TextChoices):
+        CREATED = "created", "Finca creada"
+        UPDATED = "updated", "Finca actualizada"
+        STATUS_CHANGED = "status_changed", "Estado de finca modificado"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    farm = models.ForeignKey(
+        Farm,
+        on_delete=models.PROTECT,
+        related_name="audit_events",
+    )
+    actor = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.PROTECT,
+        related_name="farm_audit_events",
+    )
+    action = models.CharField(max_length=32, choices=Action.choices)
+    changed_fields = models.JSONField(default=list, blank=True)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]

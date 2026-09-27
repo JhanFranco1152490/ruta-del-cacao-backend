@@ -89,3 +89,37 @@ class AccountCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 
     def validate_phone(self, value):
         return value or None
+
+
+class AccountUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    email = serializers.EmailField(max_length=254, required=False)
+    document_type = serializers.ChoiceField(choices=DocumentType.choices, required=False)
+    identity_document = serializers.CharField(max_length=50, required=False, trim_whitespace=True)
+    first_name = serializers.CharField(max_length=150, required=False)
+    last_name = serializers.CharField(max_length=150, required=False)
+    phone = serializers.CharField(max_length=25, required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
+        return attrs
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_phone(self, value):
+        return value or None
+
+
+class AccountRoleIdsSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    role_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+
+
+class AccountStatusSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # Mismos valor y etiqueta que Producer.Status (HU-02): así drf-spectacular fusiona los dos
+    # enums de "status" del esquema en vez de generar uno duplicado con un nombre automático.
+    status = serializers.ChoiceField(choices=[("active", "Activo"), ("inactive", "Inactivo")])
+
+
+class ActivationEmailSentSerializer(serializers.Serializer):
+    activation_email_sent = serializers.BooleanField()

@@ -278,6 +278,13 @@ def test_administrator_always_reaches_the_producer_account():
     ensure_can_manage_account(admin, owner)
 
 
+def test_administrator_always_reaches_another_administrator_account():
+    admin = make_administrator()
+    other_admin = make_administrator()
+
+    ensure_can_manage_account(admin, other_admin)
+
+
 def test_administrator_needs_association_access_to_manage_an_employee():
     producer = ProducerFactory()
     employee = UserFactory(producer=producer)

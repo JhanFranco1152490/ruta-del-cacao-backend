@@ -122,3 +122,9 @@ class ProducerAlreadyLinked(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El productor ya tiene una cuenta vinculada."
     default_code = "producer_already_linked"
+
+
+class NotActivationPending(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La cuenta ya está activada."
+    default_code = "not_activation_pending"

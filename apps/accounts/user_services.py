@@ -14,6 +14,9 @@ from .authorization import (
     ACCOUNT_KIND_EMPLOYEE,
     ACCOUNT_KIND_PRODUCER,
     ensure_can_assign_roles,
+    ensure_can_manage_account,
+    ensure_not_last_administrator,
+    ensure_not_self,
     ensure_valid_role_set,
 )
 from .events import record_account_event
@@ -21,6 +24,7 @@ from .exceptions import (
     AccountNotFound,
     DuplicateAccountDocument,
     DuplicateEmail,
+    NotActivationPending,
     ProducerAlreadyLinked,
     ProducerInactive,
 )
@@ -31,6 +35,7 @@ from .models import (
     User,
 )
 from .scope import visible_roles, visible_users
+from .services import revoke_all_sessions
 from .system_roles import ADMINISTRATOR, PRODUCER
 
 PERSONAL_FIELDS = ("document_type", "identity_document", "first_name", "last_name")
@@ -69,10 +74,10 @@ def _require(data: dict, *fields: str) -> None:
         raise ValidationError({field: ["Este campo es requerido."] for field in missing})
 
 
-def _forbid(data: dict, *fields: str) -> None:
+def _forbid(data: dict, *fields: str, message: str = "Campo no permitido.") -> None:
     present = [field for field in fields if field in data]
     if present:
-        raise ValidationError({field: ["Campo no permitido."] for field in present})
+        raise ValidationError({field: [message] for field in present})
 
 
 def _resolve_account_kind(codes: set) -> str:
@@ -191,3 +196,97 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
 
     activation_email_sent = send_activation(user)
     return CreatedAccount(user=user, activation_email_sent=activation_email_sent)
+
+
+def update_account(actor, user_id, data: dict, request_id) -> User:
+    user = get_account(actor, user_id)
+    ensure_not_self(actor, user)
+    ensure_can_manage_account(actor, user)
+
+    if user.groups.filter(role__code=PRODUCER).exists():
+        _forbid(data, *PERSONAL_FIELDS, message="Lo gobierna el expediente del productor.")
+    if "identity_document" in data:
+        # Mismo motivo que en create_account: normalizar antes de full_clean().
+        data["identity_document"] = strip_document_separators(data["identity_document"])
+
+    email_changed = "email" in data and data["email"] != user.email
+
+    with transaction.atomic():
+        for field, value in data.items():
+            setattr(user, field, value)
+        user.full_clean(validate_unique=False, validate_constraints=False)
+        _save_or_raise_duplicate(user)
+        if email_changed:
+            # Un correo nuevo también sirve para iniciar sesión; las sesiones abiertas con el
+            # anterior no deben seguir sirviendo.
+            revoke_all_sessions(user)
+    return user
+
+
+def set_account_roles(actor, user_id, role_ids, request_id) -> User:
+    user = get_account(actor, user_id)
+    ensure_not_self(actor, user)
+    ensure_can_manage_account(actor, user)
+
+    if user.groups.filter(role__code__in=(ADMINISTRATOR, PRODUCER)).exists():
+        raise ValidationError({"role_ids": ["Esta cuenta no cambia de rol por aquí."]})
+
+    roles = list(visible_roles(actor).filter(pk__in=role_ids))
+    if len(roles) != len(set(role_ids)):
+        raise ValidationError({"role_ids": ["Alguno de los roles no existe."]})
+    ensure_valid_role_set(roles)
+    ensure_can_assign_roles(
+        actor, roles, target_producer_id=user.producer_id, account_kind=ACCOUNT_KIND_EMPLOYEE
+    )
+
+    with transaction.atomic():
+        user.groups.set(role.group for role in roles)
+        record_account_event(
+            AccountManagementEvent.EventType.ACCOUNT_ROLES_CHANGED,
+            request_id,
+            actor=actor,
+            target_user=user,
+        )
+    return user
+
+
+def set_account_status(actor, user_id, status: str, request_id) -> User:
+    user = get_account(actor, user_id)
+    ensure_not_self(actor, user)
+    ensure_can_manage_account(actor, user)
+
+    is_active = status == "active"
+    if user.is_active == is_active:
+        return user
+
+    with transaction.atomic():
+        # ensure_not_last_administrator() bloquea primero: su consulta ya incluye la fila de
+        # `user` (antes de excluirlo en Python). Bloquearla aparte antes, como aquí mismo se
+        # hacía, y solo después el conjunto completo, deja a dos desactivaciones cruzadas
+        # bloqueando en orden opuesto — un interbloqueo real de Postgres, no solo una espera.
+        if not is_active and is_association_admin(user):
+            ensure_not_last_administrator(user)
+        locked = User.objects.select_for_update(of=("self",)).get(pk=user.pk)
+        locked.is_active = is_active
+        locked.save(update_fields=["is_active"])
+        if not is_active:
+            revoke_all_sessions(locked)
+        record_account_event(
+            (
+                AccountManagementEvent.EventType.ACCOUNT_DEACTIVATED
+                if not is_active
+                else AccountManagementEvent.EventType.ACCOUNT_REACTIVATED
+            ),
+            request_id,
+            actor=actor,
+            target_user=locked,
+        )
+    return locked
+
+
+def resend_activation(actor, user_id) -> bool:
+    user = get_account(actor, user_id)
+    ensure_can_manage_account(actor, user)
+    if user.has_usable_password():
+        raise NotActivationPending()
+    return send_activation(user)

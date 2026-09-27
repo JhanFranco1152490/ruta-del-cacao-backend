@@ -74,13 +74,14 @@ def ensure_can_assign_roles(actor, roles, *, target_producer_id, account_kind) -
 def ensure_can_manage_account(actor, target) -> None:
     """Regla "administrar": solo cuentas del mismo productor cuyos permisos ya tiene.
 
-    El Administrador siempre alcanza la cuenta Productor, tenga o no sus permisos; para las
+    El Administrador siempre alcanza la cuenta Productor y las de otros Administradores
+    (`visible_users` ya las trata como siempre visibles), tenga o no sus permisos; para las
     demás cuentas depende del interruptor de la asociación (`acts_for_producer`).
     """
     if actor.is_superuser:
         return
     if is_association_admin(actor):
-        if target.groups.filter(role__code=PRODUCER).exists():
+        if target.groups.filter(role__code__in=(ADMINISTRATOR, PRODUCER)).exists():
             return
         if not acts_for_producer(actor, target.producer_id):
             raise ExceedsOwnPermissions()
@@ -123,8 +124,17 @@ def ensure_not_last_administrator(target) -> None:
     Quien llama decide cuándo hace falta (solo si `target` tiene o va a perder el rol
     Administrador): comprobarlo siempre sería un bloqueo de fila en cada escritura de cuenta.
     """
-    administrators = User.objects.select_for_update().filter(
-        groups__role__code=ADMINISTRATOR, is_active=True
+    # of=("self",): el filtro atraviesa Group y Role (groups__role__code), y un FOR UPDATE sin
+    # acotar bloquearía también esas filas compartidas por cualquier cuenta Administrador — dos
+    # desactivaciones concurrentes podrían bloquearlas en órdenes distintas y producir un
+    # interbloqueo real de Postgres. Solo hace falta bloquear las filas de User.
+    # order_by("pk"): mismo orden de bloqueo siempre, para que dos llamadas concurrentes que
+    # bloquean el mismo conjunto lo hagan en la misma secuencia y ninguna espere a la otra en
+    # sentido contrario.
+    administrators = (
+        User.objects.select_for_update(of=("self",))
+        .filter(groups__role__code=ADMINISTRATOR, is_active=True)
+        .order_by("pk")
     )
     remaining = [admin for admin in administrators if admin.pk != target.pk]
     if not remaining:

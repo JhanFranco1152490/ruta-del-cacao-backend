@@ -86,3 +86,39 @@ class RoleInUse(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El rol tiene cuentas asignadas: no se puede borrar."
     default_code = "role_in_use"
+
+
+class AccountNotFound(ApiError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "La cuenta no existe."
+    default_code = "not_found"
+
+
+class DuplicateEmail(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El correo ya está registrado."
+    default_code = "duplicate_email"
+
+    def __init__(self):
+        super().__init__(fields={"email": [self.default_detail]})
+
+
+class DuplicateAccountDocument(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El documento ya está registrado en otra cuenta."
+    default_code = "duplicate_document"
+
+    def __init__(self):
+        super().__init__(fields={"identity_document": [self.default_detail]})
+
+
+class ProducerInactive(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El productor está inactivo."
+    default_code = "producer_inactive"
+
+
+class ProducerAlreadyLinked(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El productor ya tiene una cuenta vinculada."
+    default_code = "producer_already_linked"

@@ -15,6 +15,9 @@ from apps.common.validators import (
 
 from .managers import UserManager
 
+EMAIL_UNIQUE_CONSTRAINT = "accounts_user_email_ci_unique"
+DOCUMENT_UNIQUE_CONSTRAINT = "accounts_user_document_type_number_unique"
+
 
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -40,10 +43,10 @@ class User(AbstractUser):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_unique"),
+            models.UniqueConstraint(Lower("email"), name=EMAIL_UNIQUE_CONSTRAINT),
             models.UniqueConstraint(
                 fields=["document_type", "identity_document"],
-                name="accounts_user_document_type_number_unique",
+                name=DOCUMENT_UNIQUE_CONSTRAINT,
             ),
         ]
         permissions = [
@@ -53,6 +56,7 @@ class User(AbstractUser):
             ("users_change_status", "Puede activar o desactivar cuentas"),
             ("association_access_manage", "Puede administrar el acceso de la asociación"),
         ]
+        ordering = ["last_name", "first_name", "id"]
 
     def clean(self):
         super().clean()

@@ -1,6 +1,15 @@
 from .system_roles import ADMINISTRATOR
 
 
+def get_producer_model():
+    """El modelo `Producer`, sin importarlo (esta app no importa de otra): se obtiene del
+    campo `User.producer`, igual que Django ya lo resuelve para esa relación diferida.
+    """
+    from .models import User
+
+    return User._meta.get_field("producer").related_model
+
+
 def is_effectively_active(user) -> bool:
     """Una cuenta inactiva, o vinculada a un productor inactivo, no está efectivamente activa.
 

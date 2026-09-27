@@ -1,9 +1,12 @@
+import uuid
+
 import factory
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group, Permission
 from factory.django import DjangoModelFactory
 
-from apps.accounts.models import User
+from apps.accounts.models import Role, User
 from apps.common.choices import DocumentType
+from apps.producers.tests.factories import ProducerFactory
 
 DEFAULT_PASSWORD = "frase segura de cacao 2026"
 
@@ -28,3 +31,40 @@ class UserFactory(DjangoModelFactory):
             user.user_permissions.add(
                 Permission.objects.get(content_type__app_label=app_label, codename=codename)
             )
+
+
+class RoleFactory(DjangoModelFactory):
+    class Meta:
+        model = Role
+        skip_postgeneration_save = True
+
+    kind = Role.Kind.CUSTOM
+    name = factory.Sequence(lambda n: f"Rol {n}")
+    producer = factory.SubFactory(ProducerFactory)
+
+    @factory.lazy_attribute
+    def group(self):
+        return Group.objects.create(name=f"role-{uuid.uuid4()}")
+
+    @factory.post_generation
+    def permissions(role, create, extracted, **kwargs):
+        """Recibe permisos como "app_label.codename", igual que UserFactory."""
+        if not create or not extracted:
+            return
+        for permission in extracted:
+            app_label, codename = permission.split(".")
+            role.group.permissions.add(
+                Permission.objects.get(content_type__app_label=app_label, codename=codename)
+            )
+
+
+class FixedRoleFactory(RoleFactory):
+    kind = Role.Kind.FIXED
+    producer = None
+    code = factory.Sequence(lambda n: f"fixed-{n}")
+
+
+class PredefinedRoleFactory(RoleFactory):
+    kind = Role.Kind.PREDEFINED
+    producer = None
+    code = factory.Sequence(lambda n: f"predefined-{n}")

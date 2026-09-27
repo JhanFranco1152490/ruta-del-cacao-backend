@@ -3,10 +3,15 @@ import uuid
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import F, Q
 from django.db.models.functions import Lower
 
 from apps.common.choices import DocumentType
-from apps.common.validators import strip_document_separators, validate_document_digits
+from apps.common.validators import (
+    strip_document_separators,
+    validate_document_digits,
+    validate_phone,
+)
 
 from .managers import UserManager
 
@@ -17,6 +22,16 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     document_type = models.CharField(max_length=3, choices=DocumentType.choices)
     identity_document = models.CharField(max_length=15)
+    phone = models.CharField(max_length=25, null=True, blank=True, validators=[validate_phone])
+    # Nula en el Administrador; obligatoria en las demás cuentas (HU-03 lo aplica en el
+    # servicio, porque la regla depende del rol y los roles son muchos a muchos).
+    producer = models.ForeignKey(
+        "producers.Producer",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="accounts",
+    )
 
     objects = UserManager()
 
@@ -30,6 +45,13 @@ class User(AbstractUser):
                 fields=["document_type", "identity_document"],
                 name="accounts_user_document_type_number_unique",
             ),
+        ]
+        permissions = [
+            ("users_view", "Puede consultar cuentas"),
+            ("users_create", "Puede crear cuentas"),
+            ("users_update", "Puede actualizar cuentas"),
+            ("users_change_status", "Puede activar o desactivar cuentas"),
+            ("association_access_manage", "Puede administrar el acceso de la asociación"),
         ]
 
     def clean(self):
@@ -45,6 +67,89 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class Role(models.Model):
+    """Un rol es un grupo de Django con dueño: quién lo creó y si puede tocarse.
+
+    La autorización (`has_perm`, `ActionPermission`) sigue leyendo los permisos del grupo; esta
+    tabla solo agrega de quién es el rol y si es de los que nadie edita ni borra.
+    """
+
+    class Kind(models.TextChoices):
+        FIXED = "fixed", "Fijo"
+        PREDEFINED = "predefined", "Predefinido"
+        CUSTOM = "custom", "Propio"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.OneToOneField("auth.Group", on_delete=models.PROTECT, related_name="role")
+    # Nulo en los propios: no tienen un identificador estable entre productores.
+    code = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    producer = models.ForeignKey(
+        "producers.Producer",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="roles",
+    )
+    name = models.CharField(max_length=100)
+    description = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                condition=Q(producer__isnull=True),
+                name="accounts_role_system_name_ci_unique",
+            ),
+            models.UniqueConstraint(
+                Lower("name"),
+                F("producer"),
+                condition=Q(producer__isnull=False),
+                name="accounts_role_producer_name_ci_unique",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(kind="custom", producer__isnull=False)
+                    | (~Q(kind="custom") & Q(producer__isnull=True))
+                ),
+                name="accounts_role_producer_matches_kind",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(kind="custom", code__isnull=True)
+                    | (~Q(kind="custom") & Q(code__isnull=False))
+                ),
+                name="accounts_role_code_matches_kind",
+            ),
+        ]
+        permissions = [
+            ("roles_view", "Puede consultar roles y el catálogo de permisos"),
+            ("roles_manage", "Puede crear, editar y borrar roles propios"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class AssociationAccess(models.Model):
+    """Interruptor por productor: si está encendido, el Administrador opera en su espacio.
+
+    La ausencia de fila equivale a apagado; se crea la primera vez que alguien lo enciende.
+    """
+
+    producer = models.OneToOneField(
+        "producers.Producer",
+        on_delete=models.PROTECT,
+        primary_key=True,
+        related_name="association_access",
+    )
+    enabled = models.BooleanField(default=False)
+    changed_at = models.DateTimeField(null=True, blank=True)
+    changed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
 
 
 class AuthenticationEvent(models.Model):
@@ -69,6 +174,45 @@ class AuthenticationEvent(models.Model):
         blank=True,
         related_name="authentication_events",
     )
+    request_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]
+
+
+class AccountManagementEvent(models.Model):
+    """Auditoría mínima de HU-03: sin texto libre, nunca datos personales."""
+
+    class EventType(models.TextChoices):
+        ACCOUNT_CREATED = "account_created", "Cuenta creada"
+        ACCOUNT_ACTIVATED = "account_activated", "Cuenta activada"
+        ACCOUNT_DEACTIVATED = "account_deactivated", "Cuenta desactivada"
+        ACCOUNT_REACTIVATED = "account_reactivated", "Cuenta reactivada"
+        ACCOUNT_ROLES_CHANGED = "account_roles_changed", "Roles de la cuenta cambiados"
+        ROLE_CREATED = "role_created", "Rol creado"
+        ROLE_UPDATED = "role_updated", "Rol actualizado"
+        ROLE_DELETED = "role_deleted", "Rol borrado"
+        ASSOCIATION_ACCESS_ENABLED = (
+            "association_access_enabled",
+            "Acceso de la asociación habilitado",
+        )
+        ASSOCIATION_ACCESS_DISABLED = (
+            "association_access_disabled",
+            "Acceso de la asociación deshabilitado",
+        )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    target_user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # Sin FK: un rol borrado no debe borrar en cascada (ni bloquear el borrado por) su propio
+    # historial de auditoría.
+    target_role_id = models.UUIDField(null=True, blank=True)
     request_id = models.UUIDField(default=uuid.uuid4, editable=False)
     occurred_at = models.DateTimeField(auto_now_add=True)
 

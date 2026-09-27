@@ -19,6 +19,7 @@ from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .access import is_effectively_active
 from .axes import lockout_identifier
 from .emails import send_password_reset_email
 from .exceptions import (
@@ -74,7 +75,9 @@ def log_in(request, *, username: str, password: str, request_id) -> User:
             User.objects.filter(email=username).first(),
         )
         raise AccountLocked() if locked else InvalidCredentials()
-    if not user.is_active:
+    if not is_effectively_active(user):
+        # Cubre tanto la cuenta inactiva como una vinculada a un productor inactivo (HU-03):
+        # con la contraseña correcta, el mensaje es el mismo para las dos.
         record_authentication_event(
             AuthenticationEvent.EventType.LOGIN_FAILED,
             AuthenticationEvent.Outcome.FAILURE,

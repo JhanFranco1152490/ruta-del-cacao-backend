@@ -5,6 +5,7 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.validators import strip_document_separators, validate_document_digits
 
+from .activation import user_from_activation_link
 from .models import User
 from .services import user_from_reset_link
 
@@ -43,9 +44,11 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
 
 
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    uid = serializers.CharField(max_length=64, write_only=True)
-    token = serializers.CharField(max_length=128, write_only=True)
+class NewPasswordSerializer(serializers.Serializer):
+    # Un comentario y no un docstring: drf-spectacular lo tomaría como la descripción del
+    # componente generado y publicaría este texto interno en los tipos del cliente. Campos y
+    # validación de la contraseña nueva, compartidos por recuperación y activación.
+
     new_password = serializers.CharField(
         min_length=8, max_length=50, trim_whitespace=False, write_only=True
     )
@@ -53,8 +56,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         min_length=8, max_length=50, trim_whitespace=False, write_only=True
     )
 
-    def validate(self, attrs):
-        user = user_from_reset_link(attrs["uid"], attrs["token"])
+    def validate_new_password_against(self, user, attrs):
         if attrs["new_password"] != attrs["new_password_confirmation"]:
             raise serializers.ValidationError(
                 {"new_password_confirmation": "Las contraseñas no coinciden."}
@@ -63,6 +65,26 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             validate_password(attrs["new_password"], user=user)
         except DjangoValidationError as error:
             raise serializers.ValidationError({"new_password": list(error.messages)}) from error
+
+
+class PasswordResetConfirmSerializer(NewPasswordSerializer):
+    uid = serializers.CharField(max_length=64, write_only=True)
+    token = serializers.CharField(max_length=128, write_only=True)
+
+    def validate(self, attrs):
+        user = user_from_reset_link(attrs["uid"], attrs["token"])
+        self.validate_new_password_against(user, attrs)
+        attrs["user"] = user
+        return attrs
+
+
+class ActivationConfirmSerializer(NewPasswordSerializer):
+    uid = serializers.CharField(max_length=64, write_only=True)
+    token = serializers.CharField(max_length=128, write_only=True)
+
+    def validate(self, attrs):
+        user = user_from_activation_link(attrs["uid"], attrs["token"])
+        self.validate_new_password_against(user, attrs)
         attrs["user"] = user
         return attrs
 

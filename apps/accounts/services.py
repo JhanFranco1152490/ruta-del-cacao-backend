@@ -148,7 +148,10 @@ def revoke_all_sessions(user) -> None:
 
 def request_password_reset(email: str) -> None:
     user = User.objects.filter(email__iexact=email.strip(), is_active=True).first()
-    if user is None:
+    # Una cuenta pendiente de activación (HU-03) no tiene contraseña que restablecer; la vía
+    # correcta es reenviar la activación, no este flujo. La respuesta es la misma en ambos
+    # casos para no revelar si el correo pertenece a una cuenta.
+    if user is None or not user.has_usable_password():
         return
     query = urlencode(
         {

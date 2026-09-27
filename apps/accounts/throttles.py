@@ -25,6 +25,10 @@ class PasswordResetConfirmThrottle(ClientIPThrottle):
     scope = "password_reset_confirm"
 
 
+class ActivationConfirmThrottle(ClientIPThrottle):
+    scope = "activation_confirm"
+
+
 class PasswordResetIdentifierThrottle(SimpleRateThrottle):
     scope = "password_reset_identifier"
 

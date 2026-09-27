@@ -203,6 +203,7 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
         "password_reset_identifier": "5/hour",
         "password_reset_confirm": "5/hour",
+        "activation_confirm": "5/hour",
     },
 }
 

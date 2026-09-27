@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    ActivationConfirmView,
     CSRFTokenView,
     CurrentUserView,
     LoginView,
@@ -21,5 +22,10 @@ urlpatterns = [
         "password-reset/confirm",
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
+    ),
+    path(
+        "activation/confirm",
+        ActivationConfirmView.as_view(),
+        name="activation-confirm",
     ),
 ]

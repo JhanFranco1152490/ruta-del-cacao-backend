@@ -33,6 +33,14 @@ class UserFactory(DjangoModelFactory):
             )
 
 
+def make_pending_user(**kwargs) -> User:
+    """Cuenta recién creada por HU-03: activa, pero sin contraseña utilizable todavía."""
+    user = UserFactory(**kwargs)
+    user.set_unusable_password()
+    user.save(update_fields=["password"])
+    return user
+
+
 class RoleFactory(DjangoModelFactory):
     class Meta:
         model = Role

@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.serializers import RejectUnknownFieldsMixin
 
+from .access import roles_of
 from .models import User
 
 
@@ -50,11 +51,7 @@ class AccountSerializer(serializers.ModelSerializer):
     def get_roles(self, user) -> list[dict]:
         # `group.role` (uno a uno inverso) ya viene precargado por `_optimized()`: no es una
         # consulta nueva por cada fila de la lista.
-        roles = sorted(
-            (group.role for group in user.groups.all() if hasattr(group, "role")),
-            key=lambda role: role.name,
-        )
-        return AccountRoleSerializer(roles, many=True).data
+        return AccountRoleSerializer(roles_of(user), many=True).data
 
     def get_status(self, user) -> str:
         return "active" if user.is_active else "inactive"

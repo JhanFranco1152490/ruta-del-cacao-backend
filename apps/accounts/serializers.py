@@ -5,9 +5,11 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.validators import strip_document_separators, validate_document_digits
 
+from .access import roles_of
 from .activation import user_from_activation_link
 from .models import User
 from .services import user_from_reset_link
+from .user_serializers import AccountRoleSerializer
 
 
 class LoginSerializer(serializers.Serializer):
@@ -95,10 +97,10 @@ class SessionUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "roles", "permissions"]
+        fields = ["id", "email", "roles", "permissions", "producer_id"]
 
-    def get_roles(self, user) -> list[str]:
-        return list(user.groups.order_by("name").values_list("name", flat=True))
+    def get_roles(self, user) -> list[dict]:
+        return AccountRoleSerializer(roles_of(user), many=True).data
 
     def get_permissions(self, user) -> list[str]:
         return sorted(user.get_all_permissions())

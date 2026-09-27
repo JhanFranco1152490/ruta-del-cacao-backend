@@ -28,3 +28,11 @@ def is_effectively_active(user) -> bool:
 def is_association_admin(user) -> bool:
     """El rol Administrador es exclusivo (HU-03): tenerlo basta, no hace falta el permiso."""
     return user.groups.filter(role__code=ADMINISTRATOR).exists()
+
+
+def roles_of(user) -> list:
+    """Los `Role` de una cuenta, a partir de sus grupos (`Role.group` es uno a uno inverso)."""
+    return sorted(
+        (group.role for group in user.groups.all() if hasattr(group, "role")),
+        key=lambda role: role.name,
+    )

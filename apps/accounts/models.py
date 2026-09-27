@@ -128,6 +128,7 @@ class Role(models.Model):
             ("roles_view", "Puede consultar roles y el catálogo de permisos"),
             ("roles_manage", "Puede crear, editar y borrar roles propios"),
         ]
+        ordering = ["name", "id"]
 
     def __str__(self):
         return self.name

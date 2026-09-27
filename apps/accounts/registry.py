@@ -7,10 +7,11 @@ class PermissionInfo:
     delegable: bool
 
 
-# Solo los permisos que un productor puede delegar en sus roles propios se declaran aquí, con
-# el área que agrupa su catálogo en el frontend. Cualquier código ausente (los `producers.*` y
-# `association_access_manage`) es no delegable por defecto: la salvaguarda de HU-03 falla
-# cerrado ante un permiso nuevo que nadie clasificó todavía.
+# Todo permiso que el catálogo de `/api/permissions` expone (y arma los roles del sistema en
+# `system_roles.py`) se declara aquí, con el área que agrupa su catálogo en el frontend y si un
+# productor puede delegarlo en sus roles propios. Un código ausente es no delegable por
+# defecto: la salvaguarda de HU-03 falla cerrado ante un permiso nuevo que nadie clasificó
+# todavía, aunque en la práctica todo permiso real del sistema debería estar aquí.
 PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "accounts.users_view": PermissionInfo(area="users", delegable=True),
     "accounts.users_create": PermissionInfo(area="users", delegable=True),
@@ -18,6 +19,13 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "accounts.users_change_status": PermissionInfo(area="users", delegable=True),
     "accounts.roles_view": PermissionInfo(area="roles", delegable=True),
     "accounts.roles_manage": PermissionInfo(area="roles", delegable=True),
+    "accounts.association_access_manage": PermissionInfo(
+        area="association_access", delegable=False
+    ),
+    "producers.view": PermissionInfo(area="producers", delegable=False),
+    "producers.create": PermissionInfo(area="producers", delegable=False),
+    "producers.update": PermissionInfo(area="producers", delegable=False),
+    "producers.change_status": PermissionInfo(area="producers", delegable=False),
 }
 
 

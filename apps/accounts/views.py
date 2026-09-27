@@ -1,5 +1,3 @@
-import uuid
-
 from django.conf import settings
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
@@ -17,6 +15,7 @@ from apps.common.serializers import DetailSerializer
 from .activation import confirm_activation
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .exceptions import SessionExpired
+from .requests import request_id_from
 from .serializers import (
     ActivationConfirmSerializer,
     CsrfTokenSerializer,
@@ -41,13 +40,6 @@ from .throttles import (
     PasswordResetIdentifierThrottle,
     PasswordResetIPThrottle,
 )
-
-
-def request_id_from(request):
-    try:
-        return uuid.UUID(request.headers.get("X-Request-ID", ""))
-    except (TypeError, ValueError):
-        return uuid.uuid4()
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")

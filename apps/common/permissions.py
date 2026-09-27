@@ -14,3 +14,12 @@ class ActionPermission(BasePermission):
             return True
         required = view.action_permissions.get(view.action)
         return required is not None and request.user.has_perm(required)
+
+
+class HasPermission(BasePermission):
+    """Exige un permiso fijo (`view.required_permission`), para una vista sin `view.action`
+    (un `APIView` simple, no un `ViewSet`).
+    """
+
+    def has_permission(self, request, view):
+        return request.user.has_perm(view.required_permission)

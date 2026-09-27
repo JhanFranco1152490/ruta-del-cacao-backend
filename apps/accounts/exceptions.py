@@ -65,3 +65,24 @@ class LastAdministrator(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Debe quedar al menos un administrador activo."
     default_code = "last_administrator"
+
+
+class RoleNotFound(ApiError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "El rol no existe."
+    default_code = "not_found"
+
+
+class DuplicateRoleName(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya existe un rol con ese nombre."
+    default_code = "duplicate_role_name"
+
+    def __init__(self):
+        super().__init__(fields={"name": [self.default_detail]})
+
+
+class RoleInUse(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El rol tiene cuentas asignadas: no se puede borrar."
+    default_code = "role_in_use"

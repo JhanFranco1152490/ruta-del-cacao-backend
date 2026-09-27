@@ -1,29 +1,16 @@
 import pytest
 
-from apps.accounts.models import AssociationAccess
 from apps.accounts.scope import acts_for_producer, visible_roles, visible_users
-from apps.accounts.system_roles import ADMINISTRATOR, PRODUCER, get_system_role
+from apps.accounts.system_roles import ADMINISTRATOR, PRODUCER
 from apps.accounts.tests.factories import RoleFactory, UserFactory
+from apps.accounts.tests.roles import (
+    enable_association_access,
+    make_administrator,
+    make_producer_owner,
+)
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
-
-
-def grant_role(user, role):
-    user.groups.add(role.group)
-    return user
-
-
-def make_administrator():
-    return grant_role(UserFactory(), get_system_role(ADMINISTRATOR))
-
-
-def make_producer_owner(producer):
-    return grant_role(UserFactory(producer=producer), get_system_role(PRODUCER))
-
-
-def enable_association_access(producer):
-    AssociationAccess.objects.update_or_create(producer=producer, defaults={"enabled": True})
 
 
 # --- visible_users ------------------------------------------------------------------------

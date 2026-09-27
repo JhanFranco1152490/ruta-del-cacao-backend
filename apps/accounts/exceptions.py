@@ -31,3 +31,37 @@ class AccountLocked(ApiError):
     status_code = status.HTTP_403_FORBIDDEN
     default_detail = "La cuenta está bloqueada temporalmente. Intenta de nuevo en 15 minutos."
     default_code = "account_locked"
+
+
+class ExceedsOwnPermissions(ApiError):
+    """Conceder, asignar o administrar más de lo que se tiene (nadie da lo que no tiene).
+
+    `field` marca `permission_codes` o `role_ids` cuando el rechazo viene del cuerpo de la
+    petición (conceder o asignar); al administrar una cuenta o un rol ya existente, el objeto
+    lo identifica la URL y no hay campo que marcar.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "No puedes conceder, asignar ni administrar más de lo que tienes."
+    default_code = "exceeds_own_permissions"
+
+    def __init__(self, field=None):
+        super().__init__(fields={field: [self.default_detail]} if field else {})
+
+
+class SelfModification(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "No puedes modificar tu propia cuenta desde aquí."
+    default_code = "self_modification"
+
+
+class RoleImmutable(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Este rol es del sistema: no se puede editar ni borrar."
+    default_code = "role_immutable"
+
+
+class LastAdministrator(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Debe quedar al menos un administrador activo."
+    default_code = "last_administrator"

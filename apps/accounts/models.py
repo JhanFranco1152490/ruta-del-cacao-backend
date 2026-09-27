@@ -132,6 +132,14 @@ class Role(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def permission_codes(self) -> frozenset[str]:
+        """Los permisos del rol, en la misma forma "app_label.codename" que `has_perm`."""
+        return frozenset(
+            f"{permission.content_type.app_label}.{permission.codename}"
+            for permission in self.group.permissions.all()
+        )
+
 
 class AssociationAccess(models.Model):
     """Interruptor por productor: si está encendido, el Administrador opera en su espacio.

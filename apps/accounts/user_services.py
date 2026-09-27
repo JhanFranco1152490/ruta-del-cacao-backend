@@ -1,3 +1,4 @@
+import uuid
 from typing import NamedTuple
 
 from django.contrib.auth.models import Group
@@ -36,7 +37,7 @@ from .models import (
 )
 from .scope import visible_roles, visible_users
 from .services import revoke_all_sessions
-from .system_roles import ADMINISTRATOR, PRODUCER
+from .system_roles import ADMINISTRATOR, PRODUCER, get_system_role
 
 PERSONAL_FIELDS = ("document_type", "identity_document", "first_name", "last_name")
 # Nombre que Django genera solo, para el `unique=True` de `EmailField` (previo a HU-03, sensible
@@ -86,6 +87,20 @@ def _resolve_account_kind(codes: set) -> str:
     if ADMINISTRATOR in codes:
         return ACCOUNT_KIND_ADMINISTRATOR
     return ACCOUNT_KIND_EMPLOYEE
+
+
+def _build_producer_account(producer, *, email: str, phone=None) -> User:
+    """Una cuenta con el documento y los nombres copiados del expediente, sin guardar
+    todavía: el llamador decide cuándo (`full_clean()`, guardar, asignar el rol)."""
+    return User(
+        email=email,
+        document_type=producer.document_type,
+        identity_document=producer.identity_document,
+        first_name=producer.first_name,
+        last_name=producer.last_name,
+        phone=phone,
+        producer_id=producer.id,
+    )
 
 
 def _lock_producer(producer_id):
@@ -161,15 +176,7 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
                 raise ProducerInactive()
             if User.objects.filter(producer_id=producer.id, groups__role__code=PRODUCER).exists():
                 raise ProducerAlreadyLinked()
-            user = User(
-                email=data["email"],
-                document_type=producer.document_type,
-                identity_document=producer.identity_document,
-                first_name=producer.first_name,
-                last_name=producer.last_name,
-                phone=data.get("phone"),
-                producer_id=producer.id,
-            )
+            user = _build_producer_account(producer, email=data["email"], phone=data.get("phone"))
         else:
             user = User(
                 email=data["email"],
@@ -290,3 +297,31 @@ def resend_activation(actor, user_id) -> bool:
     if user.has_usable_password():
         raise NotActivationPending()
     return send_activation(user)
+
+
+def create_producer_account_automatically(producer) -> None:
+    """Crea la cuenta Productor al registrar el expediente (HU-02+HU-03).
+
+    Sin actor: es una reacción del sistema a `Producer.save()` (ver `apps.py`), no una acción
+    de alguien autenticado. Si el correo o el documento ya pertenecen a otra cuenta, no se crea
+    nada; como esto corre dentro de la misma transacción que `create_producer()`, también
+    revierte el alta del productor.
+
+    El correo es obligatorio en la API (ver `producers/serializers.py`), pero el campo del
+    modelo sigue siendo opcional para datos ajenos a ella (admin, scripts, una migración):
+    un productor guardado sin correo simplemente no recibe cuenta todavía.
+    """
+    if not producer.email:
+        return
+    role = get_system_role(PRODUCER)
+    user = _build_producer_account(producer, email=producer.email)
+    user.set_unusable_password()
+    user.full_clean(validate_unique=False, validate_constraints=False)
+    _save_or_raise_duplicate(user)
+    user.groups.set([role.group])
+    record_account_event(
+        AccountManagementEvent.EventType.ACCOUNT_CREATED,
+        uuid.uuid4(),
+        target_user=user,
+    )
+    transaction.on_commit(lambda: send_activation(user))

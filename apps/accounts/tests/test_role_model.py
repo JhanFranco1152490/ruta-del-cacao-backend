@@ -54,10 +54,12 @@ def test_fixed_role_requires_code():
 
 
 def test_system_role_names_are_unique_case_insensitively():
-    FixedRoleFactory(name="Administrador")
+    # Nombre inventado: los cinco roles reales ya existen (los siembra system_roles.py) y
+    # colisionarían igual, pero por una razón distinta a la que este test verifica.
+    FixedRoleFactory(name="Rol de prueba")
     with pytest.raises(IntegrityError):
         with transaction.atomic():
-            PredefinedRoleFactory(name="administrador")
+            PredefinedRoleFactory(name="rol de prueba")
 
 
 def test_custom_role_names_are_unique_within_the_same_producer():

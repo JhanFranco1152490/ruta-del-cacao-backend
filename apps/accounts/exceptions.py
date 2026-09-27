@@ -128,3 +128,9 @@ class NotActivationPending(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "La cuenta ya está activada."
     default_code = "not_activation_pending"
+
+
+class AssociationAccessNotFound(ApiError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "Esta cuenta no tiene un productor asociado."
+    default_code = "not_found"

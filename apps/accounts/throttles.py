@@ -3,7 +3,7 @@ from collections.abc import Mapping
 
 from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle, UserRateThrottle
 
-from .axes import client_ip
+from .auth.axes import client_ip
 
 
 class ClientIPThrottle(AnonRateThrottle):

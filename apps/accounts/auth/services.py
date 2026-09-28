@@ -19,17 +19,17 @@ from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .access import is_effectively_active
-from .axes import lockout_identifier
-from .emails import send_password_reset_email
-from .exceptions import (
+from ..access import is_effectively_active
+from ..emails import send_password_reset_email
+from ..exceptions import (
     AccountInactive,
     AccountLocked,
     InvalidCredentials,
     InvalidResetToken,
     SessionExpired,
 )
-from .models import AuthenticationEvent, User
+from ..models import AuthenticationEvent, User
+from .axes import lockout_identifier
 
 logger = logging.getLogger(__name__)
 

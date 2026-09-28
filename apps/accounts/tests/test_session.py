@@ -8,8 +8,8 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
+from apps.accounts.auth.services import revoke_all_sessions
 from apps.accounts.models import AuthenticationEvent
-from apps.accounts.services import revoke_all_sessions
 from apps.accounts.system_roles import FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import (

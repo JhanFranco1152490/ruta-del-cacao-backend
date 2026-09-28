@@ -12,10 +12,17 @@ from apps.common.csrf import CsrfProtectedMixin
 from apps.common.schema import error_responses
 from apps.common.serializers import DetailSerializer
 
-from .activation import confirm_activation
+from ..activation import confirm_activation
+from ..exceptions import SessionExpired
+from ..requests import request_id_from
+from ..throttles import (
+    ActivationConfirmThrottle,
+    LoginRateThrottle,
+    PasswordResetConfirmThrottle,
+    PasswordResetIdentifierThrottle,
+    PasswordResetIPThrottle,
+)
 from .cookies import clear_auth_cookies, set_auth_cookies
-from .exceptions import SessionExpired
-from .requests import request_id_from
 from .serializers import (
     ActivationConfirmSerializer,
     CsrfTokenSerializer,
@@ -32,13 +39,6 @@ from .services import (
     request_password_reset,
     resolve_login_username,
     rotate_tokens,
-)
-from .throttles import (
-    ActivationConfirmThrottle,
-    LoginRateThrottle,
-    PasswordResetConfirmThrottle,
-    PasswordResetIdentifierThrottle,
-    PasswordResetIPThrottle,
 )
 
 

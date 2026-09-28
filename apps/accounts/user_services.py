@@ -10,6 +10,7 @@ from apps.common.validators import strip_document_separators
 
 from .access import get_producer_model, is_association_admin
 from .activation import send_activation
+from .auth.services import revoke_all_sessions
 from .authorization import (
     ACCOUNT_KIND_ADMINISTRATOR,
     ACCOUNT_KIND_EMPLOYEE,
@@ -37,7 +38,6 @@ from .models import (
     User,
 )
 from .scope import visible_roles, visible_users
-from .services import revoke_all_sessions
 from .system_roles import ADMINISTRATOR, PRODUCER, get_system_role
 
 PERSONAL_FIELDS = ("document_type", "identity_document", "first_name", "last_name")

@@ -9,7 +9,7 @@ from django.test import Client
 from django.urls import reverse
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from apps.accounts.axes import lockout_identifier
+from apps.accounts.auth.axes import lockout_identifier
 from apps.accounts.models import Role
 from apps.accounts.system_roles import ADMINISTRATOR
 from apps.accounts.tests.factories import UserFactory

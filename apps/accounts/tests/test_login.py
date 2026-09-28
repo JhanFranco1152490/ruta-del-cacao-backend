@@ -10,7 +10,7 @@ from django.test import Client, RequestFactory, override_settings
 from django.utils import timezone
 from rest_framework.throttling import BaseThrottle
 
-from apps.accounts.axes import lockout_identifier
+from apps.accounts.auth.axes import lockout_identifier
 from apps.accounts.models import AuthenticationEvent
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import (

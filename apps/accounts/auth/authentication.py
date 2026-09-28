@@ -5,7 +5,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from apps.common.csrf import enforce_csrf
 
-from .access import is_effectively_active
+from ..access import is_effectively_active
 
 
 class CookieJWTAuthentication(JWTAuthentication):

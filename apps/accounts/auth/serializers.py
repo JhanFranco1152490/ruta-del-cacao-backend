@@ -5,11 +5,11 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.validators import strip_document_separators, validate_document_digits
 
-from .access import roles_of
-from .activation import user_from_activation_link
-from .models import User
+from ..access import roles_of
+from ..activation import user_from_activation_link
+from ..models import User
+from ..user_serializers import AccountRoleSerializer
 from .services import user_from_reset_link
-from .user_serializers import AccountRoleSerializer
 
 
 class LoginSerializer(serializers.Serializer):

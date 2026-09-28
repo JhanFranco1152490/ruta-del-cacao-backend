@@ -24,7 +24,7 @@ handler500 = "apps.common.views.server_error"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/auth/", include("apps.accounts.urls")),
+    path("api/auth/", include("apps.accounts.auth.urls")),
     path("api/", include("apps.accounts.role_urls")),
     path("api/", include("apps.accounts.user_urls")),
     path("api/", include("apps.accounts.access_switch_urls")),

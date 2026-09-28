@@ -131,7 +131,7 @@ AUTH_PASSWORD_VALIDATORS = [
         "OPTIONS": {"min_length": 8},
     },
     {
-        "NAME": "apps.accounts.validators.MaximumLengthValidator",
+        "NAME": "apps.accounts.auth.validators.MaximumLengthValidator",
     },
     {
         "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
@@ -167,14 +167,14 @@ AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
 # authenticate() y lockout_identifier las manejan como "username". Sin esto el identificador
 # sale vacío al comprobar el bloqueo y al reiniciar el conteo, y el bloqueo nunca se aplica.
 AXES_USERNAME_FORM_FIELD = "username"
-AXES_USERNAME_CALLABLE = "apps.accounts.axes.lockout_identifier"
+AXES_USERNAME_CALLABLE = "apps.accounts.auth.axes.lockout_identifier"
 # La auditoría de accesos la lleva AuthenticationEvent, sin correos ni IP.
 AXES_DISABLE_ACCESS_LOG = True
 # axes lee la IP con la misma función que los límites de solicitudes de DRF: sin proxy usa
 # REMOTE_ADDR y con proxies cuenta solo los saltos de confianza desde la derecha de
 # X-Forwarded-For. Así las dos ven siempre la misma IP y el cliente no puede inventarse una
 # para esquivar el bloqueo.
-AXES_CLIENT_IP_CALLABLE = "apps.accounts.axes.client_ip"
+AXES_CLIENT_IP_CALLABLE = "apps.accounts.auth.axes.client_ip"
 # axes guarda los parámetros del POST en claro salvo estos; con peticiones de formulario
 # llegarían el correo y el documento. También los enmascara en sus logs.
 AXES_SENSITIVE_PARAMETERS = ["username", "ip_address", "email", "identity_document"]
@@ -189,7 +189,9 @@ REST_FRAMEWORK = {
     # sitio ajeno puede enviar desde un <form> sin la comprobación previa de CORS.
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
-    "DEFAULT_AUTHENTICATION_CLASSES": ["apps.accounts.authentication.CookieJWTAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.accounts.auth.authentication.CookieJWTAuthentication"
+    ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "apps.common.exceptions.api_exception_handler",
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPagination",

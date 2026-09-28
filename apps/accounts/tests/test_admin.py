@@ -9,12 +9,12 @@ from django.test import Client
 from django.urls import reverse
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from apps.accounts.axes import lockout_identifier
+from apps.accounts.auth.axes import lockout_identifier
 from apps.accounts.models import Role
 from apps.accounts.system_roles import ADMINISTRATOR
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import login_by_email
-from apps.accounts.tests.roles import make_producer_owner
+from apps.accounts.tests.role_helpers import make_producer_owner
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("plain_static_files")]

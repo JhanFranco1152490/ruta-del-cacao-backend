@@ -283,7 +283,7 @@ def test_a_disallowed_host_with_a_search_never_reaches_sentry(sentry_items, keep
 
 
 def test_a_500_sends_no_query_no_credentials_and_no_client_ip(sentry_items, keep_connections_open):
-    with mock.patch("apps.accounts.views.get_token", side_effect=RuntimeError("boom")):
+    with mock.patch("apps.accounts.auth.views.get_token", side_effect=RuntimeError("boom")):
         status = call_app("/api/auth/csrf", f"search={DOC}")
 
     assert status.startswith("500")

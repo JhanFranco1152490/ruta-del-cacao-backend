@@ -6,7 +6,7 @@ from apps.accounts.exceptions import (
     DuplicateAccountDocument,
     DuplicateEmail,
 )
-from apps.accounts.user_services import create_first_administrator
+from apps.accounts.users.services import create_first_administrator
 from apps.common.choices import DocumentType
 
 

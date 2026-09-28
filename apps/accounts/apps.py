@@ -8,7 +8,7 @@ class AccountsConfig(AppConfig):
     name = "apps.accounts"
 
     def ready(self):
-        from . import schema  # noqa: F401  (registra la extensión de drf-spectacular)
+        from .auth import schema  # noqa: F401  (registra la extensión de drf-spectacular)
 
         # `producers` es la última app de INSTALLED_APPS: cuando le llega su turno en el
         # post_migrate, los permisos de todas las apps (incluidos los suyos, que usa el rol
@@ -33,6 +33,6 @@ def _sync_system_roles(sender, **kwargs):
 def _create_producer_account(sender, instance, created, **kwargs):
     if not created:
         return
-    from .user_services import create_producer_account_automatically
+    from .users.services import create_producer_account_automatically
 
     create_producer_account_automatically(instance)

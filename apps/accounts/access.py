@@ -1,0 +1,38 @@
+from .system_roles import ADMINISTRATOR
+
+
+def get_producer_model():
+    """El modelo `Producer`, sin importarlo (esta app no importa de otra): se obtiene del
+    campo `User.producer`, igual que Django ya lo resuelve para esa relación diferida.
+    """
+    from .models import User
+
+    return User._meta.get_field("producer").related_model
+
+
+def is_effectively_active(user) -> bool:
+    """Una cuenta inactiva, o vinculada a un productor inactivo, no está efectivamente activa.
+
+    Se comprueba en el inicio de sesión, al renovar y en cada solicitud autenticada, para que
+    desactivar un productor corte el acceso de sus cuentas sin tocarlas una por una.
+    """
+    if not user.is_active:
+        return False
+    if user.producer_id is None:
+        return True
+    # "active" es el valor de `Producer.Status.ACTIVE`: no se importa el modelo de producers
+    # (esta app no importa de otra), igual que los códigos "producers.*" de system_roles.py.
+    return user.producer.status == "active"
+
+
+def is_association_admin(user) -> bool:
+    """El rol Administrador es exclusivo (HU-03): tenerlo basta, no hace falta el permiso."""
+    return user.groups.filter(role__code=ADMINISTRATOR).exists()
+
+
+def roles_of(user) -> list:
+    """Los `Role` de una cuenta, a partir de sus grupos (`Role.group` es uno a uno inverso)."""
+    return sorted(
+        (group.role for group in user.groups.all() if hasattr(group, "role")),
+        key=lambda role: role.name,
+    )

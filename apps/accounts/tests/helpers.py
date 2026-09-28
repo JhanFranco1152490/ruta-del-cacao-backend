@@ -10,6 +10,7 @@ from .factories import DEFAULT_PASSWORD
 LOGIN_URL = "/api/auth/login"
 RESET_REQUEST_URL = "/api/auth/password-reset/request"
 RESET_CONFIRM_URL = "/api/auth/password-reset/confirm"
+ACTIVATION_CONFIRM_URL = "/api/auth/activation/confirm"
 
 
 def csrf_client():
@@ -76,3 +77,16 @@ def confirm_reset(client, uid, token, password, confirmation=None):
 def reset_password(client, email, new_password):
     uid, token = request_reset_link(client, email)
     return confirm_reset(client, uid, token, new_password)
+
+
+def confirm_activation_request(client, uid, token, password, confirmation=None):
+    return client.post(
+        ACTIVATION_CONFIRM_URL,
+        {
+            "uid": uid,
+            "token": token,
+            "new_password": password,
+            "new_password_confirmation": confirmation or password,
+        },
+        format="json",
+    )

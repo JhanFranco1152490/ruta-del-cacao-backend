@@ -19,6 +19,7 @@ from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .access import is_effectively_active
 from .axes import lockout_identifier
 from .emails import send_password_reset_email
 from .exceptions import (
@@ -74,7 +75,9 @@ def log_in(request, *, username: str, password: str, request_id) -> User:
             User.objects.filter(email=username).first(),
         )
         raise AccountLocked() if locked else InvalidCredentials()
-    if not user.is_active:
+    if not is_effectively_active(user):
+        # Cubre tanto la cuenta inactiva como una vinculada a un productor inactivo (HU-03):
+        # con la contraseña correcta, el mensaje es el mismo para las dos.
         record_authentication_event(
             AuthenticationEvent.EventType.LOGIN_FAILED,
             AuthenticationEvent.Outcome.FAILURE,
@@ -145,7 +148,10 @@ def revoke_all_sessions(user) -> None:
 
 def request_password_reset(email: str) -> None:
     user = User.objects.filter(email__iexact=email.strip(), is_active=True).first()
-    if user is None:
+    # Una cuenta pendiente de activación (HU-03) no tiene contraseña que restablecer; la vía
+    # correcta es reenviar la activación, no este flujo. La respuesta es la misma en ambos
+    # casos para no revelar si el correo pertenece a una cuenta.
+    if user is None or not user.has_usable_password():
         return
     query = urlencode(
         {

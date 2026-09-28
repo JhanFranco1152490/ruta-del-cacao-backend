@@ -20,7 +20,7 @@ from apps.accounts.tests.helpers import (
     request_reset_link,
     reset_password,
 )
-from apps.accounts.tests.roles import grant_role
+from apps.accounts.tests.role_helpers import grant_role
 from apps.accounts.throttles import LoginRateThrottle
 from apps.producers.tests.factories import ProducerFactory
 

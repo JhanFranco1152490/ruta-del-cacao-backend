@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import AccountManagementEvent, Role
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import RoleFactory, UserFactory
-from apps.accounts.tests.roles import (
+from apps.accounts.tests.role_helpers import (
     enable_association_access,
     grant_role,
     make_administrator,

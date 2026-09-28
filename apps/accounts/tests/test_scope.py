@@ -3,7 +3,7 @@ import pytest
 from apps.accounts.scope import acts_for_producer, visible_roles, visible_users
 from apps.accounts.system_roles import ADMINISTRATOR, PRODUCER
 from apps.accounts.tests.factories import RoleFactory, UserFactory
-from apps.accounts.tests.roles import (
+from apps.accounts.tests.role_helpers import (
     enable_association_access,
     make_administrator,
     make_producer_owner,

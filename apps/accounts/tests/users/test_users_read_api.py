@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, get_system_role
 from apps.accounts.tests.factories import UserFactory, make_pending_user
-from apps.accounts.tests.roles import (
+from apps.accounts.tests.role_helpers import (
     enable_association_access,
     grant_role,
     make_administrator,

@@ -5,7 +5,7 @@ from apps.accounts.authorization import ensure_can_grant
 from apps.accounts.exceptions import ExceedsOwnPermissions
 from apps.accounts.models import AccountManagementEvent, AssociationAccess
 from apps.accounts.tests.factories import UserFactory
-from apps.accounts.tests.roles import make_administrator, make_delegate, make_producer_owner
+from apps.accounts.tests.role_helpers import make_administrator, make_delegate, make_producer_owner
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db

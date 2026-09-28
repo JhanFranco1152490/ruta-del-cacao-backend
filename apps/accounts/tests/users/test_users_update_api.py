@@ -9,7 +9,7 @@ from apps.accounts.models import AccountManagementEvent, User
 from apps.accounts.system_roles import FOREMAN, get_system_role
 from apps.accounts.tests.factories import RoleFactory, UserFactory, make_pending_user
 from apps.accounts.tests.helpers import csrf_client, open_session
-from apps.accounts.tests.roles import (
+from apps.accounts.tests.role_helpers import (
     grant_role,
     make_administrator,
     make_delegate,

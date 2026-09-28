@@ -5,7 +5,7 @@ from django.core.management import CommandError, call_command
 from apps.accounts.models import User
 from apps.accounts.system_roles import ADMINISTRATOR
 from apps.accounts.tests.factories import UserFactory
-from apps.accounts.tests.roles import make_administrator
+from apps.accounts.tests.role_helpers import make_administrator
 
 pytestmark = pytest.mark.django_db
 

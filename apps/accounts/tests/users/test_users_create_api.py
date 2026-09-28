@@ -12,7 +12,7 @@ from apps.accounts.models import AccountManagementEvent, User
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import RoleFactory, UserFactory
 from apps.accounts.tests.helpers import csrf_client, open_session
-from apps.accounts.tests.roles import (
+from apps.accounts.tests.role_helpers import (
     enable_association_access,
     make_administrator,
     make_delegate,

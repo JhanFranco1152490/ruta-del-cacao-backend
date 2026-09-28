@@ -31,7 +31,7 @@ from apps.accounts.system_roles import (
     get_system_role,
 )
 from apps.accounts.tests.factories import RoleFactory, UserFactory
-from apps.accounts.tests.roles import (
+from apps.accounts.tests.role_helpers import (
     enable_association_access,
     make_administrator,
     make_delegate,

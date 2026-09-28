@@ -175,6 +175,43 @@ def test_list_is_paginated(auth_client):
     assert set(response.data) == {"count", "next", "previous", "results"}
 
 
+def test_ordering_by_email(auth_client):
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    UserFactory(producer=producer, email="zzz@example.com")
+    UserFactory(producer=producer, email="aaa@example.com")
+
+    response = auth_client(owner).get(f"{USERS_URL}?ordering=email")
+
+    emails = [item["email"] for item in response.data["results"]]
+    assert emails == sorted(emails)
+
+
+def test_ordering_descending(auth_client):
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    UserFactory(producer=producer, email="zzz@example.com")
+    UserFactory(producer=producer, email="aaa@example.com")
+
+    response = auth_client(owner).get(f"{USERS_URL}?ordering=-email")
+
+    emails = [item["email"] for item in response.data["results"]]
+    assert emails == sorted(emails, reverse=True)
+
+
+def test_an_unknown_ordering_field_is_ignored(auth_client):
+    owner = make_producer_owner(ProducerFactory())
+    UserFactory(producer=owner.producer)
+
+    with_param = auth_client(owner).get(f"{USERS_URL}?ordering=not_a_field")
+    without_param = auth_client(owner).get(USERS_URL)
+
+    assert with_param.status_code == 200
+    assert [item["id"] for item in with_param.data["results"]] == [
+        item["id"] for item in without_param.data["results"]
+    ]
+
+
 # --- Representación --------------------------------------------------------------------------
 
 

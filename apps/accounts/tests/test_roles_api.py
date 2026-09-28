@@ -97,6 +97,73 @@ def test_list_is_paginated(auth_client):
     assert set(response.data) == {"count", "next", "previous", "results"}
 
 
+# --- Filtros y búsqueda ---------------------------------------------------------------------
+
+
+def test_filter_by_kind(auth_client):
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    custom = RoleFactory(producer=producer)
+
+    response = auth_client(owner).get(f"{ROLES_URL}?kind=custom")
+
+    ids = {item["id"] for item in response.data["results"]}
+    assert str(custom.id) in ids
+    assert str(get_system_role(ADMINISTRATOR).id) not in ids
+
+
+def test_filter_by_producer(auth_client):
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    own_role = RoleFactory(producer=producer)
+    other_role = RoleFactory()  # de otro productor, invisible para este actor de todas formas
+
+    response = auth_client(owner).get(f"{ROLES_URL}?producer={producer.id}")
+
+    ids = {item["id"] for item in response.data["results"]}
+    assert str(own_role.id) in ids
+    assert str(other_role.id) not in ids
+
+
+def test_search_ignores_accents_and_case(auth_client):
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    match = RoleFactory(producer=producer, name="Añíl")
+    other = RoleFactory(producer=producer, name="Otro")
+
+    response = auth_client(owner).get(f"{ROLES_URL}?search=anil")
+
+    ids = {item["id"] for item in response.data["results"]}
+    assert str(match.id) in ids
+    assert str(other.id) not in ids
+
+
+def test_ordering_descending_by_name(auth_client):
+    # El orden por defecto ya es por nombre ascendente (`Role.Meta.ordering`): se pide
+    # descendente para distinguir que el parámetro sí se está aplicando.
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    RoleFactory(producer=producer, name="Zeta")
+    RoleFactory(producer=producer, name="Alfa")
+
+    response = auth_client(owner).get(f"{ROLES_URL}?ordering=-name")
+
+    names = [item["name"] for item in response.data["results"]]
+    assert names == sorted(names, reverse=True)
+
+
+def test_an_unknown_ordering_field_is_ignored(auth_client):
+    owner = make_producer_owner(ProducerFactory())
+
+    with_param = auth_client(owner).get(f"{ROLES_URL}?ordering=not_a_field")
+    without_param = auth_client(owner).get(ROLES_URL)
+
+    assert with_param.status_code == 200
+    assert [item["id"] for item in with_param.data["results"]] == [
+        item["id"] for item in without_param.data["results"]
+    ]
+
+
 # --- Crear ---------------------------------------------------------------------------------------
 
 

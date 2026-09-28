@@ -1,6 +1,8 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -73,8 +75,13 @@ class AccountViewSet(GenericViewSet):
         "change_status": "accounts.users_change_status",
         "resend_activation": "accounts.users_update",
     }
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AccountFilter
     search_fields = ["identity_document", "first_name__unaccent", "last_name__unaccent", "email"]
+    # Un valor que no está aquí se ignora en vez de dar 400 (comportamiento propio de
+    # `OrderingFilter`): a diferencia de un filtro con significado de negocio (`status`), un
+    # `ordering` inválido no da resultados equivocados, solo cae al orden por defecto.
+    ordering_fields = ["email", "first_name", "last_name", "date_joined"]
     lookup_value_converter = "uuid"
 
     def list(self, request):

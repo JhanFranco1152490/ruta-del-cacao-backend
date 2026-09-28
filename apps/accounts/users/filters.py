@@ -3,14 +3,8 @@ from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
-from .access import is_association_admin
-from .models import Role, User
-
-
-class RoleFilter(django_filters.FilterSet):
-    class Meta:
-        model = Role
-        fields = ["kind", "producer"]
+from ..access import is_association_admin
+from ..models import User
 
 
 class AccountFilter(django_filters.FilterSet):

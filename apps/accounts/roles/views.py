@@ -10,17 +10,17 @@ from rest_framework.viewsets import GenericViewSet
 from apps.common.permissions import ActionPermission, HasPermission
 from apps.common.schema import error_responses
 
+from ..models import Role
+from ..requests import request_id_from
+from ..scope import visible_roles
 from .filters import RoleFilter
-from .models import Role
-from .requests import request_id_from
-from .role_serializers import (
+from .serializers import (
     PermissionListSerializer,
     RoleCreateSerializer,
     RoleSerializer,
     RoleUpdateSerializer,
 )
-from .role_services import create_role, delete_role, get_role, permission_catalog, update_role
-from .scope import visible_roles
+from .services import create_role, delete_role, get_role, permission_catalog, update_role
 
 
 @extend_schema_view(

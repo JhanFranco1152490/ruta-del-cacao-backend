@@ -12,7 +12,6 @@ from apps.common.csrf import CsrfProtectedMixin
 from apps.common.schema import error_responses
 from apps.common.serializers import DetailSerializer
 
-from ..activation import confirm_activation
 from ..exceptions import SessionExpired
 from ..requests import request_id_from
 from ..throttles import (
@@ -22,6 +21,7 @@ from ..throttles import (
     PasswordResetIdentifierThrottle,
     PasswordResetIPThrottle,
 )
+from ..users.activation import confirm_activation
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .serializers import (
     ActivationConfirmSerializer,

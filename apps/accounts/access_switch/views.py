@@ -6,12 +6,12 @@ from rest_framework.views import APIView
 from apps.common.permissions import HasPermission
 from apps.common.schema import error_responses
 
-from .access_switch import get_association_access, set_association_access
-from .access_switch_serializers import (
+from ..requests import request_id_from
+from .serializers import (
     AssociationAccessSerializer,
     AssociationAccessUpdateSerializer,
 )
-from .requests import request_id_from
+from .services import get_association_access, set_association_access
 
 
 class AssociationAccessView(APIView):

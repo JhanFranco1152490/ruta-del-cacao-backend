@@ -12,9 +12,9 @@ from rest_framework import status
 
 from apps.common.exceptions import ApiError
 
-from .emails import send_activation_email
-from .events import record_account_event
-from .models import AccountManagementEvent, User
+from ..emails import send_activation_email
+from ..events import record_account_event
+from ..models import AccountManagementEvent, User
 
 ACTIVATION_TOKEN_TIMEOUT = 60 * 60 * 72  # 72 horas
 

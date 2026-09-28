@@ -6,13 +6,13 @@ from django.db.models import Q
 from django.db.models.functions import Lower
 from rest_framework.exceptions import ValidationError
 
-from .access import is_association_admin
-from .authorization import effective_permissions, ensure_can_grant, ensure_can_manage_role
-from .events import record_account_event
-from .exceptions import DuplicateRoleName, ExceedsOwnPermissions, RoleInUse, RoleNotFound
-from .models import AccountManagementEvent, Role
-from .registry import PERMISSION_REGISTRY
-from .scope import acts_for_producer, visible_roles
+from ..access import is_association_admin
+from ..authorization import effective_permissions, ensure_can_grant, ensure_can_manage_role
+from ..events import record_account_event
+from ..exceptions import DuplicateRoleName, ExceedsOwnPermissions, RoleInUse, RoleNotFound
+from ..models import AccountManagementEvent, Role
+from ..registry import PERMISSION_REGISTRY
+from ..scope import acts_for_producer, visible_roles
 
 
 def get_role(actor, role_id) -> Role:

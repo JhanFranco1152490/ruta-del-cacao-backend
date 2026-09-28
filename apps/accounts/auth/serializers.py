@@ -6,9 +6,9 @@ from apps.common.choices import DocumentType
 from apps.common.validators import strip_document_separators, validate_document_digits
 
 from ..access import roles_of
-from ..activation import user_from_activation_link
 from ..models import User
-from ..user_serializers import AccountRoleSerializer
+from ..users.activation import user_from_activation_link
+from ..users.serializers import AccountRoleSerializer
 from .services import user_from_reset_link
 
 

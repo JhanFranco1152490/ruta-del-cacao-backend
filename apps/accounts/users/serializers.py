@@ -3,8 +3,8 @@ from rest_framework import serializers
 from apps.common.choices import DocumentType
 from apps.common.serializers import RejectUnknownFieldsMixin
 
-from .access import roles_of
-from .models import User
+from ..access import roles_of
+from ..models import User
 
 
 class AccountProducerSerializer(serializers.Serializer):

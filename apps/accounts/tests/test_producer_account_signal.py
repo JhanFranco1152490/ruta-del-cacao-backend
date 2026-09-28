@@ -2,7 +2,7 @@ import pytest
 
 from apps.accounts.models import User
 from apps.accounts.system_roles import PRODUCER
-from apps.accounts.user_services import create_producer_account_automatically
+from apps.accounts.users.services import create_producer_account_automatically
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db

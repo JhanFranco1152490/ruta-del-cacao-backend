@@ -8,10 +8,9 @@ from rest_framework.exceptions import ValidationError
 
 from apps.common.validators import strip_document_separators
 
-from .access import get_producer_model, is_association_admin
-from .activation import send_activation
-from .auth.services import revoke_all_sessions
-from .authorization import (
+from ..access import get_producer_model, is_association_admin
+from ..auth.services import revoke_all_sessions
+from ..authorization import (
     ACCOUNT_KIND_ADMINISTRATOR,
     ACCOUNT_KIND_EMPLOYEE,
     ACCOUNT_KIND_PRODUCER,
@@ -21,8 +20,8 @@ from .authorization import (
     ensure_not_self,
     ensure_valid_role_set,
 )
-from .events import record_account_event
-from .exceptions import (
+from ..events import record_account_event
+from ..exceptions import (
     AccountNotFound,
     AdministratorAlreadyExists,
     DuplicateAccountDocument,
@@ -31,14 +30,15 @@ from .exceptions import (
     ProducerAlreadyLinked,
     ProducerInactive,
 )
-from .models import (
+from ..models import (
     DOCUMENT_UNIQUE_CONSTRAINT,
     EMAIL_UNIQUE_CONSTRAINT,
     AccountManagementEvent,
     User,
 )
-from .scope import visible_roles, visible_users
-from .system_roles import ADMINISTRATOR, PRODUCER, get_system_role
+from ..scope import visible_roles, visible_users
+from ..system_roles import ADMINISTRATOR, PRODUCER, get_system_role
+from .activation import send_activation
 
 PERSONAL_FIELDS = ("document_type", "identity_document", "first_name", "last_name")
 # Nombre que Django genera solo, para el `unique=True` de `EmailField` (previo a HU-03, sensible

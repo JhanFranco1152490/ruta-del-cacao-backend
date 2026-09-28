@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from apps.common.serializers import RejectUnknownFieldsMixin
 
-from .models import Role
+from ..models import Role
 
 
 class RoleSerializer(serializers.ModelSerializer):

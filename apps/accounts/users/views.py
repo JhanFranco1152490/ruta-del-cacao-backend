@@ -10,11 +10,11 @@ from rest_framework.viewsets import GenericViewSet
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
+from ..models import User
+from ..requests import request_id_from
+from ..throttles import ActivationResendThrottle
 from .filters import AccountFilter
-from .models import User
-from .requests import request_id_from
-from .throttles import ActivationResendThrottle
-from .user_serializers import (
+from .serializers import (
     AccountCreatedSerializer,
     AccountCreateSerializer,
     AccountRoleIdsSerializer,
@@ -23,7 +23,7 @@ from .user_serializers import (
     AccountUpdateSerializer,
     ActivationEmailSentSerializer,
 )
-from .user_services import (
+from .services import (
     create_account,
     get_account,
     list_accounts,
@@ -31,7 +31,7 @@ from .user_services import (
     set_account_status,
     update_account,
 )
-from .user_services import resend_activation as resend_activation_service
+from .services import resend_activation as resend_activation_service
 
 
 @extend_schema_view(

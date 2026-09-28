@@ -33,6 +33,6 @@ def _sync_system_roles(sender, **kwargs):
 def _create_producer_account(sender, instance, created, **kwargs):
     if not created:
         return
-    from .user_services import create_producer_account_automatically
+    from .users.services import create_producer_account_automatically
 
     create_producer_account_automatically(instance)

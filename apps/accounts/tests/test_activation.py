@@ -9,11 +9,6 @@ from django.test import override_settings
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
-from apps.accounts.activation import (
-    ACTIVATION_TOKEN_TIMEOUT,
-    activation_token_generator,
-    send_activation,
-)
 from apps.accounts.models import AccountManagementEvent
 from apps.accounts.tests.factories import UserFactory, make_pending_user
 from apps.accounts.tests.helpers import (
@@ -25,6 +20,11 @@ from apps.accounts.tests.helpers import (
     reset_link_params,
 )
 from apps.accounts.throttles import ActivationConfirmThrottle
+from apps.accounts.users.activation import (
+    ACTIVATION_TOKEN_TIMEOUT,
+    activation_token_generator,
+    send_activation,
+)
 
 pytestmark = pytest.mark.django_db
 

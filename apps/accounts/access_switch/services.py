@@ -1,9 +1,9 @@
 from django.db import transaction
 from django.utils import timezone
 
-from .events import record_account_event
-from .exceptions import AssociationAccessNotFound
-from .models import AccountManagementEvent, AssociationAccess
+from ..events import record_account_event
+from ..exceptions import AssociationAccessNotFound
+from ..models import AccountManagementEvent, AssociationAccess
 
 
 def _own_producer_id(actor):

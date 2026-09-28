@@ -1,5 +1,3 @@
-import uuid
-
 from django.conf import settings
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
@@ -14,9 +12,12 @@ from apps.common.csrf import CsrfProtectedMixin
 from apps.common.schema import error_responses
 from apps.common.serializers import DetailSerializer
 
+from .activation import confirm_activation
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .exceptions import SessionExpired
+from .requests import request_id_from
 from .serializers import (
+    ActivationConfirmSerializer,
     CsrfTokenSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -33,18 +34,12 @@ from .services import (
     rotate_tokens,
 )
 from .throttles import (
+    ActivationConfirmThrottle,
     LoginRateThrottle,
     PasswordResetConfirmThrottle,
     PasswordResetIdentifierThrottle,
     PasswordResetIPThrottle,
 )
-
-
-def request_id_from(request):
-    try:
-        return uuid.UUID(request.headers.get("X-Request-ID", ""))
-    except (TypeError, ValueError):
-        return uuid.uuid4()
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -161,6 +156,25 @@ class PasswordResetConfirmView(CsrfProtectedMixin, APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         confirm_password_reset(
+            data["user"], data["token"], data["new_password"], request_id_from(request)
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ActivationConfirmView(CsrfProtectedMixin, APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ActivationConfirmThrottle]
+
+    @extend_schema(
+        request=ActivationConfirmSerializer,
+        responses={204: None, **error_responses(400, 403, 429)},
+    )
+    def post(self, request):
+        serializer = ActivationConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        confirm_activation(
             data["user"], data["token"], data["new_password"], request_id_from(request)
         )
         return Response(status=status.HTTP_204_NO_CONTENT)

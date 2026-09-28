@@ -3,14 +3,19 @@ from axes.models import AccessAttempt
 from django.apps import apps
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import Client
 from django.urls import reverse
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from apps.accounts.axes import lockout_identifier
+from apps.accounts.models import Role
+from apps.accounts.system_roles import ADMINISTRATOR
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import login_by_email
+from apps.accounts.tests.roles import make_producer_owner
+from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("plain_static_files")]
 
@@ -161,3 +166,40 @@ def test_deleting_the_access_attempt_in_the_admin_unlocks_the_account(api_client
 
     assert deletion.status_code == 302
     assert_can_log_in(api_client, user)
+
+
+# --- Role y Group ---
+
+
+def test_group_is_not_registered_in_the_admin():
+    assert not admin.site.is_registered(Group)
+
+
+def test_nobody_can_add_edit_or_delete_a_role_from_the_admin(admin_client):
+    role = Role.objects.get(code=ADMINISTRATOR)
+
+    assert admin_client.get(reverse("admin:accounts_role_add")).status_code == 403
+
+    change_url = reverse("admin:accounts_role_change", args=[role.pk])
+    assert admin_client.get(change_url).status_code == 200
+    response = admin_client.post(change_url, {"name": "Otro nombre"})
+    assert response.status_code == 403
+    role.refresh_from_db()
+    assert role.name == "Administrador"
+
+    delete_url = reverse("admin:accounts_role_delete", args=[role.pk])
+    assert admin_client.get(delete_url).status_code == 403
+
+
+# --- User: productor y roles ---
+
+
+def test_the_user_admin_shows_the_producer_and_its_roles_as_read_only(admin_client):
+    owner = make_producer_owner(ProducerFactory())
+
+    change_url = reverse("admin:accounts_user_change", args=[owner.pk])
+    body = admin_client.get(change_url).content.decode()
+
+    assert owner.producer.member_code in body
+    assert "Productor" in body
+    assert 'name="groups"' not in body

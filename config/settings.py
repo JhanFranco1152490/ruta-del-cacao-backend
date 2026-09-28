@@ -203,6 +203,8 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
         "password_reset_identifier": "5/hour",
         "password_reset_confirm": "5/hour",
+        "activation_confirm": "5/hour",
+        "activation_resend": "10/hour",
     },
 }
 
@@ -232,6 +234,9 @@ SIMPLE_JWT = {
     "CHECK_REVOKE_TOKEN": True,
     "UPDATE_LAST_LOGIN": False,
     "USER_ID_FIELD": "id",
+    # Solo la usa TokenRefreshSerializer (la vista propia de login no pasa por simplejwt):
+    # una cuenta cuyo productor se desactivó no puede renovar, igual que una inactiva.
+    "USER_AUTHENTICATION_RULE": "apps.accounts.access.is_effectively_active",
     "SIGNING_KEY": config("AUTH_JWT_SIGNING_KEY", default=SECRET_KEY),
     "AUDIENCE": "ruta-del-cacao-web",
     "ISSUER": "ruta-del-cacao-api",

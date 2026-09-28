@@ -16,6 +16,7 @@ VALID_DATA = {
     "last_name": "Gomez",
     "municipality_code": "54001",
     "joined_on": "2026-09-21",
+    "email": "ana@example.com",
 }
 
 
@@ -234,13 +235,23 @@ def test_create_rejects_invalid_fields(admin_client, field, value):
     assert field in response.data["fields"]
 
 
-def test_create_accepts_null_optional_contact(admin_client):
-    response = admin_client.post(
-        "/api/producers", {**VALID_DATA, "email": None, "phone": None}, format="json"
-    )
+def test_create_accepts_null_optional_phone(admin_client):
+    response = admin_client.post("/api/producers", {**VALID_DATA, "phone": None}, format="json")
 
     assert response.status_code == 201
-    assert response.data["email"] is None
+    assert response.data["phone"] is None
+
+
+@pytest.mark.parametrize("data", [{}, {"email": None}])
+def test_create_requires_email(admin_client, data):
+    # HU-03 crea la cuenta Productor con este correo en la misma operación (ver
+    # apps/producers/tests/test_account_link.py); sin correo no hay cuenta posible.
+    body = {**{k: v for k, v in VALID_DATA.items() if k != "email"}, **data}
+
+    response = admin_client.post("/api/producers", body, format="json")
+
+    assert response.status_code == 400
+    assert "email" in response.data["fields"]
 
 
 def test_create_rejects_unknown_and_read_only_fields(admin_client):

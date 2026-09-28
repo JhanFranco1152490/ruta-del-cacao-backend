@@ -7,6 +7,9 @@ from apps.common.municipalities import validate_municipality_code
 from apps.common.validators import validate_not_future, validate_phone, validate_producer_document
 
 DOCUMENT_UNIQUE_CONSTRAINT = "producers_document_type_number_unique"
+# Código del rol que identifica a la cuenta Productor (ver apps.accounts.system_roles). No se
+# importa esa constante: esta app no importa de otra (ver AGENTS.md).
+PRODUCER_ROLE_CODE = "producer"
 
 
 class Producer(models.Model):

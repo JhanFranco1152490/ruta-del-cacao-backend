@@ -1,7 +1,7 @@
 import hashlib
 from collections.abc import Mapping
 
-from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle, UserRateThrottle
 
 from .axes import client_ip
 
@@ -23,6 +23,16 @@ class PasswordResetIPThrottle(ClientIPThrottle):
 
 class PasswordResetConfirmThrottle(ClientIPThrottle):
     scope = "password_reset_confirm"
+
+
+class ActivationConfirmThrottle(ClientIPThrottle):
+    scope = "activation_confirm"
+
+
+class ActivationResendThrottle(UserRateThrottle):
+    # Por quien reenvía, no por IP: dos administradores en la misma oficina no deben compartir
+    # el mismo cupo.
+    scope = "activation_resend"
 
 
 class PasswordResetIdentifierThrottle(SimpleRateThrottle):

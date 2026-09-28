@@ -15,3 +15,17 @@ def send_password_reset_email(user, reset_url: str) -> None:
         render_to_string("accounts/email/password_reset.html", context), "text/html"
     )
     message.send()
+
+
+def send_activation_email(user, activation_url: str, hours: int) -> None:
+    context = {"activation_url": activation_url, "hours": hours}
+    message = EmailMultiAlternatives(
+        subject="Activa tu cuenta",
+        body=render_to_string("accounts/email/account_activation.txt", context),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    message.attach_alternative(
+        render_to_string("accounts/email/account_activation.html", context), "text/html"
+    )
+    message.send()

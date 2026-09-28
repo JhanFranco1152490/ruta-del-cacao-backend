@@ -2,7 +2,6 @@ from datetime import timedelta
 
 import pytest
 from django.conf import settings
-from django.contrib.auth.models import Group
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -11,6 +10,7 @@ from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.accounts.models import AuthenticationEvent
 from apps.accounts.services import revoke_all_sessions
+from apps.accounts.system_roles import FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import (
     LOGIN_URL,
@@ -20,7 +20,9 @@ from apps.accounts.tests.helpers import (
     request_reset_link,
     reset_password,
 )
+from apps.accounts.tests.roles import grant_role
 from apps.accounts.throttles import LoginRateThrottle
+from apps.producers.tests.factories import ProducerFactory
 
 REFRESH_URL = "/api/auth/refresh"
 LOGOUT_URL = "/api/auth/logout"
@@ -32,12 +34,12 @@ pytestmark = pytest.mark.django_db
 
 def test_login_sets_http_only_cookies_with_their_paths(api_client):
     user = UserFactory()
-    user.groups.add(Group.objects.create(name="producer"))
+    user.groups.add(get_system_role(FOREMAN).group)
 
     response = login_by_email(api_client, user.email)
 
     assert response.status_code == 200
-    assert response.data["user"]["roles"] == ["producer"]
+    assert {role["code"] for role in response.data["user"]["roles"]} == {FOREMAN}
     access, refresh = response.cookies["cacao_access"], response.cookies["cacao_refresh"]
     assert access["httponly"] and refresh["httponly"]
     assert access["path"] == "/api/"
@@ -73,6 +75,31 @@ def test_me_returns_the_session_identity(auth_client):
 
     assert response.status_code == 200
     assert response.data["user"]["email"] == user.email
+    assert response.data["user"]["roles"] == []
+    assert response.data["user"]["producer_id"] is None
+
+
+def test_me_returns_roles_as_objects_and_the_producer_id(auth_client):
+    producer = ProducerFactory()
+    owner = grant_role(UserFactory(producer=producer), get_system_role(PRODUCER))
+
+    response = auth_client(owner).get("/api/auth/me")
+
+    assert response.status_code == 200
+    assert response.data["user"]["roles"] == [
+        {"id": str(get_system_role(PRODUCER).id), "code": PRODUCER, "name": "Productor"}
+    ]
+    assert str(response.data["user"]["producer_id"]) == str(producer.id)
+
+
+def test_me_for_a_superuser_has_no_roles(auth_client):
+    superuser = UserFactory(is_superuser=True)
+
+    response = auth_client(superuser).get("/api/auth/me")
+
+    assert response.status_code == 200
+    assert response.data["user"]["roles"] == []
+    assert "accounts.roles_manage" in response.data["user"]["permissions"]
 
 
 def test_me_without_session_is_not_authenticated(api_client):

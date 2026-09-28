@@ -15,7 +15,7 @@ admin.site.unregister(BlacklistedToken)
 
 # Un rol es un `Group` con dueño e invariantes propias (ver `models.Role`): tocar el grupo
 # directo desde aquí las saltaría por completo. `Role` reemplaza a `Group` en el admin, de
-# solo lectura, porque crearlos o editarlos pasa por `role_services.py`, no por aquí.
+# solo lectura, porque crearlos o editarlos pasa por `roles/services.py`, no por aquí.
 admin.site.unregister(Group)
 
 

@@ -4,7 +4,11 @@ from django.core import mail
 from apps.accounts.models import User
 from apps.accounts.system_roles import PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
-from apps.accounts.tests.roles import enable_association_access, grant_role, make_producer_owner
+from apps.accounts.tests.role_helpers import (
+    enable_association_access,
+    grant_role,
+    make_producer_owner,
+)
 from apps.producers.models import Producer
 from apps.producers.tests.factories import ProducerFactory
 

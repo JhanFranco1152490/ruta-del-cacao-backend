@@ -133,14 +133,24 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 
 ## Admin de Django
 
-- Usuarios y eventos de autenticación en `apps/accounts/admin.py`; productores en
-  `apps/producers/admin.py`.
+- Usuarios, roles y eventos (autenticación y de cuentas) en `apps/accounts/admin.py`;
+  productores en `apps/producers/admin.py`.
 - **Productores:** los permisos siguen a los de la API (`producers.view`, `producers.update`,
   `producers.change_status`), no a los que Django genera. No se puede crear ni borrar desde el
   admin (el alta asigna el código de asociado y detecta el documento repetido; al productor se
   le cambia el estado, no se le borra). Se editan nombre, teléfono, correo, municipio y fecha de
   ingreso; el documento, el código y el estado no. El estado cambia con las acciones "Activar" y
   "Desactivar".
+- **`Role` reemplaza a `Group`** en el admin (HU-03): `Group` se da de baja y `Role` entra de
+  solo lectura, porque crear, editar o borrar un rol pasa por sus propias invariantes
+  (`role_services.py`) y el admin las saltaría. La ficha de usuario muestra el productor
+  vinculado y sus roles también de solo lectura, por el mismo motivo — asignar o quitar un rol
+  pasa por la API de cuentas, con sus reglas (nadie concede más de lo que tiene, siempre queda
+  un administrador activo).
+- **`create_association_admin`** (management command) crea la cuenta Administrador inicial de
+  la asociación y le envía la activación; se niega si ya existe una. Uso:
+  `python manage.py create_association_admin --email a@b.com --document-type CC
+  --identity-document 1234567 --first-name Ana --last-name Gómez`.
 - Todo cambio desde el admin pasa por `services` y sube `version`: la ficha lleva la versión con
   la que se abrió y, si otra persona la cambió antes, no se guarda.
 

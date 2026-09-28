@@ -23,6 +23,7 @@ from .authorization import (
 from .events import record_account_event
 from .exceptions import (
     AccountNotFound,
+    AdministratorAlreadyExists,
     DuplicateAccountDocument,
     DuplicateEmail,
     NotActivationPending,
@@ -325,3 +326,34 @@ def create_producer_account_automatically(producer) -> None:
         target_user=user,
     )
     transaction.on_commit(lambda: send_activation(user))
+
+
+def create_first_administrator(data: dict) -> User:
+    """Crea la cuenta Administrador inicial (comando de despliegue, sin actor autenticado).
+
+    Se niega si ya existe una cuenta con el rol Administrador: HU-03 no tiene un flujo para
+    reemplazar al primero, y crear uno nuevo por aquí saltaría esa decisión.
+    """
+    if User.objects.filter(groups__role__code=ADMINISTRATOR).exists():
+        raise AdministratorAlreadyExists()
+
+    role = get_system_role(ADMINISTRATOR)
+    user = User(
+        email=data["email"],
+        document_type=data["document_type"],
+        identity_document=data["identity_document"],
+        first_name=data["first_name"],
+        last_name=data["last_name"],
+    )
+    user.set_unusable_password()
+    user.full_clean(validate_unique=False, validate_constraints=False)
+    with transaction.atomic():
+        _save_or_raise_duplicate(user)
+        user.groups.set([role.group])
+        record_account_event(
+            AccountManagementEvent.EventType.ACCOUNT_CREATED,
+            uuid.uuid4(),
+            target_user=user,
+        )
+    send_activation(user)
+    return user

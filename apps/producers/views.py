@@ -14,6 +14,7 @@ from .filters import ProducerFilter
 from .models import Producer
 from .serializers import (
     ProducerConflictErrorSerializer,
+    ProducerDetailSerializer,
     ProducerListSerializer,
     ProducerSerializer,
     ProducerStatusSerializer,
@@ -27,11 +28,13 @@ from .services import change_producer_status, create_producer, get_producer, upd
     list=extend_schema(
         responses={200: ProducerListSerializer(many=True), **error_responses(400, 401, 403, 404)}
     ),
-    retrieve=extend_schema(responses={200: ProducerSerializer, **error_responses(401, 403, 404)}),
+    retrieve=extend_schema(
+        responses={200: ProducerDetailSerializer, **error_responses(401, 403, 404)}
+    ),
     create=extend_schema(
         request=ProducerSerializer,
         responses={
-            201: ProducerSerializer,
+            201: ProducerDetailSerializer,
             409: ProducerConflictErrorSerializer,
             **error_responses(400, 401, 403),
         },
@@ -43,14 +46,14 @@ from .services import change_producer_status, create_producer, get_producer, upd
         ),
         request=ProducerUpdateSerializer,
         responses={
-            200: ProducerSerializer,
+            200: ProducerDetailSerializer,
             409: ProducerConflictErrorSerializer,
             **error_responses(400, 401, 403, 404),
         },
     ),
     change_status=extend_schema(
         request=ProducerStatusSerializer,
-        responses={200: ProducerSerializer, **error_responses(400, 401, 403, 404, 409)},
+        responses={200: ProducerDetailSerializer, **error_responses(400, 401, 403, 404, 409)},
     ),
 )
 class ProducerViewSet(GenericViewSet):

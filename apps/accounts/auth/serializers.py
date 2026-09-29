@@ -1,5 +1,6 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.common.choices import DocumentType
@@ -99,6 +100,7 @@ class SessionUserSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "email", "roles", "permissions", "producer_id"]
 
+    @extend_schema_field(AccountRoleSerializer(many=True))
     def get_roles(self, user) -> list[dict]:
         return AccountRoleSerializer(roles_of(user), many=True).data
 

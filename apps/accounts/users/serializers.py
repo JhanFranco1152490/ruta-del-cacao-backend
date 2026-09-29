@@ -16,6 +16,7 @@ class AccountProducerSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     member_code = serializers.CharField()
     status = serializers.CharField()
+    municipality_code = serializers.CharField()
 
 
 class AccountRoleSerializer(serializers.Serializer):

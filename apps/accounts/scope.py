@@ -35,13 +35,16 @@ def visible_users(actor) -> QuerySet[User]:
 
 def visible_roles(actor) -> QuerySet[Role]:
     """Qué roles puede ver o asignar `actor`: los del sistema, más los propios de su alcance."""
+    # select_related: RoleSerializer expone el productor dueño del rol, y una lista no debe
+    # pagar una consulta aparte por cada fila para traerlo.
+    base = Role.objects.select_related("producer")
     if actor.is_superuser:
-        return Role.objects.all()
+        return base
     if is_association_admin(actor):
-        return Role.objects.filter(SYSTEM_ROLE_KINDS | Q(producer_id__in=_producers_with_access()))
+        return base.filter(SYSTEM_ROLE_KINDS | Q(producer_id__in=_producers_with_access()))
     if actor.producer_id is not None:
-        return Role.objects.filter(SYSTEM_ROLE_KINDS | Q(producer_id=actor.producer_id))
-    return Role.objects.none()
+        return base.filter(SYSTEM_ROLE_KINDS | Q(producer_id=actor.producer_id))
+    return base.none()
 
 
 def acts_for_producer(actor, producer_id) -> bool:

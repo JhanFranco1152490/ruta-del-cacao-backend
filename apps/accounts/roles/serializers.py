@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.common.serializers import RejectUnknownFieldsMixin
@@ -5,16 +6,43 @@ from apps.common.serializers import RejectUnknownFieldsMixin
 from ..models import Role
 
 
+class RoleProducerSerializer(serializers.Serializer):
+    # Un comentario y no un docstring (ver RejectUnknownFieldsMixin en apps/common/serializers.py):
+    # drf-spectacular lo tomaría como la descripción del componente. No es un `ModelSerializer`
+    # de `Producer` a propósito: esta app no importa el modelo de otra.
+
+    id = serializers.UUIDField()
+    member_code = serializers.CharField()
+
+
 class RoleSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
+    producer = serializers.SerializerMethodField()
 
     class Meta:
         model = Role
-        fields = ["id", "code", "kind", "name", "description", "producer_id", "permissions"]
+        fields = [
+            "id",
+            "code",
+            "kind",
+            "name",
+            "description",
+            "producer_id",
+            "producer",
+            "permissions",
+        ]
         read_only_fields = fields
 
     def get_permissions(self, role) -> list[str]:
         return sorted(role.permission_codes)
+
+    @extend_schema_field(RoleProducerSerializer(allow_null=True))
+    def get_producer(self, role) -> dict | None:
+        # Agrupar los roles propios por productor en el frontend exige más que el id: el
+        # nombre visible del dueño. `visible_roles()` ya precarga `producer` (select_related).
+        if role.producer_id is None:
+            return None
+        return RoleProducerSerializer(role.producer).data
 
 
 class RoleCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -46,6 +74,7 @@ class PermissionSerializer(serializers.Serializer):
     area = serializers.CharField()
     delegable = serializers.BooleanField()
     grantable = serializers.BooleanField()
+    requires = serializers.CharField(allow_null=True)
 
 
 class PermissionListSerializer(serializers.Serializer):

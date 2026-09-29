@@ -19,7 +19,9 @@ def test_schema_is_valid_and_documents_the_api(schema):
     assert "/api/producers" in schema["paths"]
     assert "/api/producers/{id}/status" in schema["paths"]
     assert "/api/auth/login" in schema["paths"]
-    for component in ("Producer", "ProducerRequest", "Session", "ApiError"):
+    # "ProducerDetail" y no "Producer": las respuestas usan ProducerDetailSerializer desde
+    # que el correo del expediente puede venir nulo (ver producers/views.py).
+    for component in ("ProducerDetail", "ProducerRequest", "Session", "ApiError"):
         assert component in schema["components"]["schemas"]
 
 

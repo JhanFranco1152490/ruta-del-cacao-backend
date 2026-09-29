@@ -184,6 +184,10 @@ def test_a_producer_creates_a_custom_role_with_permissions_it_holds(auth_client)
     assert response.status_code == 201
     assert response.data["kind"] == Role.Kind.CUSTOM
     assert str(response.data["producer_id"]) == str(producer.id)
+    assert response.data["producer"] == {
+        "id": str(producer.id),
+        "member_code": producer.member_code,
+    }
     assert sorted(response.data["permissions"]) == ["accounts.users_create", "accounts.users_view"]
     role = Role.objects.get(pk=response.data["id"])
     assert AccountManagementEvent.objects.filter(
@@ -191,6 +195,34 @@ def test_a_producer_creates_a_custom_role_with_permissions_it_holds(auth_client)
         actor=owner,
         target_role_id=role.id,
     ).exists()
+
+
+def test_creating_a_role_auto_includes_the_view_a_management_permission_needs(auth_client):
+    # roles_manage sin roles_view deja a quien lo tiene sin cómo consultar lo que gestiona.
+    owner = make_producer_owner(ProducerFactory())
+
+    response = auth_client(owner).post(
+        ROLES_URL,
+        {"name": "Solo gestiona roles", "permission_codes": ["accounts.roles_manage"]},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert set(response.data["permissions"]) == {"accounts.roles_manage", "accounts.roles_view"}
+
+
+def test_updating_a_role_auto_includes_the_view_a_management_permission_needs(auth_client):
+    owner = make_producer_owner(ProducerFactory())
+    role = RoleFactory(kind=Role.Kind.CUSTOM, producer=owner.producer)
+
+    response = auth_client(owner).patch(
+        role_url(role),
+        {"permission_codes": ["accounts.users_update"]},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert set(response.data["permissions"]) == {"accounts.users_update", "accounts.users_view"}
 
 
 def test_a_non_administrator_cannot_send_producer_id(auth_client):
@@ -366,6 +398,55 @@ def test_editing_a_system_role_is_immutable(auth_client):
     assert response.data["code"] == "role_immutable"
 
 
+def test_editing_your_own_role_cannot_remove_your_last_roles_manage(auth_client):
+    producer = ProducerFactory()
+    role = RoleFactory(
+        producer=producer, permissions=["accounts.roles_view", "accounts.roles_manage"]
+    )
+    delegate = grant_role(UserFactory(producer=producer), role)
+
+    response = auth_client(delegate).patch(
+        role_url(role), {"permission_codes": ["accounts.roles_view"]}, format="json"
+    )
+
+    assert response.status_code == 409
+    assert response.data["code"] == "self_role_lockout"
+    assert set(Role.objects.get(pk=role.pk).permission_codes) == {
+        "accounts.roles_view",
+        "accounts.roles_manage",
+    }
+
+
+def test_editing_your_own_role_is_allowed_if_another_role_still_covers_it(auth_client):
+    producer = ProducerFactory()
+    role = RoleFactory(
+        producer=producer, permissions=["accounts.roles_view", "accounts.roles_manage"]
+    )
+    backup_role = RoleFactory(
+        producer=producer, permissions=["accounts.roles_view", "accounts.roles_manage"]
+    )
+    delegate = grant_role(grant_role(UserFactory(producer=producer), role), backup_role)
+
+    response = auth_client(delegate).patch(
+        role_url(role), {"permission_codes": ["accounts.roles_view"]}, format="json"
+    )
+
+    assert response.status_code == 200
+    assert set(response.data["permissions"]) == {"accounts.roles_view"}
+
+
+def test_editing_your_own_role_without_touching_roles_manage_is_allowed(auth_client):
+    producer = ProducerFactory()
+    role = RoleFactory(
+        producer=producer, permissions=["accounts.roles_view", "accounts.roles_manage"]
+    )
+    delegate = grant_role(UserFactory(producer=producer), role)
+
+    response = auth_client(delegate).patch(role_url(role), {"name": "Renombrado"}, format="json")
+
+    assert response.status_code == 200
+
+
 def test_a_delegate_cannot_edit_a_role_with_permissions_it_lacks(auth_client):
     # roles_manage deja al delegado llegar al endpoint; el rol que intenta editar lleva un
     # permiso que el delegado no tiene (users_change_status), y por eso queda fuera de alcance.
@@ -487,21 +568,35 @@ def test_permission_catalog_marks_grantable_for_a_delegate(auth_client):
     assert response.status_code == 200
     assert by_code["accounts.users_view"]["grantable"] is True
     assert by_code["accounts.roles_manage"]["grantable"] is False
-    assert by_code["producers.view"]["grantable"] is False
-    assert by_code["producers.view"]["delegable"] is False
 
 
-def test_permission_catalog_marks_administrators_non_delegable_permissions_as_not_grantable(
-    auth_client,
-):
+def test_permission_catalog_excludes_permissions_no_custom_role_can_ever_hold(auth_client):
+    # Un rol propio siempre está atado a un productor: producers.* y association_access_manage
+    # nunca se le pueden asignar, para nadie, así que no tiene sentido ofrecerlos como opción
+    # aunque quien consulta el catálogo sea Administrador (con `producers.*` en su propio rol
+    # de sistema) o superusuario.
+    admin = make_administrator()
+
+    response = auth_client(admin).get(PERMISSIONS_URL)
+
+    codes = {item["code"] for item in response.data["results"]}
+    assert "producers.view" not in codes
+    assert "accounts.association_access_manage" not in codes
+    assert "accounts.users_view" in codes
+
+
+def test_permission_catalog_marks_what_each_permission_requires(auth_client):
+    # El frontend usa esto para marcar solo, antes de guardar, el permiso de vista que un
+    # permiso de acción necesita (ver with_dependencies en registry.py): sin esto, se entera
+    # de la dependencia recién en la respuesta de crear/editar el rol.
     admin = make_administrator()
 
     response = auth_client(admin).get(PERMISSIONS_URL)
 
     by_code = {item["code"]: item for item in response.data["results"]}
-    assert by_code["producers.view"]["grantable"] is False
-    assert by_code["accounts.association_access_manage"]["grantable"] is False
-    assert by_code["accounts.users_view"]["grantable"] is True
+    assert by_code["accounts.roles_manage"]["requires"] == "accounts.roles_view"
+    assert by_code["accounts.users_create"]["requires"] == "accounts.users_view"
+    assert by_code["accounts.users_view"]["requires"] is None
 
 
 def test_permission_catalog_is_sorted_by_code(auth_client):

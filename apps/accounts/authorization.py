@@ -1,11 +1,20 @@
+from django.contrib.auth.models import Permission
 from rest_framework.exceptions import ValidationError
 
 from .access import is_association_admin
-from .exceptions import ExceedsOwnPermissions, LastAdministrator, RoleImmutable, SelfModification
+from .exceptions import (
+    ExceedsOwnPermissions,
+    LastAdministrator,
+    RoleImmutable,
+    SelfModification,
+    SelfRoleLockout,
+)
 from .models import Role, User
 from .registry import is_delegable
 from .scope import acts_for_producer
 from .system_roles import ADMINISTRATOR, PRODUCER
+
+ROLES_MANAGE = "accounts.roles_manage"
 
 # Con qué rol nace cada clase de cuenta (HU-03): condiciona qué puede asignarse y quién lo hace.
 ACCOUNT_KIND_ADMINISTRATOR = "administrator"
@@ -106,6 +115,29 @@ def ensure_can_manage_role(actor, role) -> None:
         raise ExceedsOwnPermissions()
     if not role.permission_codes <= effective_permissions(actor):
         raise ExceedsOwnPermissions()
+
+
+def ensure_role_edit_keeps_your_role_management(actor, role, new_codes) -> None:
+    """Editar el rol que tú mismo tienes no te puede dejar sin `roles_manage`.
+
+    Sin esto, quien edita el único rol que le da ese permiso puede quitárselo sin querer y
+    quedar sin ningún camino para revertirlo — el mismo callejón sin salida que
+    `ensure_not_last_administrator` evita para las cuentas Administrador, pero a nivel de un
+    rol propio. Una edición seria (agregar un permiso, cambiar el nombre) sigue permitida
+    incluso sobre el propio rol; lo único que se bloquea es perder `roles_manage` sin que
+    otro de tus roles ya lo cubra.
+    """
+    if actor.is_superuser or ROLES_MANAGE in new_codes:
+        return
+    if not actor.groups.filter(pk=role.group_id).exists():
+        return
+    still_covered = Permission.objects.filter(
+        group__in=actor.groups.exclude(pk=role.group_id),
+        content_type__app_label="accounts",
+        codename="roles_manage",
+    ).exists()
+    if not still_covered:
+        raise SelfRoleLockout()
 
 
 def ensure_not_self(actor, target) -> None:

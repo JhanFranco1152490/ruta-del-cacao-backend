@@ -61,6 +61,15 @@ class RoleImmutable(ApiError):
     default_code = "role_immutable"
 
 
+class SelfRoleLockout(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Este cambio te dejaría sin poder gestionar roles. "
+        "Pide que otra persona con ese permiso lo haga."
+    )
+    default_code = "self_role_lockout"
+
+
 class LastAdministrator(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Debe quedar al menos un administrador activo."

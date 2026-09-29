@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.common.choices import DocumentType
@@ -15,6 +16,7 @@ class AccountProducerSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     member_code = serializers.CharField()
     status = serializers.CharField()
+    municipality_code = serializers.CharField()
 
 
 class AccountRoleSerializer(serializers.Serializer):
@@ -48,6 +50,7 @@ class AccountSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    @extend_schema_field(AccountRoleSerializer(many=True))
     def get_roles(self, user) -> list[dict]:
         # `group.role` (uno a uno inverso) ya viene precargado por `_optimized()`: no es una
         # consulta nueva por cada fila de la lista.

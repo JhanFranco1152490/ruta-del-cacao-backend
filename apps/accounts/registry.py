@@ -41,3 +41,28 @@ def area_of(code: str) -> str:
     # Un permiso fuera del registro no tiene área declarada: se agrupa por la app que lo
     # define ("app_label.codename"), que sigue siendo una agrupación con sentido para mostrar.
     return code.split(".", 1)[0]
+
+
+# Un permiso de acción sin su "view" no tiene con qué consultar lo que modifica: quien lo
+# tiene queda dependiendo por completo de otra persona para revisar su propio trabajo. Un rol
+# propio que pide el de la izquierda recibe siempre el de la derecha también.
+PERMISSION_DEPENDENCIES: dict[str, str] = {
+    "accounts.users_create": "accounts.users_view",
+    "accounts.users_update": "accounts.users_view",
+    "accounts.users_change_status": "accounts.users_view",
+    "accounts.roles_manage": "accounts.roles_view",
+    "producers.create": "producers.view",
+    "producers.update": "producers.view",
+    "producers.change_status": "producers.view",
+}
+
+
+def with_dependencies(codes) -> set[str]:
+    """Los códigos pedidos más el permiso de vista que cada uno necesita para tener sentido."""
+    resolved = set(codes)
+    resolved.update(
+        dependency
+        for code in codes
+        if (dependency := PERMISSION_DEPENDENCIES.get(code)) is not None
+    )
+    return resolved

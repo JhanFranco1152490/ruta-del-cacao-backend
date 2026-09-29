@@ -51,6 +51,10 @@ class Farm(models.Model):
         validators=[validate_longitude],
     )
     version = models.PositiveIntegerField(default=1)
+    # Hora del dispositivo al registrar la finca, quizá sin conexión. Solo informativa: el reloj
+    # del dispositivo no es confiable, así que el orden y los conflictos nunca dependen de ella
+    # sino de `version` y de `created_at`, que es la hora en que el servidor la recibió.
+    captured_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

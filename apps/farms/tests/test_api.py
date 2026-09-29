@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from django.db import connection
@@ -115,6 +116,7 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
         "location": {"latitude": "7.8234567", "longitude": "-72.5123456"},
         "version": 1,
         "is_active": True,
+        "captured_at": None,
         "created_at": body["created_at"],
         "updated_at": body["updated_at"],
     }
@@ -126,6 +128,18 @@ def test_create_without_id_generates_one(client):
 
     assert response.status_code == 201
     assert Farm.objects.filter(pk=response.data["id"]).exists()
+
+
+def test_create_stores_the_device_capture_time(client):
+    response = client.post(
+        "/api/farms", {**VALID_DATA, "captured_at": "2026-09-20T07:30:00Z"}, format="json"
+    )
+
+    assert response.status_code == 201
+    # La API responde en la zona horaria del servidor: se compara el instante, no el texto.
+    assert datetime.fromisoformat(response.data["captured_at"]) == datetime(
+        2026, 9, 20, 7, 30, tzinfo=UTC
+    )
 
 
 def test_details_is_optional(client):
@@ -336,6 +350,30 @@ def test_update_with_a_stale_version_returns_the_current_farm(client):
     assert response.data["code"] == "stale_version"
     assert response.data["current"]["version"] == 2
     assert response.data["current"]["altitude_masl"] == 1000
+
+
+def test_retrying_an_update_whose_response_was_lost_returns_200(client):
+    farm = create(client)
+    body = {"altitude_masl": 1000, "expected_version": 1}
+    client.patch(f"/api/farms/{farm['id']}", body, format="json")
+
+    response = client.patch(f"/api/farms/{farm['id']}", body, format="json")
+
+    assert response.status_code == 200
+    assert (response.data["altitude_masl"], response.data["version"]) == (1000, 2)
+
+
+def test_capture_time_cannot_be_edited(client):
+    farm = create(client)
+
+    response = client.patch(
+        f"/api/farms/{farm['id']}",
+        {"captured_at": "2026-09-20T07:30:00Z", "expected_version": 1},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "captured_at" in response.data["fields"]
 
 
 def test_update_requires_expected_version(client):

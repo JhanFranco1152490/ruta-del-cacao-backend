@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import MappingProxyType
 
@@ -76,6 +77,33 @@ def test_create_trims_the_name(owner):
     farm, _ = create_farm(owner, farm_data(name="  La Esperanza  "))
 
     assert farm.name == "La Esperanza"
+
+
+def test_create_keeps_the_device_capture_time_as_given(owner):
+    captured_at = datetime(2026, 9, 20, 7, 30, tzinfo=UTC)
+
+    farm, _ = create_farm(owner, farm_data(captured_at=captured_at))
+
+    farm.refresh_from_db()
+    assert farm.captured_at == captured_at
+
+
+def test_capture_time_is_optional(owner):
+    farm, _ = create_farm(owner, farm_data())
+
+    assert farm.captured_at is None
+
+
+def test_a_resent_farm_is_not_rejected_for_its_capture_time(owner):
+    # Es informativo: un reintento no se vuelve conflicto por la hora del dispositivo.
+    client_id = uuid.uuid4()
+    first, _ = create_farm(
+        owner, farm_data(id=client_id, captured_at=datetime(2026, 9, 20, tzinfo=UTC))
+    )
+
+    again, created = create_farm(owner, farm_data(id=client_id))
+
+    assert (again.pk, created) == (first.pk, False)
 
 
 def test_resending_the_same_id_and_content_returns_the_existing_farm(owner):
@@ -295,6 +323,25 @@ def test_update_with_a_stale_version_keeps_the_server_data(owner):
     assert error.value.current_farm.version == 2
     farm.refresh_from_db()
     assert (farm.altitude_masl, farm.version) == (1000, 2)
+
+
+def test_retrying_an_already_applied_update_succeeds_without_changes(owner):
+    # La respuesta del primer envío se perdió: la cola reintenta con la versión que tenía.
+    farm, _ = create_farm(owner, farm_data())
+    update_farm(owner, farm.id, 1, {"name": "El Porvenir", "altitude_masl": 1000})
+
+    retried = update_farm(owner, farm.id, 1, {"name": " El Porvenir ", "altitude_masl": 1000})
+
+    assert (retried.name, retried.altitude_masl, retried.version) == ("El Porvenir", 1000, 2)
+    assert len(audit_actions(farm)) == 2
+
+
+def test_a_stale_update_that_only_partly_matches_is_still_a_conflict(owner):
+    farm, _ = create_farm(owner, farm_data())
+    update_farm(owner, farm.id, 1, {"altitude_masl": 1000})
+
+    with pytest.raises(StaleFarmVersion):
+        update_farm(owner, farm.id, 1, {"altitude_masl": 1000, "name": "Otra"})
 
 
 def test_update_hides_a_farm_of_another_producer(owner, stranger):

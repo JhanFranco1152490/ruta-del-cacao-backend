@@ -41,6 +41,7 @@ class FarmSerializer(serializers.ModelSerializer):
             "location",
             "version",
             "is_active",
+            "captured_at",
             "created_at",
             "updated_at",
         ]
@@ -89,6 +90,8 @@ class FarmWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 class FarmCreateSerializer(FarmWriteSerializer):
     # Lo genera el dispositivo cuando registra sin conexión; si no llega, lo genera el servidor.
     id = serializers.UUIDField(required=False)
+    # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
+    captured_at = serializers.DateTimeField(required=False, allow_null=True)
 
 
 class FarmUpdateSerializer(FarmWriteSerializer):

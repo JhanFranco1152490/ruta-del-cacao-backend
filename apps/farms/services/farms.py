@@ -1,3 +1,4 @@
+import copy
 import unicodedata
 
 from django.core.exceptions import ValidationError
@@ -103,6 +104,11 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
     if farm.version != expected_version:
+        # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
+        # haya aplicado el cambio. Si la finca ya tiene justo lo que se pide, el resultado sería
+        # el mismo: se responde como éxito en vez de mandar esa edición a revisión manual.
+        if _already_applied(farm, data):
+            return farm
         raise StaleFarmVersion(farm)
 
     before = {name: getattr(farm, name) for name in data}
@@ -156,6 +162,17 @@ def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if any(getattr(candidate, name) != getattr(existing, name) for name in CONTENT_FIELDS):
         raise FarmIdConflict()
     return existing
+
+
+def _already_applied(farm: Farm, data: dict) -> bool:
+    candidate = copy.copy(farm)
+    for name, value in data.items():
+        setattr(candidate, name, value)
+    try:
+        candidate.full_clean(validate_unique=False, validate_constraints=False)
+    except ValidationError:
+        return False
+    return all(getattr(candidate, name) == getattr(farm, name) for name in data)
 
 
 def _validate(farm: Farm) -> None:

@@ -1,0 +1,9 @@
+{% autoescape off %}{# Texto plano: con autoescape el "&" del enlace saldría como "&amp;" y el enlace llegaría roto. #}Hola,
+
+Te crearon una cuenta en Ruta del Cacao. Usa este enlace para elegir tu contraseña y activarla.
+Vence en {{ hours }} horas y solo sirve una vez:
+
+{{ activation_url }}
+
+Si no esperabas este correo, puedes ignorarlo: la cuenta sigue sin activar.
+{% endautoescape %}

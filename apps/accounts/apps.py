@@ -1,0 +1,38 @@
+from django.apps import AppConfig
+from django.apps import apps as app_registry
+from django.db.models.signals import post_migrate, post_save
+
+
+class AccountsConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.accounts"
+
+    def ready(self):
+        from .auth import schema  # noqa: F401  (registra la extensión de drf-spectacular)
+
+        # `producers` es la última app de INSTALLED_APPS: cuando le llega su turno en el
+        # post_migrate, los permisos de todas las apps (incluidos los suyos, que usa el rol
+        # Administrador) ya existen. Conectarse al de esta misma app sería demasiado pronto.
+        post_migrate.connect(_sync_system_roles, sender=app_registry.get_app_config("producers"))
+
+        # Sin importar apps.producers (ninguna app importa de otra, ver AGENTS.md): el modelo
+        # se obtiene del registro de apps, ya poblado para cuando corre ready(). Como esto pasa
+        # dentro de Producer.save(), a su vez dentro de la transacción de create_producer(), un
+        # correo o documento repetido revierte también el alta del productor.
+        post_save.connect(
+            _create_producer_account, sender=app_registry.get_model("producers", "Producer")
+        )
+
+
+def _sync_system_roles(sender, **kwargs):
+    from .system_roles import sync_system_roles
+
+    sync_system_roles()
+
+
+def _create_producer_account(sender, instance, created, **kwargs):
+    if not created:
+        return
+    from .users.services import create_producer_account_automatically
+
+    create_producer_account_automatically(instance)

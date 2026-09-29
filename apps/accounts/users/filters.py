@@ -15,10 +15,11 @@ class AccountFilter(django_filters.FilterSet):
     role = django_filters.UUIDFilter(field_name="groups__role__id")
     # Solo lo usa el Administrador; ver filter_producer.
     producer = django_filters.UUIDFilter(method="filter_producer")
+    municipality = django_filters.CharFilter(field_name="producer__municipality_code")
 
     class Meta:
         model = User
-        fields = ["status", "activation_pending", "role", "producer"]
+        fields = ["status", "activation_pending", "role", "producer", "municipality"]
 
     def filter_status(self, queryset, name, value):
         return queryset.filter(is_active=(value == "active"))

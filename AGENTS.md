@@ -170,6 +170,28 @@ las variables con valores de ejemplo.
 | `MAILER_BACKEND` | Correo: consola por defecto. `anymail.backends.resend.EmailBackend` exige `RESEND_API_KEY`; `django.core.mail.backends.smtp.EmailBackend` exige `MAILER_HOST`, `MAILER_USERNAME`, `MAILER_PASSWORD` (y admite `MAILER_PORT`, `MAILER_USE_TLS`) |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | Monitoreo de errores, opcional: solo se activa con `SENTRY_DSN` (no lo pongas en tu `.env` local al correr las pruebas: las activaría contra el proyecto real). `SENTRY_ENVIRONMENT` es `production` si `DEBUG` es falso y `development` si no. `init_sentry` (en `apps/common/sentry.py`) apaga usuario/IP/cookies, cuerpo de las peticiones, variables locales, breadcrumbs, métricas y tracing, y no propaga `sentry-trace` ni `baggage` en las llamadas salientes (por ejemplo al proveedor de correo). `scrub_event` deja pasar solo una lista de campos y descarta cualquier evento con forma inesperada. Lo que sí puede llegar a Sentry, y solo en errores: de la petición, el método, la **ruta** de la URL (nunca query ni fragmento; en una ruta que no resuelve es lo que envió el cliente) y las cabeceras `Host`, `User-Agent`, `Accept`, `Origin`, `Content-Type` y `Content-Length`; el nombre de la transacción (patrón de ruta o, si no resuelve, la ruta); de la excepción, tipo y traceback con el mensaje vacío; **el mensaje de log y sus parámetros tal cual, si los escribe un logger de `apps.`** (por eso no se ponen datos personales en logs, regla del proyecto); y metadatos (nivel, `environment`, `release`, `server_name`, versión de Python y del SDK). Los ids de traza no se envían |
 
+### Configurar correo
+
+`MAILER_BACKEND` decide cómo salen los correos (activación de cuenta, recuperación de
+contraseña); ver la fila de la tabla de arriba para las variables de cada uno.
+
+- **Consola** (default): no hay nada que configurar — el correo se imprime en la terminal del
+  backend. No llega a ninguna bandeja real; sirve para desarrollo local.
+- **SMTP** (`django.core.mail.backends.smtp.EmailBackend`): sirve con cualquier proveedor SMTP.
+  Con Gmail: activa la verificación en dos pasos de la cuenta remitente, crea una
+  [contraseña de aplicación](https://myaccount.google.com/apppasswords) y usa `smtp.gmail.com`,
+  puerto `587`, con `MAILER_USE_TLS=True`.
+- **Resend** (`anymail.backends.resend.EmailBackend`): crea una cuenta en
+  [Resend](https://resend.com), saca una API key y ponla en `RESEND_API_KEY`. No usa
+  `MAILER_HOST`/`USERNAME`/`PASSWORD`.
+
+En cualquiera de los dos últimos, para probar de punta a punta: solicita la recuperación de
+una cuenta activa registrada y revisa la bandeja (y spam) del correo real. El enlace apunta a
+`FRONTEND_URL/restablecer-contrasena?uid=...&token=...`, vence en 30 minutos y es de un solo
+uso — la forma exacta de la petición y la respuesta de cada endpoint están en el esquema
+OpenAPI (`/api/docs`), no se repite aquí para no desalinearse de él. No guardes credenciales
+reales de correo en archivos versionados.
+
 El `Procfile` corre `migrate`, `flushexpiredtokens` y `collectstatic` antes de `gunicorn`.
 
 ## Cómo se trabaja en el día a día

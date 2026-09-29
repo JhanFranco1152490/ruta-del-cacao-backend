@@ -7,11 +7,16 @@ from django.db.models.functions import Lower
 from rest_framework.exceptions import ValidationError
 
 from ..access import is_association_admin
-from ..authorization import effective_permissions, ensure_can_grant, ensure_can_manage_role
+from ..authorization import (
+    effective_permissions,
+    ensure_can_grant,
+    ensure_can_manage_role,
+    ensure_role_edit_keeps_your_role_management,
+)
 from ..events import record_account_event
 from ..exceptions import DuplicateRoleName, ExceedsOwnPermissions, RoleInUse, RoleNotFound
 from ..models import AccountManagementEvent, Role
-from ..registry import PERMISSION_REGISTRY
+from ..registry import PERMISSION_DEPENDENCIES, PERMISSION_REGISTRY, with_dependencies
 from ..scope import acts_for_producer, visible_roles
 
 
@@ -31,6 +36,11 @@ def permission_catalog(actor) -> list[dict]:
     granted = effective_permissions(actor)
     results = []
     for code, info in PERMISSION_REGISTRY.items():
+        if not info.delegable:
+            # Este catálogo solo alimenta la pantalla de crear/editar un rol propio, y un rol
+            # propio siempre está atado a un productor (Role.Kind.CUSTOM): un permiso no
+            # delegable nunca se le puede asignar a uno, así que ni se ofrece como opción.
+            continue
         permission = all_permissions.get(code)
         if permission is None:
             continue
@@ -40,7 +50,12 @@ def permission_catalog(actor) -> list[dict]:
                 "name": permission.name,
                 "area": info.area,
                 "delegable": info.delegable,
-                "grantable": actor.is_superuser or (info.delegable and code in granted),
+                "grantable": actor.is_superuser or code in granted,
+                # Sin este permiso, `roles_manage` (y equivalentes) no sirven de nada: quien
+                # los tiene no puede ni consultar lo que gestiona. El frontend lo usa para
+                # marcarlo solo, antes de guardar, en vez de que aparezca marcado recién en la
+                # respuesta (el backend lo agrega de todas formas si falta, ver with_dependencies).
+                "requires": PERMISSION_DEPENDENCIES.get(code),
             }
         )
     return sorted(results, key=lambda item: item["code"])
@@ -93,8 +108,9 @@ def create_role(actor, data: dict, request_id) -> Role:
 
     # Primero que el código exista de verdad (400): un código desconocido no es lo mismo que
     # uno real que el actor no puede conceder (403), y ensure_can_grant no distingue los dos.
-    permissions = _resolve_permissions(data["permission_codes"])
-    ensure_can_grant(actor, data["permission_codes"])
+    permission_codes = with_dependencies(data["permission_codes"])
+    permissions = _resolve_permissions(permission_codes)
+    ensure_can_grant(actor, permission_codes)
     _ensure_unique_name(data["name"], producer_id)
 
     with transaction.atomic():
@@ -126,8 +142,10 @@ def update_role(actor, role_id, data: dict, request_id) -> Role:
     ensure_can_manage_role(actor, role)
 
     if "permission_codes" in data:
-        permissions = _resolve_permissions(data["permission_codes"])
-        ensure_can_grant(actor, data["permission_codes"])
+        permission_codes = with_dependencies(data["permission_codes"])
+        permissions = _resolve_permissions(permission_codes)
+        ensure_can_grant(actor, permission_codes)
+        ensure_role_edit_keeps_your_role_management(actor, role, permission_codes)
     else:
         permissions = None
     if "name" in data:

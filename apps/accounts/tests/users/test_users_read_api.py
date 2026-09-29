@@ -157,6 +157,22 @@ def test_filter_by_producer_only_for_administrator(auth_client):
     assert as_owner.status_code == 400
 
 
+def test_filter_by_municipality(auth_client):
+    cucuta = ProducerFactory(municipality_code="54001")
+    ocana = ProducerFactory(municipality_code="54498")
+    owner_in_cucuta = make_producer_owner(cucuta)
+    owner_in_ocana = make_producer_owner(ocana)
+    admin = make_administrator()
+    enable_association_access(cucuta)
+    enable_association_access(ocana)
+
+    response = auth_client(admin).get(f"{USERS_URL}?municipality=54001")
+
+    ids = {item["id"] for item in response.data["results"]}
+    assert str(owner_in_cucuta.id) in ids
+    assert str(owner_in_ocana.id) not in ids
+
+
 def test_search_ignores_accents_and_case(auth_client):
     producer = ProducerFactory()
     owner = make_producer_owner(producer)
@@ -229,6 +245,7 @@ def test_account_representation_shape(auth_client):
     assert body["producer"]["id"] == str(producer.id)
     assert body["producer"]["member_code"] == producer.member_code
     assert body["producer"]["status"] == "active"
+    assert body["producer"]["municipality_code"] == producer.municipality_code
     assert {role["code"] for role in body["roles"]} == {FOREMAN}
     assert body["status"] == "active"
     assert body["activation_pending"] is False

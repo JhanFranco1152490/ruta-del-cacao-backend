@@ -50,12 +50,12 @@ INSTALLED_APPS = [
     "axes",
     "django_filters",
     "rest_framework",
-    "farms.apps.FarmsConfig",
     "drf_spectacular",
     "rest_framework_simplejwt.token_blacklist",
     "apps.common",
     "apps.accounts",
     "apps.producers",
+    "apps.farms",
 ]
 
 MIDDLEWARE = [

@@ -4,9 +4,9 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.accounts.models import User
+from apps.farms.models import Farm, FarmAuditEvent
+from apps.farms.services.audit import record_farm_audit_event
 from apps.producers.models import Producer
-from farms.models import Farm, FarmAuditEvent
-from farms.services.audit import record_farm_audit_event
 
 
 class FarmAuditServiceTests(TestCase):

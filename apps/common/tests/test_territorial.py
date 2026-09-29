@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from common.territorial import (
+from apps.common.territorial import (
     InvalidDepartmentCode,
     InvalidMunicipalityCode,
     get_department,

@@ -3,8 +3,8 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase
 
-from farms.models import Farm
-from farms.validators import (
+from apps.farms.models import Farm
+from apps.farms.validators import (
     normalize_farm_name,
     validate_altitude,
     validate_latitude,

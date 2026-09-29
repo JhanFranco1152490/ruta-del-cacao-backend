@@ -5,8 +5,8 @@ from django.db import IntegrityError, transaction
 from django.db.models import PROTECT
 from django.test import TestCase
 
+from apps.producers.models import Producer
 from farms.models import Farm
-from producers.models import Producer
 
 
 class FarmModelTests(TestCase):

@@ -3,10 +3,10 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from accounts.models import User
+from apps.accounts.models import User
+from apps.producers.models import Producer
 from farms.models import Farm, FarmAuditEvent
 from farms.services.audit import record_farm_audit_event
-from producers.models import Producer
 
 
 class FarmAuditServiceTests(TestCase):

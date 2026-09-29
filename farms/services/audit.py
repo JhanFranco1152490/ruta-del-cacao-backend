@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from accounts.models import User
+from apps.accounts.models import User
 
 from ..models import Farm, FarmAuditEvent
 

@@ -5,14 +5,14 @@ El backend expone estos endpoints (requieren cookie y cabecera CSRF):
 - `GET /api/auth/csrf`: obtiene la cookie y el token CSRF.
 - `POST /api/auth/password-reset/request`, con `{"email":"productor@example.com"}`:
   envía un enlace si la cuenta está activa. Responde `202` con un mensaje genérico.
-- `POST /api/auth/password-reset/confirm`, con `token`, `new_password` y
+- `POST /api/auth/password-reset/confirm`, con `uid`, `token`, `new_password` y
   `new_password_confirmation`: cambia la contraseña y revoca las sesiones anteriores.
   Responde `204` cuando termina correctamente.
 
-El enlace apunta a `FRONTEND_URL/restablecer-contrasena?token=...`, vence en
-30 minutos y es de un solo uso. El formulario del frontend debe enviar el token
-y las dos contraseñas al endpoint de confirmación. La contraseña requiere al
-menos 15 caracteres y debe cumplir los validadores configurados en Django.
+El enlace apunta a `FRONTEND_URL/restablecer-contrasena?uid=...&token=...`, vence
+en 30 minutos y es de un solo uso. El formulario del frontend debe enviar `uid`,
+`token` y las dos contraseñas al endpoint de confirmación. La contraseña debe
+tener entre 8 y 50 caracteres y cumplir los validadores configurados en Django.
 
 ## Configurar Gmail
 

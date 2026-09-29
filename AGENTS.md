@@ -48,6 +48,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
+| `apps/farms/`      | Fincas del productor de la sesión: alta (también sin conexión), consulta, edición, activación y su auditoría |
 
 ### Capas
 
@@ -76,17 +77,27 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Rutas sin barra final:** `/api/producers`, `/api/producers/{id}`, `/api/auth/login`.
 - **Todo error tiene la forma** `{"detail": str, "code": str, "fields": {campo: [str]}}`;
   `fields` es `{}` si el error no es de un campo, y algunos errores agregan claves
-  documentadas (`existing_producer_id`). Los errores de negocio son subclases de `ApiError`
+  documentadas (`existing_producer_id`; `current` en el `stale_version` de fincas, con la
+  versión del servidor). Los errores de negocio son subclases de `ApiError`
   (su `default_code` es el `code`) y el manejador global de `apps/common/exceptions.py` arma el
   cuerpo: nunca se responde `Response({...})` a mano con otra forma. Una ruta que no existe
   bajo `/api/` (404) y un fallo no controlado (500, sin datos técnicos) responden con la misma
   forma (con `DEBUG=True`, Django muestra en su lugar su página técnica de depuración).
-- **Códigos:** `validation_error`, `invalid_reset_token`, `parse_error` (400);
-  `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
+- **Códigos:** `validation_error`, `invalid_reset_token`, `parse_error`, `location_required`
+  (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
-  `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`
-  (409); `payload_too_large` (413); `unsupported_media_type` (415); `throttled` (429);
-  `internal_error` (500). El frontend decide qué hacer según `code`, no según `detail`.
+  `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
+  `duplicate_farm_name`, `farm_id_conflict` (409); `payload_too_large` (413);
+  `unsupported_media_type` (415); `invalid_coordinates`, `municipality_department_mismatch`
+  (422); `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
+  no según `detail`.
+- **Registros creados sin conexión** (hoy, fincas): el `POST` acepta un `id` UUID generado en
+  el dispositivo. Reenviar el mismo `id` con el mismo contenido responde `200` con el registro
+  ya creado (nunca duplica, ni con dos envíos simultáneos); con otro contenido u otro dueño,
+  `409`. El `PATCH` exige `expected_version`; si el registro ya tiene exactamente lo que se
+  pide (un reintento cuya respuesta se perdió) responde `200` sin cambios, y si no, `409
+  stale_version`. `captured_at` (hora del dispositivo) es opcional e informativo: el orden y
+  los conflictos se deciden con `version` y con la hora del servidor.
 - **Paginación única:** `page` (desde 1) y `page_size` (1–100, 20 por defecto); respuesta
   `{"count", "next", "previous", "results"}`. Una página fuera de rango responde 404
   `not_found`.

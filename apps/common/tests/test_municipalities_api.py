@@ -18,7 +18,11 @@ def test_any_authenticated_user_can_read_the_catalog():
 
     assert response.status_code == 200
     assert len(response.data["results"]) == 40
-    assert response.data["results"][0] == {"code": "54003", "name": "Ábrego"}
+    assert response.data["results"][0] == {
+        "code": "54003",
+        "name": "Ábrego",
+        "department": {"code": "54", "name": "Norte de Santander"},
+    }
 
 
 def test_catalog_requires_authentication():

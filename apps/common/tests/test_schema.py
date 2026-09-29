@@ -116,9 +116,13 @@ def test_duplicate_document_conflict_documents_the_existing_producer(schema):
     assert "existing_producer_id" not in conflict["required"]
 
 
-# Descripciones intencionales: la de la edición parcial. Las de los enums las arma
-# drf-spectacular a partir de las opciones del modelo.
-DOCUMENTED_OPERATIONS = {("patch", "/api/producers/{id}")}
+# Descripciones intencionales: las ediciones parciales y el alta de fincas (su `id` de cliente).
+# Las de los enums las arma drf-spectacular a partir de las opciones del modelo.
+DOCUMENTED_OPERATIONS = {
+    ("patch", "/api/producers/{id}"),
+    ("post", "/api/farms"),
+    ("patch", "/api/farms/{id}"),
+}
 
 
 def test_components_do_not_leak_internal_docstrings(schema):

@@ -75,4 +75,8 @@ def test_municipalities_are_sorted_ignoring_accents():
     municipalities = list_municipalities()
 
     assert len(municipalities) == 40
-    assert municipalities[0] == {"code": "54003", "name": "Ábrego"}
+    assert municipalities[0] == {
+        "code": "54003",
+        "name": "Ábrego",
+        "department": {"code": "54", "name": "Norte de Santander"},
+    }

@@ -41,6 +41,12 @@ class FarmIdConflict(ApiError):
     default_code = "farm_id_conflict"
 
 
+class LocationRequired(ApiError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "La georreferenciación es obligatoria."
+    default_code = "location_required"
+
+
 class InvalidCoordinates(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "Coordenadas no válidas."

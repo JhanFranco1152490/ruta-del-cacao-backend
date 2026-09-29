@@ -26,6 +26,10 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "producers.create": PermissionInfo(area="producers", delegable=False),
     "producers.update": PermissionInfo(area="producers", delegable=False),
     "producers.change_status": PermissionInfo(area="producers", delegable=False),
+    # Solo la cuenta Productor administra los datos prediales de sus fincas.
+    "farms.view_farm": PermissionInfo(area="farms", delegable=False),
+    "farms.add_farm": PermissionInfo(area="farms", delegable=False),
+    "farms.change_farm": PermissionInfo(area="farms", delegable=False),
 }
 
 

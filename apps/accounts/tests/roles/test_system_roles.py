@@ -60,6 +60,15 @@ def test_each_system_role_has_exactly_its_declared_permissions():
         assert actual == set(definition["permissions"])
 
 
+FARM_PERMISSIONS = {"farms.view_farm", "farms.add_farm", "farms.change_farm"}
+
+
+def test_only_the_producer_role_manages_farms():
+    for code, definition in SYSTEM_ROLES.items():
+        granted = FARM_PERMISSIONS & set(definition["permissions"])
+        assert granted == (FARM_PERMISSIONS if code == PRODUCER else set()), code
+
+
 @pytest.mark.parametrize(
     "code, expected",
     [
@@ -67,6 +76,9 @@ def test_each_system_role_has_exactly_its_declared_permissions():
         ("accounts.roles_manage", True),
         ("accounts.association_access_manage", False),
         ("producers.view", False),
+        ("farms.view_farm", False),
+        ("farms.add_farm", False),
+        ("farms.change_farm", False),
         ("accounts.unknown_permission", False),
     ],
 )

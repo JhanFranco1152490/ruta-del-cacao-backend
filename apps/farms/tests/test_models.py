@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth.models import Permission
 from django.db import IntegrityError, transaction
 from django.db.models import PROTECT
 from django.test import TestCase
@@ -64,3 +65,13 @@ class FarmModelTests(TestCase):
     def test_longitude_must_be_in_its_valid_range(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.create_farm(longitude=Decimal("180.0000001"))
+
+    def test_farms_can_be_viewed_added_and_changed_but_never_deleted(self):
+        codenames = set(
+            Permission.objects.filter(content_type__app_label="farms").values_list(
+                "codename", flat=True
+            )
+        )
+
+        self.assertTrue({"view_farm", "add_farm", "change_farm"} <= codenames)
+        self.assertNotIn("delete_farm", codenames)

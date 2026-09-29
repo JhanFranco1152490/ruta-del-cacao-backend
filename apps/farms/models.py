@@ -73,6 +73,8 @@ class Farm(models.Model):
                 name="farms_longitude_in_range",
             ),
         ]
+        # Una finca se desactiva, nunca se borra: conserva su historial y lo que dependa de ella.
+        default_permissions = ("view", "add", "change")
 
     def clean(self):
         errors = {}

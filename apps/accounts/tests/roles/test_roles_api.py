@@ -187,6 +187,8 @@ def test_a_producer_creates_a_custom_role_with_permissions_it_holds(auth_client)
     assert response.data["producer"] == {
         "id": str(producer.id),
         "member_code": producer.member_code,
+        "first_name": producer.first_name,
+        "last_name": producer.last_name,
     }
     assert sorted(response.data["permissions"]) == ["accounts.users_create", "accounts.users_view"]
     role = Role.objects.get(pk=response.data["id"])

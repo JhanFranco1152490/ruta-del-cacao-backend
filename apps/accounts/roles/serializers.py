@@ -13,6 +13,8 @@ class RoleProducerSerializer(serializers.Serializer):
 
     id = serializers.UUIDField()
     member_code = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
 
 
 class RoleSerializer(serializers.ModelSerializer):

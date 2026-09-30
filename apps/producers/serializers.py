@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
@@ -63,6 +64,7 @@ class ProducerSerializer(RejectUnknownFieldsMixin, serializers.ModelSerializer):
     def validate_phone(self, value):
         return value or None
 
+    @extend_schema_field(ProducerAccountSerializer(allow_null=True))
     def get_account(self, producer) -> dict | None:
         # `_producer_account` lo deja get_producer() precargado (evita una consulta más); si
         # no está (por ejemplo, la respuesta de crear o editar), se busca aquí mismo, siempre
@@ -85,6 +87,10 @@ class ProducerSerializer(RejectUnknownFieldsMixin, serializers.ModelSerializer):
     def get_association_access(self, producer) -> bool:
         access = getattr(producer, "association_access", None)
         return bool(access and access.enabled)
+
+
+class ProducerDetailSerializer(ProducerSerializer):
+    email = serializers.EmailField(allow_null=True)
 
 
 class ProducerUpdateSerializer(ProducerSerializer):

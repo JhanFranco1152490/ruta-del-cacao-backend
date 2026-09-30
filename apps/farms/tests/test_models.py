@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import Permission
 from django.db import IntegrityError, transaction
-from django.db.models import PROTECT
+from django.db.models import PROTECT, ProtectedError
 from django.test import TestCase
 
 from apps.farms.models import Farm
@@ -47,6 +47,15 @@ class FarmModelTests(TestCase):
         self.assertEqual(fields["latitude"].decimal_places, 7)
         self.assertEqual(fields["longitude"].decimal_places, 7)
         self.assertEqual(fields["version"].default, 1)
+
+    def test_a_producer_with_farms_cannot_be_deleted(self):
+        farm = self.create_farm()
+
+        with self.assertRaises(ProtectedError):
+            self.producer.delete()
+
+        self.assertTrue(Producer.objects.filter(pk=self.producer.pk).exists())
+        self.assertTrue(Farm.objects.filter(pk=farm.pk).exists())
 
     def test_name_is_unique_for_each_producer_after_normalization(self):
         self.create_farm()

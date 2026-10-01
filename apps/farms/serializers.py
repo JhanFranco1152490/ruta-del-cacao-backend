@@ -71,9 +71,11 @@ class FarmWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     area_hectares = serializers.DecimalField(max_digits=10, decimal_places=2)
     altitude_masl = serializers.IntegerField()
     # No se marcan como requeridas para que su ausencia responda `location_required` (ver
-    # validate) y no un error genérico de campo.
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=7, required=False)
-    longitude = serializers.DecimalField(max_digits=10, decimal_places=7, required=False)
+    # validate) y no un error genérico de campo. Sin `max_digits`: un valor como 100 o -1000 es
+    # una coordenada fuera de rango y debe responder `invalid_coordinates`, y eso lo decide el
+    # modelo; si el serializer lo cortara antes, llegaría como un error genérico.
+    latitude = serializers.DecimalField(max_digits=None, decimal_places=7, required=False)
+    longitude = serializers.DecimalField(max_digits=None, decimal_places=7, required=False)
 
     def validate(self, attrs):
         if "latitude" not in attrs or "longitude" not in attrs:

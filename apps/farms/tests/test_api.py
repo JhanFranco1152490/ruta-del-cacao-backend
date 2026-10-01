@@ -235,7 +235,16 @@ def test_create_reports_each_missing_required_field(client, missing):
 
 
 @pytest.mark.parametrize(
-    "field, value", [("latitude", "90.5"), ("latitude", "-91"), ("longitude", "180.1")]
+    "field, value",
+    [
+        ("latitude", "90.5"),
+        ("latitude", "-91"),
+        ("longitude", "180.1"),
+        # Con más dígitos enteros de los que guarda la columna, también es un punto imposible.
+        ("latitude", "100"),
+        ("longitude", "-1000"),
+        ("latitude", "123456789012"),
+    ],
 )
 def test_create_rejects_out_of_range_coordinates(client, field, value):
     response = client.post("/api/farms", {**VALID_DATA, field: value}, format="json")

@@ -82,7 +82,14 @@ class Farm(models.Model):
             ),
         ]
         # Una finca se desactiva, nunca se borra: conserva su historial y lo que dependa de ella.
-        default_permissions = ("view", "add", "change")
+        # Se declaran a mano, con los mismos códigos que generaría Django, para que el productor
+        # los lea en español al armar un rol para sus empleados.
+        default_permissions = ()
+        permissions = [
+            ("view_farm", "Puede consultar fincas"),
+            ("add_farm", "Puede registrar fincas"),
+            ("change_farm", "Puede editar, activar y desactivar fincas"),
+        ]
 
     def clean(self):
         errors = {}

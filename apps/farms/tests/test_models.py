@@ -84,3 +84,19 @@ class FarmModelTests(TestCase):
 
         self.assertTrue({"view_farm", "add_farm", "change_farm"} <= codenames)
         self.assertNotIn("delete_farm", codenames)
+
+    def test_farm_permissions_are_named_in_spanish_for_the_role_editor(self):
+        names = dict(
+            Permission.objects.filter(
+                content_type__app_label="farms", content_type__model="farm"
+            ).values_list("codename", "name")
+        )
+
+        self.assertEqual(
+            names,
+            {
+                "view_farm": "Puede consultar fincas",
+                "add_farm": "Puede registrar fincas",
+                "change_farm": "Puede editar, activar y desactivar fincas",
+            },
+        )

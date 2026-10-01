@@ -1,6 +1,9 @@
+from types import SimpleNamespace
+
 import pytest
 from django.contrib.auth.models import Permission
 
+from apps.accounts.apps import last_app_with_models
 from apps.accounts.models import Role
 from apps.accounts.registry import is_delegable
 from apps.accounts.system_roles import (
@@ -22,6 +25,13 @@ def test_the_five_system_roles_exist_after_migrating():
     # No llama a sync_system_roles(): el post_migrate de la base de pruebas ya la corrió.
     codes = set(Role.objects.filter(code__isnull=False).values_list("code", flat=True))
     assert codes == {ADMINISTRATOR, PRODUCER, FOREMAN, QUALITY_MANAGER, SALES_MANAGER}
+
+
+def test_roles_sync_after_the_last_app_that_has_models():
+    with_models = SimpleNamespace(label="farms", models_module=object())
+    without_models = SimpleNamespace(label="reports", models_module=None)
+
+    assert last_app_with_models([with_models, without_models]) is with_models
 
 
 def test_running_sync_again_makes_no_changes():

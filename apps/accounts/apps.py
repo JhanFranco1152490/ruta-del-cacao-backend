@@ -14,8 +14,9 @@ class AccountsConfig(AppConfig):
         # de cada una, en el orden de INSTALLED_APPS. Solo al llegarle el turno a la última ya
         # existen todos; conectarse a esta misma app, o a una fija, sería demasiado pronto en
         # cuanto se agregue otra app después.
-        last_app = list(app_registry.get_app_configs())[-1]
-        post_migrate.connect(_sync_system_roles, sender=last_app)
+        post_migrate.connect(
+            _sync_system_roles, sender=last_app_with_models(app_registry.get_app_configs())
+        )
 
         # Sin importar apps.producers (ninguna app importa de otra, ver AGENTS.md): el modelo
         # se obtiene del registro de apps, ya poblado para cuando corre ready(). Como esto pasa
@@ -24,6 +25,12 @@ class AccountsConfig(AppConfig):
         post_save.connect(
             _create_producer_account, sender=app_registry.get_model("producers", "Producer")
         )
+
+
+def last_app_with_models(app_configs):
+    # Django no emite post_migrate para una app sin modelos: si la última instalada no tiene,
+    # conectarse a ella dejaría los roles sin sincronizar nunca.
+    return [config for config in app_configs if config.models_module is not None][-1]
 
 
 def _sync_system_roles(sender, **kwargs):

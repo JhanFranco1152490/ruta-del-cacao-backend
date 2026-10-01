@@ -40,6 +40,9 @@ SYSTEM_ROLES = {
             "accounts.roles_view",
             "accounts.roles_manage",
             "accounts.association_access_manage",
+            "farms.view_farm",
+            "farms.add_farm",
+            "farms.change_farm",
         ],
     },
     FOREMAN: {"kind": Role.Kind.PREDEFINED, "name": "Capataz/Operario", "permissions": []},
@@ -61,8 +64,8 @@ def sync_system_roles() -> None:
     """Crea los roles del sistema que falten y deja sus permisos como los declara el código.
 
     Nunca toca un rol propio (`kind=custom`): busca y crea solo por `code`, que los propios no
-    tienen. Se conecta al `post_migrate` de `producers` (ver `apps.py`): para entonces ya
-    existen los permisos de todas las apps, incluidos los `producers.*` que usa Administrador.
+    tienen. Se conecta al `post_migrate` de la última app instalada (ver `apps.py`): para
+    entonces ya existen los permisos de todas las apps que usan los roles.
     """
     for code, definition in SYSTEM_ROLES.items():
         role = Role.objects.filter(code=code).first()

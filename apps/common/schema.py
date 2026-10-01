@@ -5,6 +5,7 @@ from .serializers import ApiErrorSerializer
 REQUIRED_ON_PATCH = {
     "PatchedProducerUpdateRequest": ["expected_version"],
     "PatchedProducerStatusRequest": ["status", "expected_version"],
+    "PatchedFarmUpdateRequest": ["expected_version"],
 }
 
 

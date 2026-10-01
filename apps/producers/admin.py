@@ -1,7 +1,8 @@
 from django import forms
 from django.contrib import admin, messages
 
-from apps.common.municipalities import MUNICIPALITIES_BY_CODE, list_municipalities
+from apps.common.municipalities import list_municipalities
+from apps.common.territorial import MUNICIPALITIES_BY_CODE
 
 from .exceptions import StaleVersion
 from .models import Producer
@@ -90,7 +91,8 @@ class ProducerAdmin(admin.ModelAdmin):
 
     @admin.display(description="Municipio", ordering="municipality_code")
     def municipality(self, producer):
-        return MUNICIPALITIES_BY_CODE.get(producer.municipality_code, producer.municipality_code)
+        municipality = MUNICIPALITIES_BY_CODE.get(producer.municipality_code)
+        return municipality.name if municipality else producer.municipality_code
 
     # Los permisos siguen a los de la API (`view`, `update`, `change_status`), no a los que
     # Django genera por defecto, para que un mismo rol pueda lo mismo en los dos lados.

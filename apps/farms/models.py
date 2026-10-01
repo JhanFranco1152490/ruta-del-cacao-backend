@@ -3,6 +3,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.common.audit import AuditEventBase
 from apps.common.territorial import (
     InvalidDepartmentCode,
     InvalidMunicipalityCode,
@@ -11,14 +12,10 @@ from apps.common.territorial import (
     get_municipality,
     validate_municipality_department,
 )
+from apps.common.text import normalize_name
+from apps.common.validators import validate_latitude, validate_longitude, validate_positive_area
 
-from .validators import (
-    normalize_farm_name,
-    validate_altitude,
-    validate_latitude,
-    validate_longitude,
-    validate_positive_area,
-)
+from .validators import validate_altitude
 
 # Código del error de `clean()` cuando el municipio no es del departamento: el servicio lo
 # reconoce por él para responderlo como un caso de negocio y no como un error de campo.
@@ -97,7 +94,7 @@ class Farm(models.Model):
         if isinstance(self.name, str):
             self.name = self.name.strip()
         if self.name:
-            self.name_normalized = normalize_farm_name(self.name)
+            self.name_normalized = normalize_name(self.name)
         else:
             errors["name"] = "Este campo es obligatorio."
 
@@ -132,13 +129,12 @@ class Farm(models.Model):
             raise ValidationError(errors)
 
 
-class FarmAuditEvent(models.Model):
+class FarmAuditEvent(AuditEventBase):
     class Action(models.TextChoices):
         CREATED = "created", "Finca creada"
         UPDATED = "updated", "Finca actualizada"
         STATUS_CHANGED = "status_changed", "Estado de finca modificado"
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     farm = models.ForeignKey(
         Farm,
         on_delete=models.PROTECT,
@@ -150,8 +146,3 @@ class FarmAuditEvent(models.Model):
         related_name="farm_audit_events",
     )
     action = models.CharField(max_length=32, choices=Action.choices)
-    changed_fields = models.JSONField(default=list, blank=True)
-    occurred_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-occurred_at"]

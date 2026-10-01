@@ -74,11 +74,16 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
 
 
 def with_dependencies(codes) -> set[str]:
-    """Los códigos pedidos más el permiso de vista que cada uno necesita para tener sentido."""
+    """Los códigos pedidos más los permisos de vista que cada uno necesita para tener sentido.
+
+    La dependencia se sigue hasta el final de la cadena: un permiso de vista también puede
+    necesitar otro (consultar lo que cuelga de un registro exige poder consultar ese registro).
+    """
     resolved = set(codes)
-    resolved.update(
-        dependency
-        for code in codes
-        if (dependency := PERMISSION_DEPENDENCIES.get(code)) is not None
-    )
+    pending = list(resolved)
+    while pending:
+        dependency = PERMISSION_DEPENDENCIES.get(pending.pop())
+        if dependency is not None and dependency not in resolved:
+            resolved.add(dependency)
+            pending.append(dependency)
     return resolved

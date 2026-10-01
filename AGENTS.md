@@ -129,6 +129,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (`apps/common/csrf.py`), desde `CookieJWTAuthentication` y `CsrfProtectedMixin`.
 - **Permisos por acción:** la vista declara `action_permissions = {"list": "app.codename", ...}`
   y `ActionPermission` los exige; una acción sin permiso declarado se niega.
+- **Todo permiso nuevo se declara en `apps/accounts/registry.py` y es delegable por defecto.**
+  Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
+  productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca
+  `delegable=False` con la razón escrita al lado, por ejemplo que actúe sobre toda la
+  asociación (`producers.*`) o que proteja la cuenta Productor
+  (`accounts.association_access_manage`). Un permiso de acción declara además su dependencia de
+  vista en `PERMISSION_DEPENDENCIES` (crear o editar sin poder consultar no sirve). Un código
+  que no está en el registro queda no delegable, pero eso es una red contra el olvido, no la
+  forma de decidirlo.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché

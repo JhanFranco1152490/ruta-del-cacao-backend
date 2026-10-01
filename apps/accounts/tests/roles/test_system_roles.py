@@ -86,9 +86,9 @@ def test_only_the_producer_role_manages_farms():
         ("accounts.roles_manage", True),
         ("accounts.association_access_manage", False),
         ("producers.view", False),
-        ("farms.view_farm", False),
-        ("farms.add_farm", False),
-        ("farms.change_farm", False),
+        ("farms.view_farm", True),
+        ("farms.add_farm", True),
+        ("farms.change_farm", True),
         ("accounts.unknown_permission", False),
     ],
 )

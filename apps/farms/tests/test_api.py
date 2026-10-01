@@ -7,7 +7,9 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.accounts.models import Role
 from apps.accounts.tests.factories import UserFactory
+from apps.accounts.tests.role_helpers import grant_role, make_producer_owner
 from apps.common.csrf import CSRF_FAILED_DETAIL
 from apps.farms.models import Farm, FarmAuditEvent
 from apps.farms.tests.factories import FarmFactory
@@ -92,6 +94,30 @@ def test_an_account_without_producer_cannot_create(auth_client):
 
     assert response.status_code == 403
     assert response.data["code"] == "permission_denied"
+
+
+def test_a_producer_delegates_farm_management_to_an_employee(auth_client):
+    producer = ProducerFactory()
+    role = auth_client(make_producer_owner(producer)).post(
+        "/api/roles",
+        {"name": "Encargado de fincas", "permission_codes": ["farms.add_farm"]},
+        format="json",
+    )
+    assert role.status_code == 201
+    # Registrar fincas sin poder consultarlas no tiene sentido: el rol recibe también la vista.
+    assert sorted(role.data["permissions"]) == ["farms.add_farm", "farms.view_farm"]
+
+    employee = grant_role(UserFactory(producer=producer), Role.objects.get(pk=role.data["id"]))
+    own_farm = FarmFactory(producer=producer)
+    FarmFactory()
+    client = auth_client(employee)
+
+    listed = client.get("/api/farms")
+    created = client.post("/api/farms", VALID_DATA, format="json")
+
+    assert [farm["id"] for farm in listed.data["results"]] == [str(own_farm.id)]
+    assert created.status_code == 201
+    assert Farm.objects.get(pk=created.data["id"]).producer == producer
 
 
 # --- Crear -------------------------------------------------------------------------------

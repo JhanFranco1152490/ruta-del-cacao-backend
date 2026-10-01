@@ -10,10 +10,13 @@ class AccountsConfig(AppConfig):
     def ready(self):
         from .auth import schema  # noqa: F401  (registra la extensión de drf-spectacular)
 
-        # `producers` es la última app de INSTALLED_APPS: cuando le llega su turno en el
-        # post_migrate, los permisos de todas las apps (incluidos los suyos, que usa el rol
-        # Administrador) ya existen. Conectarse al de esta misma app sería demasiado pronto.
-        post_migrate.connect(_sync_system_roles, sender=app_registry.get_app_config("producers"))
+        # Los roles del sistema usan permisos de otras apps, que Django crea en el post_migrate
+        # de cada una, en el orden de INSTALLED_APPS. Solo al llegarle el turno a la última ya
+        # existen todos; conectarse a esta misma app, o a una fija, sería demasiado pronto en
+        # cuanto se agregue otra app después.
+        post_migrate.connect(
+            _sync_system_roles, sender=last_app_with_models(app_registry.get_app_configs())
+        )
 
         # Sin importar apps.producers (ninguna app importa de otra, ver AGENTS.md): el modelo
         # se obtiene del registro de apps, ya poblado para cuando corre ready(). Como esto pasa
@@ -22,6 +25,12 @@ class AccountsConfig(AppConfig):
         post_save.connect(
             _create_producer_account, sender=app_registry.get_model("producers", "Producer")
         )
+
+
+def last_app_with_models(app_configs):
+    # Django no emite post_migrate para una app sin modelos: si la última instalada no tiene,
+    # conectarse a ella dejaría los roles sin sincronizar nunca.
+    return [config for config in app_configs if config.models_module is not None][-1]
 
 
 def _sync_system_roles(sender, **kwargs):

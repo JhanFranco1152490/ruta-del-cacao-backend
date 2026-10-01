@@ -20,6 +20,10 @@ from .validators import (
     validate_positive_area,
 )
 
+# Código del error de `clean()` cuando el municipio no es del departamento: el servicio lo
+# reconoce por él para responderlo como un caso de negocio y no como un error de campo.
+MUNICIPALITY_DEPARTMENT_MISMATCH = "municipality_department_mismatch"
+
 
 class Farm(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -112,7 +116,10 @@ class Farm(models.Model):
                     self.department_code,
                 )
             except MunicipalityDepartmentMismatch:
-                errors["municipality_code"] = "El municipio no pertenece al departamento."
+                errors["municipality_code"] = ValidationError(
+                    "El municipio no pertenece al departamento.",
+                    code=MUNICIPALITY_DEPARTMENT_MISMATCH,
+                )
 
         if errors:
             raise ValidationError(errors)

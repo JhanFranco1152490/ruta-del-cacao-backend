@@ -1,13 +1,7 @@
-import unicodedata
-
 from django.core.exceptions import ValidationError
 
-from .territorial import MUNICIPALITIES_BY_CODE as TERRITORIAL_MUNICIPALITIES
-from .territorial import get_department
-
-MUNICIPALITIES_BY_CODE = {
-    code: municipality.name for code, municipality in TERRITORIAL_MUNICIPALITIES.items()
-}
+from .territorial import MUNICIPALITIES_BY_CODE, get_department
+from .text import fold
 
 
 def list_municipalities():
@@ -23,12 +17,17 @@ def list_municipalities():
             },
         }
         for municipality in sorted(
-            TERRITORIAL_MUNICIPALITIES.values(),
-            key=lambda item: unicodedata.normalize("NFKD", item.name)
-            .encode("ascii", "ignore")
-            .decode()
-            .casefold(),
+            MUNICIPALITIES_BY_CODE.values(), key=lambda item: fold(item.name)
         )
+    ]
+
+
+def municipality_codes_matching(term: str) -> list[str]:
+    folded = fold(term)
+    return [
+        municipality.code
+        for municipality in MUNICIPALITIES_BY_CODE.values()
+        if folded in fold(municipality.name)
     ]
 
 

@@ -1,19 +1,10 @@
 import copy
-import unicodedata
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 
-from apps.common.municipalities import MUNICIPALITIES_BY_CODE
-from apps.common.territorial import (
-    InvalidDepartmentCode,
-    InvalidMunicipalityCode,
-    validate_municipality_department,
-)
-from apps.common.territorial import (
-    MunicipalityDepartmentMismatch as TerritorialMismatch,
-)
+from apps.common.municipalities import municipality_codes_matching
 
 from ..exceptions import (
     DuplicateFarmName,
@@ -24,7 +15,7 @@ from ..exceptions import (
     ProducerRequired,
     StaleFarmVersion,
 )
-from ..models import Farm, FarmAuditEvent
+from ..models import MUNICIPALITY_DEPARTMENT_MISMATCH, Farm, FarmAuditEvent
 from .audit import record_farm_audit_event
 
 NAME_UNIQUE_CONSTRAINT = "farms_producer_name_normalized_unique"
@@ -50,7 +41,9 @@ def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
         farms = farms.filter(
             Q(name__unaccent__icontains=term)
             | Q(details__unaccent__icontains=term)
-            | Q(municipality_code__in=_municipality_codes_matching(term))
+            # El municipio se guarda como código; su nombre vive en el catálogo en memoria, así
+            # que la búsqueda por nombre se traduce a los códigos que coinciden.
+            | Q(municipality_code__in=municipality_codes_matching(term))
         )
     return farms
 
@@ -158,17 +151,18 @@ def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     # después de una creación cuya respuesta se perdió. El conflicto lleva la finca del servidor
     # para que el cliente envíe esa edición como un PATCH con su versión, en vez de quedar
     # trabado reenviando un POST que siempre chocaría.
-    candidate = Farm(producer_id=actor.producer_id, **data)
-    try:
-        candidate.full_clean(validate_unique=False, validate_constraints=False)
-    except ValidationError:
-        raise FarmIdConflict(existing) from None
-    if any(getattr(candidate, name) != getattr(existing, name) for name in CONTENT_FIELDS):
+    if not _matches(existing, data, CONTENT_FIELDS):
         raise FarmIdConflict(existing)
     return existing
 
 
 def _already_applied(farm: Farm, data: dict) -> bool:
+    return _matches(farm, data, data)
+
+
+def _matches(farm: Farm, data: dict, fields) -> bool:
+    # Se compara después de limpiar los datos como al guardarlos: "12.5" y "12.50" o un nombre
+    # con espacios alrededor no son contenido distinto.
     candidate = copy.copy(farm)
     for name, value in data.items():
         setattr(candidate, name, value)
@@ -176,21 +170,16 @@ def _already_applied(farm: Farm, data: dict) -> bool:
         candidate.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError:
         return False
-    return all(getattr(candidate, name) == getattr(farm, name) for name in data)
+    return all(getattr(candidate, name) == getattr(farm, name) for name in fields)
 
 
 def _validate(farm: Farm) -> None:
     try:
-        validate_municipality_department(farm.municipality_code, farm.department_code)
-    except TerritorialMismatch:
-        raise MunicipalityDepartmentMismatch() from None
-    except (InvalidDepartmentCode, InvalidMunicipalityCode):
-        # Códigos inexistentes: los informa full_clean() como error de campo.
-        pass
-
-    try:
         farm.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError as error:
+        municipality_errors = error.error_dict.get("municipality_code", [])
+        if any(item.code == MUNICIPALITY_DEPARTMENT_MISMATCH for item in municipality_errors):
+            raise MunicipalityDepartmentMismatch() from None
         errors = error.message_dict
         if errors.keys() <= COORDINATE_FIELDS:
             raise InvalidCoordinates(fields=errors) from None
@@ -204,15 +193,3 @@ def _without_empty_id(data: dict) -> dict:
 def _constraint_name(error: IntegrityError) -> str | None:
     diagnostics = getattr(error.__cause__, "diag", None)
     return getattr(diagnostics, "constraint_name", None)
-
-
-def _fold(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text)
-    return "".join(char for char in decomposed if not unicodedata.combining(char)).casefold()
-
-
-def _municipality_codes_matching(term: str) -> list[str]:
-    # El municipio se guarda como código; su nombre vive en el catálogo en memoria, así que la
-    # búsqueda por nombre se traduce aquí a los códigos que coinciden.
-    folded = _fold(term)
-    return [code for code, name in MUNICIPALITIES_BY_CODE.items() if folded in _fold(name)]

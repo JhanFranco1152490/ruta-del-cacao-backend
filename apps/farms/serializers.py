@@ -110,6 +110,7 @@ class FarmUpdateSerializer(FarmWriteSerializer):
 
 
 class FarmConflictErrorSerializer(ApiErrorSerializer):
-    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` solo llega
-    # con `stale_version`, para mostrar la versión del servidor sin otra consulta.
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
+    # `stale_version` y con `farm_id_conflict` de una finca propia, para mostrar la versión del
+    # servidor sin otra consulta. Nunca con una finca de otro productor.
     current = FarmSerializer(required=False)

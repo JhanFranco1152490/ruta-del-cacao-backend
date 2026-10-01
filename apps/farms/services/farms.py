@@ -154,13 +154,17 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if existing.producer_id != actor.producer_id:
         raise FarmIdConflict()
+    # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
+    # después de una creación cuya respuesta se perdió. El conflicto lleva la finca del servidor
+    # para que el cliente envíe esa edición como un PATCH con su versión, en vez de quedar
+    # trabado reenviando un POST que siempre chocaría.
     candidate = Farm(producer_id=actor.producer_id, **data)
     try:
         candidate.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError:
-        raise FarmIdConflict() from None
+        raise FarmIdConflict(existing) from None
     if any(getattr(candidate, name) != getattr(existing, name) for name in CONTENT_FIELDS):
-        raise FarmIdConflict()
+        raise FarmIdConflict(existing)
     return existing
 
 

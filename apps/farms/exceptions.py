@@ -40,6 +40,12 @@ class FarmIdConflict(ApiError):
     default_detail = "El identificador ya pertenece a otra finca."
     default_code = "farm_id_conflict"
 
+    def __init__(self, current_farm=None):
+        # Solo se adjunta la finca cuando es del mismo productor: si es ajena, mostrarla
+        # revelaría datos de otro productor.
+        super().__init__()
+        self.current_farm = current_farm
+
 
 class LocationRequired(ApiError):
     status_code = status.HTTP_400_BAD_REQUEST

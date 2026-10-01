@@ -118,21 +118,27 @@ def test_resending_the_same_id_and_content_returns_the_existing_farm(owner):
     assert len(audit_actions(first)) == 1
 
 
-def test_resending_the_same_id_with_other_content_is_a_conflict(owner):
+def test_resending_the_same_id_with_other_content_is_a_conflict_with_the_server_farm(owner):
+    # La creación se aplicó pero la respuesta se perdió, y el pendiente se editó en el
+    # dispositivo: el conflicto trae la finca del servidor para continuar con un PATCH.
     client_id = uuid.uuid4()
     create_farm(owner, farm_data(id=client_id))
 
-    with pytest.raises(FarmIdConflict):
+    with pytest.raises(FarmIdConflict) as error:
         create_farm(owner, farm_data(id=client_id, altitude_masl=951))
 
+    assert error.value.current_farm.pk == client_id
+    assert error.value.current_farm.altitude_masl == 950
 
-def test_an_id_that_belongs_to_another_producer_is_a_conflict(owner, stranger):
+
+def test_an_id_that_belongs_to_another_producer_is_a_conflict_without_its_data(owner, stranger):
     client_id = uuid.uuid4()
     create_farm(stranger, farm_data(id=client_id))
 
-    with pytest.raises(FarmIdConflict):
+    with pytest.raises(FarmIdConflict) as error:
         create_farm(owner, farm_data(id=client_id))
 
+    assert error.value.current_farm is None
     assert Farm.objects.get(pk=client_id).producer_id == stranger.producer_id
 
 

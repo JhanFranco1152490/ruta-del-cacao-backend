@@ -11,7 +11,7 @@ from apps.common.exceptions import ApiError
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
-from .exceptions import StaleFarmVersion
+from .exceptions import FarmIdConflict, StaleFarmVersion
 from .serializers import (
     MODEL_TO_API_FIELDS,
     FarmConflictErrorSerializer,
@@ -39,7 +39,9 @@ from .services import create_farm, get_farm, list_farms, update_farm
         description=(
             "Crea una finca del productor de la sesión. `id` es opcional: el dispositivo lo "
             "genera al registrar sin conexión. Reenviar el mismo `id` con el mismo contenido "
-            "responde 200 con la finca ya creada; con otro contenido, 409 `farm_id_conflict`."
+            "responde 200 con la finca ya creada; con otro contenido, 409 `farm_id_conflict`. "
+            "Si la finca es del mismo productor, el 409 trae la del servidor en `current`, para "
+            "enviar el cambio como un PATCH con su `version`; si es de otro productor, no."
         ),
         request=FarmCreateSerializer,
         responses={
@@ -106,7 +108,7 @@ class FarmViewSet(GenericViewSet):
         return Response(FarmSerializer(update_farm(request.user, pk, expected_version, data)).data)
 
     def handle_exception(self, exc):
-        if isinstance(exc, StaleFarmVersion):
+        if isinstance(exc, (StaleFarmVersion, FarmIdConflict)) and exc.current_farm is not None:
             exc.extra = {"current": FarmSerializer(exc.current_farm).data}
         # Los servicios hablan con los nombres del modelo; el cliente debe ver los de la API.
         if isinstance(exc, DjangoValidationError) and hasattr(exc, "error_dict"):

@@ -77,8 +77,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Rutas sin barra final:** `/api/producers`, `/api/producers/{id}`, `/api/auth/login`.
 - **Todo error tiene la forma** `{"detail": str, "code": str, "fields": {campo: [str]}}`;
   `fields` es `{}` si el error no es de un campo, y algunos errores agregan claves
-  documentadas (`existing_producer_id`; `current` en el `stale_version` de fincas, con la
-  versión del servidor). Los errores de negocio son subclases de `ApiError`
+  documentadas (`existing_producer_id`; `current` en el `stale_version` y en el
+  `farm_id_conflict` de una finca propia, con la versión del servidor). Los errores de negocio son subclases de `ApiError`
   (su `default_code` es el `code`) y el manejador global de `apps/common/exceptions.py` arma el
   cuerpo: nunca se responde `Response({...})` a mano con otra forma. Una ruta que no existe
   bajo `/api/` (404) y un fallo no controlado (500, sin datos técnicos) responden con la misma
@@ -94,7 +94,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Registros creados sin conexión** (hoy, fincas): el `POST` acepta un `id` UUID generado en
   el dispositivo. Reenviar el mismo `id` con el mismo contenido responde `200` con el registro
   ya creado (nunca duplica, ni con dos envíos simultáneos); con otro contenido u otro dueño,
-  `409`. El `PATCH` exige `expected_version`; si el registro ya tiene exactamente lo que se
+  `409`. Si el registro es del mismo dueño, ese `409` trae el del servidor en `current`: suele
+  ser un pendiente editado en el dispositivo tras una creación cuya respuesta se perdió, y el
+  cliente lo envía como `PATCH` con esa `version`. Si es de otro dueño, sin `current`, para no
+  revelar sus datos. El `PATCH` exige `expected_version`; si el registro ya tiene exactamente lo que se
   pide (un reintento cuya respuesta se perdió) responde `200` sin cambios, y si no, `409
   stale_version`. `captured_at` (hora del dispositivo) es opcional e informativo: el orden y
   los conflictos se deciden con `version` y con la hora del servidor.

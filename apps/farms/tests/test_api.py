@@ -162,14 +162,41 @@ def test_resending_the_same_farm_returns_200_without_duplicating(client):
     assert Farm.objects.count() == 1
 
 
-def test_resending_an_id_with_other_content_is_a_conflict(client):
+def test_a_pending_farm_edited_after_a_lost_create_response_can_still_sync(client):
+    # El POST se aplicó pero su respuesta se perdió; en el dispositivo la finca seguía
+    # pendiente y el productor le corrigió el área antes del reintento.
     data = {**VALID_DATA, "id": str(uuid.uuid4())}
     client.post("/api/farms", data, format="json")
 
-    response = client.post("/api/farms", {**data, "altitude_masl": 1000}, format="json")
+    conflict = client.post("/api/farms", {**data, "area_hectares": "15.00"}, format="json")
+
+    assert conflict.status_code == 409
+    assert conflict.data["code"] == "farm_id_conflict"
+    current = conflict.data["current"]
+    assert (current["id"], current["area_hectares"], current["version"]) == (
+        data["id"],
+        "12.50",
+        1,
+    )
+
+    edit = client.patch(
+        f"/api/farms/{data['id']}",
+        {"area_hectares": "15.00", "expected_version": current["version"]},
+        format="json",
+    )
+
+    assert edit.status_code == 200
+    assert (edit.data["area_hectares"], edit.data["version"]) == ("15.00", 2)
+
+
+def test_an_id_of_another_producer_is_a_conflict_that_reveals_nothing(client):
+    farm = other_producer_farm(name="Ajena")
+
+    response = client.post("/api/farms", {**VALID_DATA, "id": str(farm.id)}, format="json")
 
     assert response.status_code == 409
     assert response.data["code"] == "farm_id_conflict"
+    assert "current" not in response.data
 
 
 def test_the_producer_cannot_be_chosen_by_the_client(client):

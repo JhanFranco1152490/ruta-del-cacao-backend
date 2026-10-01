@@ -1,4 +1,4 @@
-"""Versioned territorial reference data for the application domain."""
+"""Catálogo territorial (departamentos y municipios por código DIVIPOLA) que usa el dominio."""
 
 from dataclasses import dataclass
 from types import MappingProxyType

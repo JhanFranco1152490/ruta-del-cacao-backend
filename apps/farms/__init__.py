@@ -1,1 +1,1 @@
-"""Farm management domain."""
+"""Fincas de cada productor."""

@@ -57,9 +57,11 @@ def filter_farms(farms, *, search=None, producer=None, municipality=None) -> Que
 
 
 def list_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+    # Activas primero: la lista llega paginada, así que solo el servidor puede dejar las
+    # inactivas al final de todas las páginas.
     return filter_farms(
         readable_farms(actor), search=search, producer=producer, municipality=municipality
-    ).order_by("name_normalized", "id")
+    ).order_by("-is_active", "name_normalized", "id")
 
 
 def get_farm(actor, farm_id) -> Farm:

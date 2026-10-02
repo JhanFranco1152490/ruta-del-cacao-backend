@@ -293,6 +293,18 @@ def test_list_only_returns_own_farms_ordered_by_name(owner, stranger):
     assert names == ["el Arrayán", "Zapatoca"]
 
 
+def test_list_shows_active_farms_first_and_then_inactive_ones(owner):
+    # El orden lo da el servidor: la lista viene paginada y el cliente no puede reordenarla.
+    FarmFactory(producer=owner.producer, name="Arrayán", is_active=False)
+    FarmFactory(producer=owner.producer, name="Zapatoca")
+    FarmFactory(producer=owner.producer, name="Bellavista")
+    FarmFactory(producer=owner.producer, name="Altamira", is_active=False)
+
+    names = [farm.name for farm in list_farms(owner)]
+
+    assert names == ["Bellavista", "Zapatoca", "Altamira", "Arrayán"]
+
+
 def test_list_of_an_account_without_producer_is_empty():
     FarmFactory()
 

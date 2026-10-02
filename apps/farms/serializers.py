@@ -116,3 +116,29 @@ class FarmConflictErrorSerializer(ApiErrorSerializer):
     # `stale_version` y con `farm_id_conflict` de una finca propia, para mostrar la versión del
     # servidor sin otra consulta. Nunca con una finca de otro productor.
     current = FarmSerializer(required=False)
+
+
+class FarmMunicipalityCountSerializer(serializers.Serializer):
+    municipality_id = serializers.CharField(source="municipality_code")
+    farm_count = serializers.IntegerField()
+
+
+class FarmMapProducerSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    member_code = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+
+
+class FarmMapPointSerializer(serializers.ModelSerializer):
+    location = serializers.SerializerMethodField()
+    producer = FarmMapProducerSerializer()
+
+    class Meta:
+        model = Farm
+        fields = ["id", "name", "is_active", "location", "producer"]
+        read_only_fields = fields
+
+    @extend_schema_field(LocationSerializer)
+    def get_location(self, farm) -> dict:
+        return LocationSerializer(farm).data

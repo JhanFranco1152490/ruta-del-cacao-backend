@@ -3,6 +3,7 @@ from django.urls import reverse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,15 +14,24 @@ from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
 from .exceptions import FarmIdConflict, StaleFarmVersion
-from .filters import FarmFilterSerializer, validated_filters
+from .filters import FarmFilterSerializer, FarmMapPointsFilterSerializer, validated_filters
 from .serializers import (
     MODEL_TO_API_FIELDS,
     FarmConflictErrorSerializer,
     FarmCreateSerializer,
+    FarmMapPointSerializer,
+    FarmMunicipalityCountSerializer,
     FarmSerializer,
     FarmUpdateSerializer,
 )
-from .services import create_farm, get_farm, list_farms, update_farm
+from .services import (
+    create_farm,
+    get_farm,
+    list_farms,
+    municipality_counts,
+    municipality_points,
+    update_farm,
+)
 
 # Los mismos filtros en el listado y en el mapa: así los dos muestran siempre lo mismo.
 FARM_FILTER_PARAMETERS = [
@@ -78,6 +88,8 @@ class FarmViewSet(GenericViewSet):
         "retrieve": "farms.view_farm",
         "create": "farms.add_farm",
         "partial_update": "farms.change_farm",
+        "map_municipalities": "farms.view_farm",
+        "map_points": "farms.view_farm",
     }
     # La búsqueda la resuelve el servicio: el municipio se busca por su nombre en el catálogo.
     filter_backends = []
@@ -114,6 +126,34 @@ class FarmViewSet(GenericViewSet):
         data = serializer.to_model_data()
         expected_version = data.pop("expected_version")
         return Response(FarmSerializer(update_farm(request.user, pk, expected_version, data)).data)
+
+    @extend_schema(
+        description="Cuántas fincas hay en cada municipio, con el alcance y filtros del listado.",
+        parameters=FARM_FILTER_PARAMETERS,
+        responses={
+            200: FarmMunicipalityCountSerializer(many=True),
+            **error_responses(400, 401, 403),
+        },
+    )
+    @action(detail=False, methods=["get"], url_path="map/municipalities")
+    def map_municipalities(self, request):
+        filters = validated_filters(FarmFilterSerializer, request.query_params)
+        counts = municipality_counts(request.user, **filters)
+        return Response(FarmMunicipalityCountSerializer(counts, many=True).data)
+
+    @extend_schema(
+        description=(
+            "Las fincas de un municipio (`municipality`, obligatorio) con lo justo para "
+            "dibujarlas, sin paginar, con el alcance y filtros del listado."
+        ),
+        parameters=FARM_FILTER_PARAMETERS,
+        responses={200: FarmMapPointSerializer(many=True), **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="map/points")
+    def map_points(self, request):
+        filters = validated_filters(FarmMapPointsFilterSerializer, request.query_params)
+        points = municipality_points(request.user, **filters)
+        return Response(FarmMapPointSerializer(points, many=True).data)
 
     def handle_exception(self, exc):
         if isinstance(exc, (StaleFarmVersion, FarmIdConflict)) and exc.current_farm is not None:

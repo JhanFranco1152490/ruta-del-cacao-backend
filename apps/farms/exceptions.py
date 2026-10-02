@@ -59,6 +59,20 @@ class InvalidCoordinates(ApiError):
     default_code = "invalid_coordinates"
 
 
+class FarmAreaBelowPlots(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "El área de la finca no puede ser menor que la de sus parcelas."
+    default_code = "farm_area_below_plots"
+
+    def __init__(self, allocated_area_hectares):
+        # Con coma decimal, como lo lee la persona: "6,00 ha".
+        allocated = f"{allocated_area_hectares:.2f}".replace(".", ",")
+        message = (
+            f"El área de la finca no puede ser menor que la de sus parcelas ({allocated} ha)."
+        )
+        super().__init__(message, fields={"area_hectares": [message]})
+
+
 class MunicipalityDepartmentMismatch(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El municipio no pertenece al departamento."

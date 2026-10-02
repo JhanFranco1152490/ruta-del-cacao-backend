@@ -5,12 +5,14 @@ import pytest
 
 from apps.accounts.tests.factories import UserFactory
 from apps.common.tests.concurrency import run_in_parallel
+from apps.farms.exceptions import FarmAreaBelowPlots
+from apps.farms.services import update_farm
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.exceptions import PlotAreaExceedsFarm, PlotOverlap
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
 from apps.plots.services import create_plot
-from apps.plots.tests.factories import plot_data, rect
+from apps.plots.tests.factories import PlotFactory, plot_data, rect
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -74,3 +76,26 @@ def test_two_simultaneous_syncs_of_the_same_plot_create_it_once(owner):
     assert sorted(created for _, created in results) == [False, True]
     assert Plot.objects.count() == 1
     assert PlotAuditEvent.objects.count() == 1
+
+
+def test_shrinking_the_farm_while_a_plot_arrives_never_leaves_it_overallocated(owner):
+    # 2 ha ya asignadas en una finca de 10. A la vez: bajar la finca a 4 ha y registrar 3 ha.
+    # Cualquiera de las dos que llegue primero deja sin lugar a la otra.
+    farm = FarmFactory(producer=owner.producer, area_hectares=Decimal("10.00"))
+    PlotFactory(farm=farm, area_hectares=Decimal("2.00"))
+
+    def act(which):
+        if which == "shrink":
+            return attempt(lambda: update_farm(owner, farm.pk, 1, {"area_hectares": Decimal("4")}))
+        return attempt(
+            lambda: create_plot(owner, plot_data(farm, code="Nueva", area_hectares=Decimal("3")))
+        )
+
+    results = run_in_parallel(act, ["shrink", "plot"])
+
+    errors = [result for result in results if isinstance(result, Exception)]
+    assert len(errors) == 1
+    assert isinstance(errors[0], (FarmAreaBelowPlots, PlotAreaExceedsFarm))
+    farm.refresh_from_db()
+    allocated = sum(plot.area_hectares for plot in farm.plots.filter(is_active=True))
+    assert allocated <= farm.area_hectares

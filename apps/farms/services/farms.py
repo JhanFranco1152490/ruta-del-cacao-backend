@@ -1,14 +1,17 @@
 import copy
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q, QuerySet
+from django.db.models import DecimalField, Q, QuerySet, Sum, Value
+from django.db.models.functions import Coalesce
 
 from apps.common.db import constraint_name
 from apps.common.municipalities import municipality_codes_matching
 
 from ..exceptions import (
     DuplicateFarmName,
+    FarmAreaBelowPlots,
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
@@ -33,10 +36,21 @@ CONTENT_FIELDS = (
     "longitude",
 )
 COORDINATE_FIELDS = frozenset({"latitude", "longitude"})
+# El área ya repartida en parcelas activas. Las parcelas se alcanzan por su relación con la finca
+# (`plots`), sin importar su app: así esta app no depende del código de la otra.
+ALLOCATED_AREA = Coalesce(
+    Sum("plots__area_hectares", filter=Q(plots__is_active=True)),
+    Value(Decimal("0")),
+    output_field=DecimalField(max_digits=12, decimal_places=2),
+)
 
 
 def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
-    farms = Farm.objects.filter(producer_id=actor.producer_id).order_by("name_normalized", "id")
+    farms = (
+        Farm.objects.filter(producer_id=actor.producer_id)
+        .annotate(allocated_area_hectares=ALLOCATED_AREA)
+        .order_by("name_normalized", "id")
+    )
     term = (search or "").strip()
     if term:
         farms = farms.filter(
@@ -51,7 +65,9 @@ def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
 
 def get_farm(actor, farm_id) -> Farm:
     try:
-        return Farm.objects.get(pk=farm_id, producer_id=actor.producer_id)
+        return Farm.objects.annotate(allocated_area_hectares=ALLOCATED_AREA).get(
+            pk=farm_id, producer_id=actor.producer_id
+        )
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
 
@@ -88,6 +104,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
             raise DuplicateFarmName() from None
         raise
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.CREATED)
+    farm.allocated_area_hectares = Decimal("0")
     return farm, True
 
 
@@ -97,6 +114,9 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
         farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
+    # Con la finca bloqueada, ninguna parcela se registra ni se agranda hasta que esto termine.
+    # La suma va en una consulta aparte: PostgreSQL no bloquea filas de una consulta agrupada.
+    _set_allocated_area(farm)
     if farm.version != expected_version:
         # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
         # haya aplicado el cambio. Si la finca ya tiene justo lo que se pide, el resultado sería
@@ -114,6 +134,8 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     changed = [name for name in data if getattr(farm, name) != before[name]]
     if not changed:
         return farm
+    if "area_hectares" in changed and farm.area_hectares < farm.allocated_area_hectares:
+        raise FarmAreaBelowPlots(farm.allocated_area_hectares)
 
     farm.version += 1
     update_fields = [*changed, "version", "updated_at"]
@@ -148,6 +170,7 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if existing.producer_id != actor.producer_id:
         raise FarmIdConflict()
+    _set_allocated_area(existing)
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
     # después de una creación cuya respuesta se perdió. El conflicto lleva la finca del servidor
     # para que el cliente envíe esa edición como un PATCH con su versión, en vez de quedar
@@ -155,6 +178,12 @@ def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if not _matches(existing, data, CONTENT_FIELDS):
         raise FarmIdConflict(existing)
     return existing
+
+
+def _set_allocated_area(farm: Farm) -> None:
+    farm.allocated_area_hectares = Farm.objects.filter(pk=farm.pk).aggregate(
+        allocated=ALLOCATED_AREA
+    )["allocated"]
 
 
 def _already_applied(farm: Farm, data: dict) -> bool:

@@ -74,9 +74,18 @@ def test_points_of_a_municipality(admin_client):
     }
 
 
-@pytest.mark.parametrize("query", ["", "?municipality=05001"])
-def test_points_require_a_known_municipality(admin_client, query):
-    response = admin_client.get(f"{POINTS}{query}")
+def test_points_without_municipality_cover_the_whole_scope(admin_client):
+    FarmFactory(name="Alfa", municipality_code="54810")
+    FarmFactory(name="Beta", municipality_code="54001")
+
+    response = admin_client.get(POINTS)
+
+    assert response.status_code == 200
+    assert [point["name"] for point in response.data] == ["Alfa", "Beta"]
+
+
+def test_points_reject_an_unknown_municipality(admin_client):
+    response = admin_client.get(f"{POINTS}?municipality=05001")
 
     assert response.status_code == 400
     assert "municipality" in response.data["fields"]

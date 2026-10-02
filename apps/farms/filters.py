@@ -16,11 +16,7 @@ class FarmFilterSerializer(serializers.Serializer):
             raise serializers.ValidationError("El municipio no está en el catálogo.") from None
 
 
-class FarmMapPointsFilterSerializer(FarmFilterSerializer):
-    municipality = serializers.CharField()
-
-
-def validated_filters(serializer_class, query_params) -> dict:
-    serializer = serializer_class(data=query_params)
+def validated_filters(query_params) -> dict:
+    serializer = FarmFilterSerializer(data=query_params)
     serializer.is_valid(raise_exception=True)
     return dict(serializer.validated_data)

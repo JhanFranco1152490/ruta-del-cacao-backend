@@ -15,8 +15,8 @@ def municipality_counts(actor, **filters) -> list[dict]:
 
 
 def municipality_points(actor, **filters) -> QuerySet[Farm]:
-    """Las fincas de un municipio con lo justo para dibujarlas. Trae el productor en la misma
-    consulta para que su nombre no cueste una consulta por finca."""
+    """Las fincas con lo justo para dibujarlas, de un municipio o de todo el alcance. Trae el
+    productor en la misma consulta para que su nombre no cueste una consulta por finca."""
     return (
         scoped_farms(actor, **filters).select_related("producer").order_by("name_normalized", "id")
     )

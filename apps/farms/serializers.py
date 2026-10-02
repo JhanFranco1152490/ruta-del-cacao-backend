@@ -111,6 +111,11 @@ class FarmUpdateSerializer(FarmWriteSerializer):
         return attrs
 
 
+class FarmDeleteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # Con la versión leída: no se elimina una finca que otra persona acaba de cambiar.
+    expected_version = serializers.IntegerField(min_value=1)
+
+
 class FarmConflictErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
     # `stale_version` y con `farm_id_conflict` de una finca propia, para mostrar la versión del

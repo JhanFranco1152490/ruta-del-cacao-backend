@@ -35,6 +35,12 @@ class DuplicateFarmName(ApiError):
         super().__init__(fields={"name": ["El nombre debe ser único para el productor."]})
 
 
+class FarmHasRecords(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La finca tiene registros asociados. Desactívala en lugar de eliminarla."
+    default_code = "farm_has_records"
+
+
 class FarmIdConflict(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El identificador ya pertenece a otra finca."

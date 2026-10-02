@@ -9,6 +9,7 @@ from apps.common.territorial import coordinates_outside_operating_area
 
 from ..exceptions import (
     DuplicateFarmName,
+    FarmHasRecords,
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
@@ -158,6 +159,37 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
             changed_fields=["is_active"],
         )
     return farm
+
+
+@transaction.atomic
+def delete_farm(actor, farm_id, expected_version: int) -> None:
+    """Elimina una finca creada por error. Solo si no tiene registros del negocio; la que los
+    tiene se desactiva. Su auditoría se conserva y el borrado queda registrado en ella."""
+    try:
+        farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
+    except Farm.DoesNotExist:
+        raise FarmNotFound() from None
+    if farm.version != expected_version:
+        raise StaleFarmVersion(farm)
+    if _has_business_records(farm):
+        raise FarmHasRecords()
+    record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.DELETED)
+    farm.delete()
+
+
+def _has_business_records(farm: Farm) -> bool:
+    # Cualquier tabla que apunte a la finca cuenta, salvo su auditoría: así una tabla nueva
+    # (parcelas, capturas, cosechas) bloquea el borrado sin que nadie la agregue a una lista.
+    # `include_hidden` incluye también las relaciones declaradas sin nombre inverso.
+    for relation in Farm._meta.get_fields(include_hidden=True):
+        if not relation.auto_created or relation.concrete:
+            continue
+        if relation.related_model is FarmAuditEvent:
+            continue
+        lookup = {relation.field.name: farm}
+        if relation.related_model._base_manager.filter(**lookup).exists():
+            return True
+    return False
 
 
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:

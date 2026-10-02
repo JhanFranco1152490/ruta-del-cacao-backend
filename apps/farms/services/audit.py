@@ -21,6 +21,8 @@ def record_farm_audit_event(
 
     return FarmAuditEvent.objects.create(
         farm=farm,
+        farm_ref=farm.pk,
+        farm_name=farm.name,
         actor=actor,
         action=action,
         changed_fields=normalized_fields,

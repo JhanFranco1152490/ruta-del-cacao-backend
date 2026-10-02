@@ -70,7 +70,7 @@ def test_each_system_role_has_exactly_its_declared_permissions():
         assert actual == set(definition["permissions"])
 
 
-FARM_MANAGEMENT = {"farms.add_farm", "farms.change_farm"}
+FARM_MANAGEMENT = {"farms.add_farm", "farms.change_farm", "farms.delete_farm"}
 
 
 def test_only_the_producer_role_manages_farms():
@@ -98,6 +98,7 @@ def test_only_the_producer_and_the_association_read_farms():
         ("farms.view_farm", True),
         ("farms.add_farm", True),
         ("farms.change_farm", True),
+        ("farms.delete_farm", True),
         ("accounts.unknown_permission", False),
     ],
 )

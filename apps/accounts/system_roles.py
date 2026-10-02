@@ -28,7 +28,8 @@ SYSTEM_ROLES = {
             "producers.update",
             "producers.change_status",
             # La asociación lee las fincas de todos los productores: nombre y ubicación son la
-            # base de sus reportes. Gestionarlas depende del interruptor de cada productor.
+            # base de sus reportes. Registrarlas, editarlas o eliminarlas es solo del productor y
+            # de los empleados a los que él se lo delegue.
             "farms.view_farm",
         ],
     },
@@ -46,6 +47,7 @@ SYSTEM_ROLES = {
             "farms.view_farm",
             "farms.add_farm",
             "farms.change_farm",
+            "farms.delete_farm",
         ],
     },
     FOREMAN: {"kind": Role.Kind.PREDEFINED, "name": "Capataz/Operario", "permissions": []},

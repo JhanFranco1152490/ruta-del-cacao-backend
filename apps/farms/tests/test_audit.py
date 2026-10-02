@@ -52,10 +52,39 @@ class FarmAuditServiceTests(TestCase):
         self.assertEqual(event.changed_fields, ["latitude", "name"])
         self.assertIsNotNone(event.occurred_at)
 
+    def test_keeps_a_copy_of_the_farm_id_and_name(self):
+        event = record_farm_audit_event(
+            farm=self.farm, actor=self.actor, action=FarmAuditEvent.Action.CREATED
+        )
+
+        self.assertEqual((event.farm_ref, event.farm_name), (self.farm.pk, "La Esperanza"))
+
+    def test_events_survive_the_farm_being_deleted(self):
+        event = record_farm_audit_event(
+            farm=self.farm, actor=self.actor, action=FarmAuditEvent.Action.CREATED
+        )
+        farm_id = self.farm.pk
+
+        self.farm.delete()
+
+        event.refresh_from_db()
+        self.assertIsNone(event.farm)
+        self.assertEqual((event.farm_ref, event.farm_name), (farm_id, "La Esperanza"))
+
+    def test_events_survive_the_actor_being_deleted(self):
+        event = record_farm_audit_event(
+            farm=self.farm, actor=self.actor, action=FarmAuditEvent.Action.CREATED
+        )
+
+        self.actor.delete()
+
+        event.refresh_from_db()
+        self.assertIsNone(event.actor)
+
     def test_rejects_unknown_actions(self):
         with self.assertRaises(ValueError):
             record_farm_audit_event(
                 farm=self.farm,
                 actor=self.actor,
-                action="deleted",
+                action="archived",
             )

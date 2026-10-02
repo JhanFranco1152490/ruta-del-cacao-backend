@@ -125,6 +125,7 @@ DOCUMENTED_OPERATIONS = {
     ("patch", "/api/producers/{id}"),
     ("post", "/api/farms"),
     ("patch", "/api/farms/{id}"),
+    ("delete", "/api/farms/{id}"),
     ("get", "/api/farms/map/municipalities"),
     ("get", "/api/farms/map/points"),
 }

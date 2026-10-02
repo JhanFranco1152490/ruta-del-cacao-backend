@@ -87,7 +87,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
-  `duplicate_farm_name`, `farm_id_conflict` (409); `payload_too_large` (413);
+  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records` (409); `payload_too_large`
+  (413);
   `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
   `municipality_department_mismatch` (422); `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.

@@ -19,6 +19,7 @@ from .serializers import (
     MODEL_TO_API_FIELDS,
     FarmConflictErrorSerializer,
     FarmCreateSerializer,
+    FarmDeleteSerializer,
     FarmMapPointSerializer,
     FarmMunicipalityCountSerializer,
     FarmSerializer,
@@ -26,6 +27,7 @@ from .serializers import (
 )
 from .services import (
     create_farm,
+    delete_farm,
     get_farm,
     list_farms,
     municipality_counts,
@@ -79,6 +81,20 @@ FARM_FILTER_PARAMETERS = [
             **error_responses(400, 401, 403, 404, 422),
         },
     ),
+    destroy=extend_schema(
+        description=(
+            "Elimina una finca creada por error. Requiere `expected_version`. Si la finca tiene "
+            "registros del negocio responde 409 `farm_has_records` (se desactiva en su lugar); "
+            "si cambió, 409 `stale_version` con la versión del servidor en `current`. La "
+            "auditoría de la finca se conserva."
+        ),
+        request=FarmDeleteSerializer,
+        responses={
+            204: None,
+            409: FarmConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
 )
 class FarmViewSet(GenericViewSet):
     serializer_class = FarmSerializer
@@ -88,6 +104,7 @@ class FarmViewSet(GenericViewSet):
         "retrieve": "farms.view_farm",
         "create": "farms.add_farm",
         "partial_update": "farms.change_farm",
+        "destroy": "farms.delete_farm",
         "map_municipalities": "farms.view_farm",
         "map_points": "farms.view_farm",
     }
@@ -126,6 +143,12 @@ class FarmViewSet(GenericViewSet):
         data = serializer.to_model_data()
         expected_version = data.pop("expected_version")
         return Response(FarmSerializer(update_farm(request.user, pk, expected_version, data)).data)
+
+    def destroy(self, request, pk):
+        serializer = FarmDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        delete_farm(request.user, pk, serializer.validated_data["expected_version"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
         description="Cuántas fincas hay en cada municipio, con el alcance y filtros del listado.",

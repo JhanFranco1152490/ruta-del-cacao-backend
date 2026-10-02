@@ -11,6 +11,7 @@ from apps.common import territorial
 from apps.farms import services
 from apps.farms.exceptions import (
     DuplicateFarmName,
+    FarmHasRecords,
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
@@ -20,7 +21,7 @@ from apps.farms.exceptions import (
     StaleFarmVersion,
 )
 from apps.farms.models import Farm, FarmAuditEvent
-from apps.farms.services import create_farm, get_farm, list_farms, update_farm
+from apps.farms.services import create_farm, delete_farm, get_farm, list_farms, update_farm
 from apps.farms.tests.factories import FarmFactory, farm_data
 from apps.producers.tests.factories import ProducerFactory
 
@@ -454,3 +455,70 @@ def test_editing_data_and_status_together_records_both_events(owner):
             (FarmAuditEvent.Action.STATUS_CHANGED, ["is_active"]),
         ]
     )
+
+
+# --- Eliminar ----------------------------------------------------------------------------
+
+
+def test_deleting_a_farm_keeps_its_audit_and_records_the_deletion(owner):
+    farm, _ = create_farm(owner, farm_data(name="Creada por error"))
+    update_farm(owner, farm.id, 1, {"altitude_masl": 1000})
+    farm_id = farm.id
+
+    delete_farm(owner, farm_id, 2)
+
+    assert not Farm.objects.filter(pk=farm_id).exists()
+    events = FarmAuditEvent.objects.filter(farm_ref=farm_id).order_by("occurred_at")
+    assert [event.action for event in events] == [
+        FarmAuditEvent.Action.CREATED,
+        FarmAuditEvent.Action.UPDATED,
+        FarmAuditEvent.Action.DELETED,
+    ]
+    assert all(event.farm is None for event in events)
+    assert {event.farm_name for event in events} == {"Creada por error"}
+    assert events.last().actor == owner
+
+
+def test_a_farm_with_business_records_cannot_be_deleted(owner, farm_dependent_model):
+    farm, _ = create_farm(owner, farm_data())
+    farm_dependent_model.objects.create(farm=farm)
+
+    with pytest.raises(FarmHasRecords):
+        delete_farm(owner, farm.id, 1)
+
+    assert Farm.objects.filter(pk=farm.id).exists()
+    assert not FarmAuditEvent.objects.filter(action=FarmAuditEvent.Action.DELETED).exists()
+
+
+def test_deleting_with_a_stale_version_keeps_the_farm(owner):
+    farm, _ = create_farm(owner, farm_data())
+    update_farm(owner, farm.id, 1, {"altitude_masl": 1000})
+
+    with pytest.raises(StaleFarmVersion) as error:
+        delete_farm(owner, farm.id, 1)
+
+    assert error.value.current_farm.version == 2
+    assert Farm.objects.filter(pk=farm.id).exists()
+
+
+def test_deleting_a_farm_of_another_producer_is_not_found(owner, stranger):
+    farm = FarmFactory(producer=stranger.producer)
+
+    with pytest.raises(FarmNotFound):
+        delete_farm(owner, farm.id, 1)
+
+    assert Farm.objects.filter(pk=farm.id).exists()
+
+
+def test_a_failing_audit_rolls_back_the_deletion(owner, monkeypatch):
+    farm, _ = create_farm(owner, farm_data())
+
+    def fail(**kwargs):
+        raise RuntimeError("audit down")
+
+    monkeypatch.setattr(services.farms, "record_farm_audit_event", fail)
+
+    with pytest.raises(RuntimeError):
+        delete_farm(owner, farm.id, 1)
+
+    assert Farm.objects.filter(pk=farm.id).exists()

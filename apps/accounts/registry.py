@@ -40,6 +40,7 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "farms.view_farm": PermissionInfo(area="farms", delegable=True),
     "farms.add_farm": PermissionInfo(area="farms", delegable=True),
     "farms.change_farm": PermissionInfo(area="farms", delegable=True),
+    "farms.delete_farm": PermissionInfo(area="farms", delegable=True),
 }
 
 
@@ -70,6 +71,7 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "producers.change_status": "producers.view",
     "farms.add_farm": "farms.view_farm",
     "farms.change_farm": "farms.view_farm",
+    "farms.delete_farm": "farms.view_farm",
 }
 
 

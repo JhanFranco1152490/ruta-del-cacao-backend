@@ -1,4 +1,4 @@
-from .system_roles import ADMINISTRATOR
+from apps.common.roles import is_association_admin  # noqa: F401
 
 
 def get_producer_model():
@@ -23,11 +23,6 @@ def is_effectively_active(user) -> bool:
     # "active" es el valor de `Producer.Status.ACTIVE`: no se importa el modelo de producers
     # (esta app no importa de otra), igual que los códigos "producers.*" de system_roles.py.
     return user.producer.status == "active"
-
-
-def is_association_admin(user) -> bool:
-    """El rol Administrador es exclusivo (HU-03): tenerlo basta, no hace falta el permiso."""
-    return user.groups.filter(role__code=ADMINISTRATOR).exists()
 
 
 def roles_of(user) -> list:

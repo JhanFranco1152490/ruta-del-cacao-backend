@@ -70,13 +70,22 @@ def test_each_system_role_has_exactly_its_declared_permissions():
         assert actual == set(definition["permissions"])
 
 
-FARM_PERMISSIONS = {"farms.view_farm", "farms.add_farm", "farms.change_farm"}
+FARM_MANAGEMENT = {"farms.add_farm", "farms.change_farm"}
 
 
 def test_only_the_producer_role_manages_farms():
     for code, definition in SYSTEM_ROLES.items():
-        granted = FARM_PERMISSIONS & set(definition["permissions"])
-        assert granted == (FARM_PERMISSIONS if code == PRODUCER else set()), code
+        granted = FARM_MANAGEMENT & set(definition["permissions"])
+        assert granted == (FARM_MANAGEMENT if code == PRODUCER else set()), code
+
+
+def test_only_the_producer_and_the_association_read_farms():
+    readers = {
+        code
+        for code, definition in SYSTEM_ROLES.items()
+        if "farms.view_farm" in definition["permissions"]
+    }
+    assert readers == {PRODUCER, ADMINISTRATOR}
 
 
 @pytest.mark.parametrize(

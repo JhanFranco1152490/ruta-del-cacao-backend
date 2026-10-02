@@ -27,6 +27,9 @@ SYSTEM_ROLES = {
             "producers.create",
             "producers.update",
             "producers.change_status",
+            # La asociación lee las fincas de todos los productores: nombre y ubicación son la
+            # base de sus reportes. Gestionarlas depende del interruptor de cada productor.
+            "farms.view_farm",
         ],
     },
     PRODUCER: {

@@ -17,6 +17,7 @@ from ..exceptions import (
 )
 from ..models import MUNICIPALITY_DEPARTMENT_MISMATCH, Farm, FarmAuditEvent
 from .audit import record_farm_audit_event
+from .scope import readable_farms
 
 NAME_UNIQUE_CONSTRAINT = "farms_producer_name_normalized_unique"
 # Lo que describe a la finca. Dos envíos con el mismo id se consideran el mismo registro solo
@@ -35,7 +36,7 @@ COORDINATE_FIELDS = frozenset({"latitude", "longitude"})
 
 
 def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
-    farms = Farm.objects.filter(producer_id=actor.producer_id).order_by("name_normalized", "id")
+    farms = readable_farms(actor).order_by("name_normalized", "id")
     term = (search or "").strip()
     if term:
         farms = farms.filter(
@@ -50,7 +51,7 @@ def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
 
 def get_farm(actor, farm_id) -> Farm:
     try:
-        return Farm.objects.get(pk=farm_id, producer_id=actor.producer_id)
+        return readable_farms(actor).get(pk=farm_id)
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
 

@@ -88,8 +88,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict` (409); `payload_too_large` (413);
-  `unsupported_media_type` (415); `invalid_coordinates`, `municipality_department_mismatch`
-  (422); `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
+  `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
+  `municipality_department_mismatch` (422); `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (hoy, fincas): el `POST` acepta un `id` UUID generado en
   el dispositivo. Reenviar el mismo `id` con el mismo contenido responde `200` con el registro

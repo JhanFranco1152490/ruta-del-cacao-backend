@@ -59,6 +59,14 @@ class InvalidCoordinates(ApiError):
     default_code = "invalid_coordinates"
 
 
+class LocationOutsideOperatingArea(ApiError):
+    # Distinto de `invalid_coordinates`: el punto existe, pero está fuera de la zona donde opera
+    # la asociación.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "La ubicación está fuera de Norte de Santander."
+    default_code = "location_outside_operating_area"
+
+
 class MunicipalityDepartmentMismatch(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El municipio no pertenece al departamento."

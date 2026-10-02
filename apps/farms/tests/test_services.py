@@ -14,6 +14,7 @@ from apps.farms.exceptions import (
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
+    LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
     ProducerRequired,
     StaleFarmVersion,
@@ -173,6 +174,31 @@ def test_create_rejects_out_of_range_coordinates(owner, overrides):
         create_farm(owner, farm_data(**overrides))
 
     assert not Farm.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "overrides, field",
+    [
+        ({"latitude": Decimal("6.8719999")}, "latitude"),
+        ({"latitude": Decimal("9.2910001")}, "latitude"),
+        ({"longitude": Decimal("-73.6340001")}, "longitude"),
+        ({"longitude": Decimal("-72.0469999")}, "longitude"),
+    ],
+)
+def test_create_rejects_a_point_outside_norte_de_santander(owner, overrides, field):
+    with pytest.raises(LocationOutsideOperatingArea) as error:
+        create_farm(owner, farm_data(**overrides))
+
+    assert list(error.value.fields) == [field]
+    assert not Farm.objects.exists()
+
+
+def test_create_accepts_a_point_on_the_border_of_the_operating_area(owner):
+    farm, _ = create_farm(
+        owner, farm_data(latitude=Decimal("6.872"), longitude=Decimal("-73.634"))
+    )
+
+    assert (farm.latitude, farm.longitude) == (Decimal("6.872"), Decimal("-73.634"))
 
 
 def test_create_rejects_a_municipality_from_another_department(owner, monkeypatch):
@@ -376,6 +402,30 @@ def test_update_rejects_out_of_range_coordinates(owner):
 
     farm.refresh_from_db()
     assert farm.version == 1
+
+
+def test_update_rejects_moving_the_point_outside_norte_de_santander(owner):
+    farm, _ = create_farm(owner, farm_data())
+
+    with pytest.raises(LocationOutsideOperatingArea):
+        update_farm(
+            owner, farm.id, 1, {"latitude": Decimal("4.6"), "longitude": Decimal("-74.08")}
+        )
+
+    farm.refresh_from_db()
+    assert (farm.latitude, farm.version) == (Decimal("7.8234567"), 1)
+
+
+def test_a_farm_already_outside_can_still_edit_its_other_fields(owner):
+    # Una finca guardada antes de la regla (o en datos de prueba) no queda bloqueada: solo se
+    # valida el rectángulo cuando cambian las coordenadas.
+    farm = FarmFactory(
+        producer=owner.producer, latitude=Decimal("4.6"), longitude=Decimal("-74.08")
+    )
+
+    updated = update_farm(owner, farm.id, 1, {"name": "Otro nombre", "latitude": Decimal("4.6")})
+
+    assert (updated.name, updated.version) == ("Otro nombre", 2)
 
 
 def test_deactivating_and_reactivating_is_audited_as_a_status_change(owner):

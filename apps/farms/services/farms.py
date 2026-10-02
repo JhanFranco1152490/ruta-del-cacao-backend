@@ -5,12 +5,14 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 
 from apps.common.municipalities import municipality_codes_matching
+from apps.common.territorial import coordinates_outside_operating_area
 
 from ..exceptions import (
     DuplicateFarmName,
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
+    LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
     ProducerRequired,
     StaleFarmVersion,
@@ -83,7 +85,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
             return _resent_farm(existing, actor, data), False
 
     farm = Farm(producer_id=actor.producer_id, **_without_empty_id(data))
-    _validate(farm)
+    _validate(farm, check_operating_area=True)
     try:
         with transaction.atomic():
             farm.save(force_insert=True)
@@ -118,7 +120,10 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     before = {name: getattr(farm, name) for name in data}
     for name, value in data.items():
         setattr(farm, name, value)
-    _validate(farm)
+    # El rectángulo de operación solo se exige si el punto se mueve: una finca guardada antes
+    # de esa regla puede seguir corrigiendo sus otros datos.
+    moved = any(data[name] != before[name] for name in COORDINATE_FIELDS & data.keys())
+    _validate(farm, check_operating_area=moved)
     # Se compara después de validar: `clean()` recorta el nombre, y un nombre que solo cambió
     # en espacios no es un cambio real.
     changed = [name for name in data if getattr(farm, name) != before[name]]
@@ -184,7 +189,7 @@ def _matches(farm: Farm, data: dict, fields) -> bool:
     return all(getattr(candidate, name) == getattr(farm, name) for name in fields)
 
 
-def _validate(farm: Farm) -> None:
+def _validate(farm: Farm, *, check_operating_area: bool) -> None:
     try:
         farm.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError as error:
@@ -195,6 +200,14 @@ def _validate(farm: Farm) -> None:
         if errors.keys() <= COORDINATE_FIELDS:
             raise InvalidCoordinates(fields=errors) from None
         raise
+    # Después de full_clean(): una coordenada imposible (latitud 95) se informa como
+    # `invalid_coordinates`, no como un punto fuera de Norte de Santander.
+    if check_operating_area:
+        outside = coordinates_outside_operating_area(farm.latitude, farm.longitude)
+        if outside:
+            raise LocationOutsideOperatingArea(
+                fields={name: ["Debe estar dentro de Norte de Santander."] for name in outside}
+            )
 
 
 def _without_empty_id(data: dict) -> dict:

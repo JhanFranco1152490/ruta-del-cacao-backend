@@ -497,3 +497,27 @@ def test_an_outdated_version_returns_the_current_plot(client, farm):
         "Primero",
         2,
     )
+
+
+@pytest.mark.parametrize("method", ["post", "patch"])
+def test_a_vertex_may_omit_its_optional_fields(client, farm, method):
+    # En una edición parcial DRF no completa los valores por defecto, tampoco en los vértices:
+    # un vértice sin `accuracy_m` ni `captured_at` debe aceptarse igual en las dos rutas.
+    vertices = [
+        {"latitude": v["latitude"], "longitude": v["longitude"], "source": "map"}
+        for v in as_json(rect(0, 0, 1, 1))
+    ]
+    area = str(measured(rect(0, 0, 1, 1)).quantize(Decimal("0.01")))
+    if method == "post":
+        response = client.post(
+            "/api/plots", body(farm, area_hectares=area, boundary=vertices), format="json"
+        )
+    else:
+        plot = PlotFactory(farm=farm, area_hectares=Decimal(area))
+        response = client.patch(
+            f"/api/plots/{plot.pk}", {"boundary": vertices, "expected_version": 1}, format="json"
+        )
+
+    assert response.status_code in (200, 201)
+    assert response.data["boundary"][0]["accuracy_m"] is None
+    assert response.data["boundary"][0]["captured_at"] is None

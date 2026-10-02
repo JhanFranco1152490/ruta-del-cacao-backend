@@ -30,7 +30,9 @@ class VertexInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     source = serializers.ChoiceField(choices=VERTEX_SOURCES)
 
     def validate(self, attrs):
-        if attrs["accuracy_m"] is not None and attrs["source"] != GPS_SOURCE:
+        # `get` y no `[...]`: en una edición parcial DRF no completa los valores por defecto,
+        # tampoco en los serializers anidados, así que un campo omitido no llega.
+        if attrs.get("accuracy_m") is not None and attrs["source"] != GPS_SOURCE:
             raise serializers.ValidationError(
                 {"accuracy_m": ["La precisión solo aplica a un vértice capturado por GPS."]}
             )

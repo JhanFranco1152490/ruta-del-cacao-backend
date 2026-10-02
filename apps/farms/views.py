@@ -37,9 +37,7 @@ from .services import (
 
 # Los mismos filtros en el listado y en el mapa: así los dos muestran siempre lo mismo.
 FARM_FILTER_PARAMETERS = [
-    OpenApiParameter(
-        "search", str, description="Busca en nombre, municipio o detalles, sin distinguir tildes."
-    ),
+    OpenApiParameter("search", str, description="Busca en el nombre, sin distinguir tildes."),
     OpenApiParameter("producer", OpenApiTypes.UUID, description="Solo las de este productor."),
     OpenApiParameter("municipality", str, description="Código DIVIPOLA del municipio."),
 ]

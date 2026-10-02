@@ -2,9 +2,8 @@ import copy
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 
-from apps.common.municipalities import municipality_codes_matching
 from apps.common.territorial import coordinates_outside_operating_area
 
 from ..exceptions import (
@@ -46,13 +45,8 @@ def filter_farms(farms, *, search=None, producer=None, municipality=None) -> Que
         farms = farms.filter(municipality_code=municipality)
     term = (search or "").strip()
     if term:
-        farms = farms.filter(
-            Q(name__unaccent__icontains=term)
-            | Q(details__unaccent__icontains=term)
-            # El municipio se guarda como código; su nombre vive en el catálogo en memoria, así
-            # que la búsqueda por nombre se traduce a los códigos que coinciden.
-            | Q(municipality_code__in=municipality_codes_matching(term))
-        )
+        # Solo el nombre: el municipio tiene su propio filtro y los detalles no se buscan.
+        farms = farms.filter(name__unaccent__icontains=term)
     return farms
 
 

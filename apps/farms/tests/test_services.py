@@ -311,8 +311,17 @@ def test_list_of_an_account_without_producer_is_empty():
     assert list(list_farms(UserFactory())) == []
 
 
-@pytest.mark.parametrize("search", ["arrayan", "ARRAYÁN", "portico", "cucuta"])
-def test_list_searches_name_details_and_municipality_ignoring_accents(owner, search):
+@pytest.mark.parametrize(
+    "search, expected",
+    [
+        ("arrayan", ["El Arrayán"]),
+        ("ARRAYÁN", ["El Arrayán"]),
+        # Solo el nombre: el municipio tiene su propio filtro y los detalles no se buscan.
+        ("portico", []),
+        ("cucuta", []),
+    ],
+)
+def test_list_searches_only_the_name_ignoring_accents(owner, search, expected):
     FarmFactory(
         producer=owner.producer,
         name="El Arrayán",
@@ -323,7 +332,7 @@ def test_list_searches_name_details_and_municipality_ignoring_accents(owner, sea
 
     names = [farm.name for farm in list_farms(owner, search=search)]
 
-    assert names == ["El Arrayán"]
+    assert names == expected
 
 
 def test_blank_search_does_not_filter(owner):

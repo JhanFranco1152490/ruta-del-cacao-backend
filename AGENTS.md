@@ -48,7 +48,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
-| `apps/farms/`      | Fincas del productor de la sesión: alta (también sin conexión), consulta, edición, activación y su auditoría |
+| `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 
 ### Capas
 

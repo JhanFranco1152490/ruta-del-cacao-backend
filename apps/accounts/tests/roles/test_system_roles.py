@@ -71,12 +71,16 @@ def test_each_system_role_has_exactly_its_declared_permissions():
 
 
 FARM_PERMISSIONS = {"farms.view_farm", "farms.add_farm", "farms.change_farm"}
+PLOT_PERMISSIONS = {"plots.view_plot", "plots.add_plot", "plots.change_plot"}
 
 
-def test_only_the_producer_role_manages_farms():
+@pytest.mark.parametrize(
+    "permissions", [FARM_PERMISSIONS, PLOT_PERMISSIONS], ids=["farms", "plots"]
+)
+def test_only_the_producer_role_manages_farms_and_plots(permissions):
     for code, definition in SYSTEM_ROLES.items():
-        granted = FARM_PERMISSIONS & set(definition["permissions"])
-        assert granted == (FARM_PERMISSIONS if code == PRODUCER else set()), code
+        granted = permissions & set(definition["permissions"])
+        assert granted == (permissions if code == PRODUCER else set()), code
 
 
 @pytest.mark.parametrize(
@@ -89,6 +93,9 @@ def test_only_the_producer_role_manages_farms():
         ("farms.view_farm", True),
         ("farms.add_farm", True),
         ("farms.change_farm", True),
+        ("plots.view_plot", True),
+        ("plots.add_plot", True),
+        ("plots.change_plot", True),
         ("accounts.unknown_permission", False),
     ],
 )

@@ -22,3 +22,11 @@ def test_with_dependencies_follows_a_chain_to_the_end(monkeypatch):
 
 def test_with_dependencies_keeps_codes_without_dependencies():
     assert with_dependencies({"accounts.users_view"}) == {"accounts.users_view"}
+
+
+def test_adding_plots_brings_the_permissions_to_see_them_and_their_farm():
+    assert with_dependencies({"plots.add_plot"}) == {
+        "plots.add_plot",
+        "plots.view_plot",
+        "farms.view_farm",
+    }

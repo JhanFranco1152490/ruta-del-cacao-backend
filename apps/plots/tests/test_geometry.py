@@ -12,28 +12,7 @@ from apps.plots.geometry import (
     to_polygon,
     validate_boundary,
 )
-
-# Cerca de 7,8° de latitud, 0,001° son unos 110 m en cada eje.
-LON = Decimal("-72.5")
-LAT = Decimal("7.8")
-STEP = Decimal("0.001")
-
-
-def vertex(lon, lat, source="map", accuracy_m=None):
-    return {
-        "latitude": Decimal(lat),
-        "longitude": Decimal(lon),
-        "accuracy_m": accuracy_m,
-        "captured_at": None,
-        "source": source,
-    }
-
-
-def rect(x0, y0, x1, y1):
-    """Rectángulo en pasos de STEP a partir de (LON, LAT)."""
-    left, right = LON + STEP * Decimal(x0), LON + STEP * Decimal(x1)
-    bottom, top = LAT + STEP * Decimal(y0), LAT + STEP * Decimal(y1)
-    return [vertex(left, bottom), vertex(right, bottom), vertex(right, top), vertex(left, top)]
+from apps.plots.tests.factories import LAT, LON, STEP, rect, vertex
 
 
 def polygon(vertices):

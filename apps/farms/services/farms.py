@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 
+from apps.common.db import constraint_name
 from apps.common.municipalities import municipality_codes_matching
 
 from ..exceptions import (
@@ -83,7 +84,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
         existing = Farm.objects.filter(pk=farm.pk).first() if farm_id is not None else None
         if existing is not None:
             return _resent_farm(existing, actor, data), False
-        if _constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
+        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
             raise DuplicateFarmName() from None
         raise
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.CREATED)
@@ -122,7 +123,7 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
         with transaction.atomic():
             farm.save(update_fields=update_fields)
     except IntegrityError as error:
-        if _constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
+        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
             raise DuplicateFarmName() from None
         raise
 
@@ -188,8 +189,3 @@ def _validate(farm: Farm) -> None:
 
 def _without_empty_id(data: dict) -> dict:
     return {name: value for name, value in data.items() if name != "id" or value is not None}
-
-
-def _constraint_name(error: IntegrityError) -> str | None:
-    diagnostics = getattr(error.__cause__, "diag", None)
-    return getattr(diagnostics, "constraint_name", None)

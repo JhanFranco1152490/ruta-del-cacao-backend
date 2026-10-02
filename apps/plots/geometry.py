@@ -8,6 +8,7 @@ como un plano no cambia qué se cruza ni qué se superpone; las áreas sí se mi
 
 from collections.abc import Hashable
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError
@@ -65,6 +66,21 @@ def validate_boundary(vertices: list[dict]) -> Boundary:
     if not polygon.is_valid:
         raise InvalidBoundary("sus lados se cruzan")
     return Boundary(vertices=normalized, polygon=polygon)
+
+
+def stored_vertices(vertices: list[dict]) -> list[dict]:
+    """El contorno validado tal como se guarda en el JSON de la parcela: las coordenadas como
+    texto con 7 decimales (un número JSON podría perder precisión) y solo los campos conocidos."""
+    return [
+        {
+            "latitude": str(vertex["latitude"]),
+            "longitude": str(vertex["longitude"]),
+            "accuracy_m": _text_or_none(vertex.get("accuracy_m")),
+            "captured_at": _text_or_none(vertex.get("captured_at")),
+            "source": vertex["source"],
+        }
+        for vertex in vertices
+    ]
 
 
 def to_polygon(vertices: list[dict]) -> Polygon:
@@ -145,6 +161,14 @@ def _coordinate(value) -> Decimal:
     # -72.499 y no como -72.49899999999999...
     decimal = value if isinstance(value, Decimal) else Decimal(repr(value))
     return decimal.quantize(COORDINATE_STEP, rounding=ROUND_HALF_UP)
+
+
+def _text_or_none(value) -> str | None:
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 def _point(vertex: dict) -> tuple[float, float]:

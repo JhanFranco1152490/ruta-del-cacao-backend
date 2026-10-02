@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.urls import reverse
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -12,6 +13,7 @@ from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
 from .exceptions import FarmIdConflict, StaleFarmVersion
+from .filters import FarmFilterSerializer, validated_filters
 from .serializers import (
     MODEL_TO_API_FIELDS,
     FarmConflictErrorSerializer,
@@ -21,18 +23,21 @@ from .serializers import (
 )
 from .services import create_farm, get_farm, list_farms, update_farm
 
+# Los mismos filtros en el listado y en el mapa: así los dos muestran siempre lo mismo.
+FARM_FILTER_PARAMETERS = [
+    OpenApiParameter(
+        "search", str, description="Busca en nombre, municipio o detalles, sin distinguir tildes."
+    ),
+    OpenApiParameter("producer", OpenApiTypes.UUID, description="Solo las de este productor."),
+    OpenApiParameter("municipality", str, description="Código DIVIPOLA del municipio."),
+]
+
 
 @extend_schema_view(
     list=extend_schema(
-        parameters=[
-            OpenApiParameter(
-                "search",
-                str,
-                description="Busca en nombre, municipio o detalles, sin distinguir tildes.",
-            )
-        ],
-        # 404: página fuera de rango.
-        responses={200: FarmSerializer(many=True), **error_responses(401, 403, 404)},
+        parameters=FARM_FILTER_PARAMETERS,
+        # 400: filtro mal formado. 404: página fuera de rango.
+        responses={200: FarmSerializer(many=True), **error_responses(400, 401, 403, 404)},
     ),
     retrieve=extend_schema(responses={200: FarmSerializer, **error_responses(401, 403, 404)}),
     create=extend_schema(
@@ -79,7 +84,10 @@ class FarmViewSet(GenericViewSet):
     lookup_value_converter = "uuid"
 
     def get_queryset(self):
-        return list_farms(self.request.user, self.request.query_params.get("search"))
+        return list_farms(
+            self.request.user,
+            **validated_filters(FarmFilterSerializer, self.request.query_params),
+        )
 
     def list(self, request):
         page = self.paginate_queryset(self.get_queryset())

@@ -35,8 +35,12 @@ CONTENT_FIELDS = (
 COORDINATE_FIELDS = frozenset({"latitude", "longitude"})
 
 
-def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
-    farms = readable_farms(actor).order_by("name_normalized", "id")
+def filter_farms(farms, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+    """Los filtros comunes del listado y del mapa, siempre dentro del alcance ya aplicado."""
+    if producer is not None:
+        farms = farms.filter(producer_id=producer)
+    if municipality is not None:
+        farms = farms.filter(municipality_code=municipality)
     term = (search or "").strip()
     if term:
         farms = farms.filter(
@@ -47,6 +51,12 @@ def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
             | Q(municipality_code__in=municipality_codes_matching(term))
         )
     return farms
+
+
+def list_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+    return filter_farms(
+        readable_farms(actor), search=search, producer=producer, municipality=municipality
+    ).order_by("name_normalized", "id")
 
 
 def get_farm(actor, farm_id) -> Farm:

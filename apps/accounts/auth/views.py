@@ -29,6 +29,7 @@ from .serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    ProfileSerializer,
     SessionSerializer,
 )
 from .services import (
@@ -119,6 +120,15 @@ class CurrentUserView(APIView):
     @extend_schema(responses={200: SessionSerializer, **error_responses(401)})
     def get(self, request):
         return Response(SessionSerializer({"user": request.user}).data)
+
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    # Los datos de la propia cuenta, para mostrarlos a su dueño: no recibe ningún id.
+    @extend_schema(responses={200: ProfileSerializer, **error_responses(401)})
+    def get(self, request):
+        return Response(ProfileSerializer(request.user).data)
 
 
 RESET_REQUESTED_DETAIL = (

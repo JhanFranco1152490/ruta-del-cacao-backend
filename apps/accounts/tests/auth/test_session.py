@@ -68,13 +68,24 @@ def test_login_records_a_success_event(api_client):
     ).exists()
 
 
+def test_login_returns_the_names_of_the_account(api_client):
+    user = UserFactory(first_name="Ana María", last_name="Rojas Peña")
+
+    response = login_by_email(api_client, user.email)
+
+    assert response.data["user"]["first_name"] == "Ana María"
+    assert response.data["user"]["last_name"] == "Rojas Peña"
+
+
 def test_me_returns_the_session_identity(auth_client):
-    user = UserFactory()
+    user = UserFactory(first_name="Ana María", last_name="Rojas Peña")
 
     response = auth_client(user).get("/api/auth/me")
 
     assert response.status_code == 200
     assert response.data["user"]["email"] == user.email
+    assert response.data["user"]["first_name"] == "Ana María"
+    assert response.data["user"]["last_name"] == "Rojas Peña"
     assert response.data["user"]["roles"] == []
     assert response.data["user"]["producer_id"] is None
 

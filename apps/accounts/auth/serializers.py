@@ -98,7 +98,7 @@ class SessionUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "roles", "permissions", "producer_id"]
+        fields = ["id", "email", "first_name", "last_name", "roles", "permissions", "producer_id"]
 
     @extend_schema_field(AccountRoleSerializer(many=True))
     def get_roles(self, user) -> list[dict]:
@@ -110,6 +110,36 @@ class SessionUserSerializer(serializers.ModelSerializer):
 
 class SessionSerializer(serializers.Serializer):
     user = SessionUserSerializer()
+
+
+class ProfileProducerSerializer(serializers.Serializer):
+    # El productor al que pertenece la cuenta, con su nombre para mostrarlo en "Mi cuenta". No es
+    # un `ModelSerializer` de `Producer`: esta app no importa el modelo de otra.
+
+    id = serializers.UUIDField()
+    member_code = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    # Los datos de la propia cuenta. El documento y el teléfono van aquí y no en la sesión: la
+    # sesión se pide en cada carga y el dispositivo guarda una copia de ella.
+
+    producer = ProfileProducerSerializer(read_only=True, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "email",
+            "first_name",
+            "last_name",
+            "document_type",
+            "identity_document",
+            "phone",
+            "producer",
+        ]
+        read_only_fields = fields
 
 
 class CsrfTokenSerializer(serializers.Serializer):

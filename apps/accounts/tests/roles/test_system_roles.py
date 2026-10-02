@@ -73,10 +73,13 @@ def test_each_system_role_has_exactly_its_declared_permissions():
 FARM_MANAGEMENT = {"farms.add_farm", "farms.change_farm"}
 
 
-def test_only_the_producer_role_manages_farms():
+def test_only_the_producer_and_the_association_manage_farms():
+    # La asociación solo los ejerce sobre productores con el interruptor encendido; eso lo
+    # decide la app de fincas, no el rol.
     for code, definition in SYSTEM_ROLES.items():
         granted = FARM_MANAGEMENT & set(definition["permissions"])
-        assert granted == (FARM_MANAGEMENT if code == PRODUCER else set()), code
+        expected = FARM_MANAGEMENT if code in {PRODUCER, ADMINISTRATOR} else set()
+        assert granted == expected, code
 
 
 def test_only_the_producer_and_the_association_read_farms():

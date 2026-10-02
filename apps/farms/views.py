@@ -52,7 +52,9 @@ FARM_FILTER_PARAMETERS = [
     retrieve=extend_schema(responses={200: FarmSerializer, **error_responses(401, 403, 404)}),
     create=extend_schema(
         description=(
-            "Crea una finca del productor de la sesión. `id` es opcional: el dispositivo lo "
+            "Crea una finca del productor de la sesión o, para la asociación, del que indica "
+            "`producer_id` (obligatorio en ese caso; 403 si ese productor no encendió el acceso "
+            "de la asociación). `id` es opcional: el dispositivo lo "
             "genera al registrar sin conexión. Reenviar el mismo `id` con el mismo contenido "
             "responde 200 con la finca ya creada; con otro contenido, 409 `farm_id_conflict`. "
             "Si la finca es del mismo productor, el 409 trae la del servidor en `current`, para "
@@ -68,7 +70,9 @@ FARM_FILTER_PARAMETERS = [
     ),
     partial_update=extend_schema(
         description=(
-            "Edición parcial, incluida la activación o desactivación con `is_active`. Requiere "
+            "Edición parcial, incluida la activación o desactivación con `is_active`. La "
+            "asociación solo edita fincas de productores con el acceso encendido (si no, 403). "
+            "Requiere "
             "`expected_version`; si la finca cambió responde 409 `stale_version` con la versión "
             "del servidor en `current`."
         ),

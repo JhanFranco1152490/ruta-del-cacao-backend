@@ -133,6 +133,7 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
     body = response.json()
     assert body == {
         "id": str(client_id),
+        "producer_id": str(owner.producer_id),
         "name": "La Esperanza",
         "department": {"id": "54", "name": "Norte de Santander"},
         "municipality": {"id": "54001", "name": "Cúcuta"},
@@ -225,16 +226,35 @@ def test_an_id_of_another_producer_is_a_conflict_that_reveals_nothing(client):
     assert "current" not in response.data
 
 
-def test_the_producer_cannot_be_chosen_by_the_client(client):
+def test_a_producer_cannot_create_farms_for_another_producer(client):
     other = ProducerFactory()
 
     response = client.post(
         "/api/farms", {**VALID_DATA, "producer_id": str(other.id)}, format="json"
     )
 
-    assert response.status_code == 400
-    assert "producer_id" in response.data["fields"]
+    assert response.status_code == 403
+    assert response.data["code"] == "permission_denied"
     assert not Farm.objects.exists()
+
+
+def test_a_producer_may_send_its_own_producer_id(client, owner):
+    response = client.post(
+        "/api/farms", {**VALID_DATA, "producer_id": str(owner.producer_id)}, format="json"
+    )
+
+    assert response.status_code == 201
+    assert response.data["producer_id"] == str(owner.producer_id)
+
+
+def test_a_producer_cannot_list_the_farms_of_another_producer(client):
+    other = ProducerFactory()
+    FarmFactory(producer=other)
+
+    response = client.get("/api/farms", {"producer": str(other.id)})
+
+    assert response.status_code == 403
+    assert response.data["code"] == "permission_denied"
 
 
 @pytest.mark.parametrize("missing", ["latitude", "longitude"])

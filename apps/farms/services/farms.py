@@ -14,12 +14,19 @@ from ..exceptions import (
     InvalidCoordinates,
     LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
+    ProducerAccessDenied,
     ProducerRequired,
     StaleFarmVersion,
 )
 from ..models import MUNICIPALITY_DEPARTMENT_MISMATCH, Farm, FarmAuditEvent
 from .audit import record_farm_audit_event
-from .scope import readable_farms
+from .scope import (
+    can_manage_producer,
+    managed_farms,
+    producer_model,
+    readable_farms,
+    reads_every_producer,
+)
 
 NAME_UNIQUE_CONSTRAINT = "farms_producer_name_normalized_unique"
 # Lo que describe a la finca. Dos envíos con el mismo id se consideran el mismo registro solo
@@ -55,10 +62,19 @@ def filter_farms(farms, *, search=None, producer=None, municipality=None) -> Que
     return farms
 
 
-def list_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+def scoped_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+    """Lo que `actor` puede consultar, con los filtros del listado y del mapa."""
+    # El alcance ya impide ver fincas ajenas; además se rechaza el filtro por otro productor
+    # para que un intento así no pase como una consulta normal con la lista vacía.
+    if producer is not None and not reads_every_producer(actor) and producer != actor.producer_id:
+        raise ProducerAccessDenied()
     return filter_farms(
         readable_farms(actor), search=search, producer=producer, municipality=municipality
-    ).order_by("name_normalized", "id")
+    )
+
+
+def list_farms(actor, **filters) -> QuerySet[Farm]:
+    return scoped_farms(actor, **filters).order_by("name_normalized", "id")
 
 
 def get_farm(actor, farm_id) -> Farm:
@@ -70,21 +86,22 @@ def get_farm(actor, farm_id) -> Farm:
 
 @transaction.atomic
 def create_farm(actor, data: dict) -> tuple[Farm, bool]:
-    """Crea la finca del productor de la sesión. Devuelve `(finca, creada)`.
+    """Crea una finca y devuelve `(finca, creada)`. Es del productor de la sesión o, si quien
+    la crea es de la asociación, del productor que indica `producer_id`.
 
     El cliente puede enviar el `id` que generó sin conexión. Reenviar el mismo `id` con el mismo
     contenido devuelve la finca ya creada (`creada=False`), de modo que reintentar un envío
     cortado nunca duplica.
     """
-    if actor.producer_id is None:
-        raise ProducerRequired()
+    data = dict(data)
+    producer_id = _producer_for_new_farm(actor, data.pop("producer_id", None))
     farm_id = data.get("id")
     if farm_id is not None:
         existing = Farm.objects.filter(pk=farm_id).first()
         if existing is not None:
-            return _resent_farm(existing, actor, data), False
+            return _resent_farm(existing, producer_id, data), False
 
-    farm = Farm(producer_id=actor.producer_id, **_without_empty_id(data))
+    farm = Farm(producer_id=producer_id, **_without_empty_id(data))
     _validate(farm, check_operating_area=True)
     try:
         with transaction.atomic():
@@ -95,7 +112,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
         # clave primaria o en el nombre, así que se decide mirando si el id ya existe.
         existing = Farm.objects.filter(pk=farm.pk).first() if farm_id is not None else None
         if existing is not None:
-            return _resent_farm(existing, actor, data), False
+            return _resent_farm(existing, producer_id, data), False
         if _constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
             raise DuplicateFarmName() from None
         raise
@@ -105,10 +122,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
 
 @transaction.atomic
 def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
-    try:
-        farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
-    except Farm.DoesNotExist:
-        raise FarmNotFound() from None
+    farm = _lock_managed_farm(actor, farm_id)
     if farm.version != expected_version:
         # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
         # haya aplicado el cambio. Si la finca ya tiene justo lo que se pide, el resultado sería
@@ -160,8 +174,39 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     return farm
 
 
-def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
-    if existing.producer_id != actor.producer_id:
+def _producer_for_new_farm(actor, requested_producer_id):
+    if reads_every_producer(actor):
+        # La asociación no tiene productor propio: siempre dice para cuál crea.
+        if requested_producer_id is None:
+            raise ValidationError({"producer_id": ["Indica el productor de la finca."]})
+        if not producer_model().objects.filter(pk=requested_producer_id).exists():
+            raise ValidationError({"producer_id": ["El productor no existe."]})
+        if not can_manage_producer(actor, requested_producer_id):
+            raise ProducerAccessDenied()
+        return requested_producer_id
+    if actor.producer_id is None:
+        raise ProducerRequired()
+    if requested_producer_id is not None and requested_producer_id != actor.producer_id:
+        raise ProducerAccessDenied()
+    return actor.producer_id
+
+
+def _lock_managed_farm(actor, farm_id) -> Farm:
+    try:
+        # `of=("self",)`: solo se bloquea la fila de la finca, no las del productor o el
+        # interruptor que entran en la consulta para decidir si se puede gestionar.
+        return managed_farms(actor).select_for_update(of=("self",)).get(pk=farm_id)
+    except Farm.DoesNotExist:
+        pass
+    # La asociación ve fincas que no puede gestionar (interruptor apagado): eso es falta de
+    # permiso, no una finca inexistente.
+    if readable_farms(actor).filter(pk=farm_id).exists():
+        raise ProducerAccessDenied()
+    raise FarmNotFound()
+
+
+def _resent_farm(existing: Farm, producer_id, data: dict) -> Farm:
+    if existing.producer_id != producer_id:
         raise FarmIdConflict()
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
     # después de una creación cuya respuesta se perdió. El conflicto lleva la finca del servidor

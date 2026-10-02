@@ -16,6 +16,13 @@ class ProducerRequired(ApiError):
     default_code = "permission_denied"
 
 
+class ProducerAccessDenied(ApiError):
+    # Otro productor, o uno que no le abrió su espacio a la asociación.
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "No puedes gestionar las fincas de este productor."
+    default_code = "permission_denied"
+
+
 class StaleFarmVersion(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "La finca fue modificada. Revisa los cambios antes de guardar."

@@ -50,11 +50,30 @@ def test_rejects_malformed_filters(admin_client, query, field):
     assert field in response.data["fields"]
 
 
-def test_another_producer_filter_never_widens_an_employee_scope(auth_client):
+@pytest.mark.parametrize(
+    "path",
+    ["/api/farms", "/api/farms/map/municipalities", "/api/farms/map/points?municipality=54001"],
+)
+def test_another_producer_filter_never_widens_an_employee_scope(auth_client, path):
+    # Se rechaza en vez de responder vacío, para que el intento no pase como una consulta
+    # normal; en ningún caso se ven fincas ajenas.
     own, other = ProducerFactory(), ProducerFactory()
     FarmFactory(producer=other, name="Ajena")
     employee = make_delegate(own, ["farms.view_farm"])
+    separator = "&" if "?" in path else "?"
 
-    response = auth_client(employee).get(f"/api/farms?producer={other.pk}")
+    response = auth_client(employee).get(f"{path}{separator}producer={other.pk}")
 
-    assert names(response) == []
+    assert response.status_code == 403
+    assert response.data["code"] == "permission_denied"
+    assert "Ajena" not in str(response.data)
+
+
+def test_an_employee_may_filter_by_its_own_producer(auth_client):
+    own = ProducerFactory()
+    FarmFactory(producer=own, name="Propia")
+    employee = make_delegate(own, ["farms.view_farm"])
+
+    response = auth_client(employee).get(f"/api/farms?producer={own.pk}")
+
+    assert names(response) == ["Propia"]

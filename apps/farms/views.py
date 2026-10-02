@@ -83,12 +83,19 @@ FARM_FILTER_PARAMETERS = [
     ),
     destroy=extend_schema(
         description=(
-            "Elimina una finca creada por error. Requiere `expected_version`. Si la finca tiene "
-            "registros del negocio responde 409 `farm_has_records` (se desactiva en su lugar); "
-            "si cambió, 409 `stale_version` con la versión del servidor en `current`. La "
-            "auditoría de la finca se conserva."
+            "Elimina una finca creada por error. Requiere `expected_version` en la URL. Si la "
+            "finca tiene registros del negocio responde 409 `farm_has_records` (se desactiva en "
+            "su lugar); si cambió, 409 `stale_version` con la versión del servidor en `current`. "
+            "La auditoría de la finca se conserva."
         ),
-        request=FarmDeleteSerializer,
+        parameters=[
+            OpenApiParameter(
+                "expected_version",
+                int,
+                required=True,
+                description="La `version` de la finca que se leyó.",
+            )
+        ],
         responses={
             204: None,
             409: FarmConflictErrorSerializer,
@@ -145,7 +152,9 @@ class FarmViewSet(GenericViewSet):
         return Response(FarmSerializer(update_farm(request.user, pk, expected_version, data)).data)
 
     def destroy(self, request, pk):
-        serializer = FarmDeleteSerializer(data=request.data)
+        # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP,
+        # algunos intermediarios lo descartan y el esquema OpenAPI no lo documenta.
+        serializer = FarmDeleteSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         delete_farm(request.user, pk, serializer.validated_data["expected_version"])
         return Response(status=status.HTTP_204_NO_CONTENT)

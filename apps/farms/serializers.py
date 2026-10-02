@@ -111,8 +111,9 @@ class FarmUpdateSerializer(FarmWriteSerializer):
         return attrs
 
 
-class FarmDeleteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
-    # Con la versión leída: no se elimina una finca que otra persona acaba de cambiar.
+class FarmDeleteSerializer(serializers.Serializer):
+    # Query param del DELETE, con la versión leída: no se elimina una finca que otra persona
+    # acaba de cambiar.
     expected_version = serializers.IntegerField(min_value=1)
 
 

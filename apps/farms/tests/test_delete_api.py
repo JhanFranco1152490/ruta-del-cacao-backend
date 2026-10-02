@@ -1,4 +1,5 @@
 import pytest
+from drf_spectacular.generators import SchemaGenerator
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.tests.factories import UserFactory
@@ -27,7 +28,7 @@ def client(auth_client, producer):
 
 
 def delete(client, farm, version=1):
-    return client.delete(f"/api/farms/{farm.id}", {"expected_version": version}, format="json")
+    return client.delete(f"/api/farms/{farm.id}?expected_version={version}")
 
 
 def test_deletes_a_farm_without_business_records(client, producer):
@@ -64,7 +65,7 @@ def test_deleting_with_a_stale_version_returns_the_current_farm(client, producer
 def test_deleting_requires_the_expected_version(client, producer):
     farm = FarmFactory(producer=producer)
 
-    response = client.delete(f"/api/farms/{farm.id}", {}, format="json")
+    response = client.delete(f"/api/farms/{farm.id}")
 
     assert response.status_code == 400
     assert "expected_version" in response.data["fields"]
@@ -121,3 +122,13 @@ def test_the_association_cannot_delete_farms(auth_client, producer):
 
     assert response.status_code == 403
     assert Farm.objects.filter(pk=farm.id).exists()
+
+
+def test_the_schema_documents_the_expected_version_of_a_delete():
+    # Va en la URL y no en el cuerpo: el esquema no documenta cuerpos en DELETE, así que el
+    # cliente generado no lo enviaría, y algunos intermediarios descartan ese cuerpo.
+    operation = SchemaGenerator().get_schema(public=True)["paths"]["/api/farms/{id}"]["delete"]
+
+    parameter = next(p for p in operation["parameters"] if p["name"] == "expected_version")
+    assert (parameter["in"], parameter["required"]) == ("query", True)
+    assert "requestBody" not in operation

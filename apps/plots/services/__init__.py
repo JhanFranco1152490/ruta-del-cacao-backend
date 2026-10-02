@@ -1,5 +1,6 @@
 """Servicios del dominio de parcelas."""
 
-from .plots import create_plot
+from .create import create_plot
+from .update import update_plot
 
-__all__ = ["create_plot"]
+__all__ = ["create_plot", "update_plot"]

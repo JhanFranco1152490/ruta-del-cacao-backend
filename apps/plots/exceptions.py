@@ -78,6 +78,16 @@ class DuplicatePlotCode(ApiError):
         super().__init__(fields={"code": [self.default_detail]})
 
 
+class StalePlotVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La parcela fue modificada. Revisa los cambios antes de guardar."
+    default_code = "stale_version"
+
+    def __init__(self, current_plot):
+        super().__init__()
+        self.current_plot = current_plot
+
+
 class PlotIdConflict(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El identificador ya pertenece a otra parcela."

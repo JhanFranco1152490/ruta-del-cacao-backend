@@ -28,11 +28,8 @@ SYSTEM_ROLES = {
             "producers.update",
             "producers.change_status",
             # La asociación lee las fincas de todos los productores: nombre y ubicación son la
-            # base de sus reportes. Gestionarlas depende del interruptor de cada productor, y eso
-            # lo decide la app de fincas, no el rol.
+            # base de sus reportes. Gestionarlas depende del interruptor de cada productor.
             "farms.view_farm",
-            "farms.add_farm",
-            "farms.change_farm",
         ],
     },
     PRODUCER: {

@@ -24,9 +24,6 @@ class LocationSerializer(serializers.Serializer):
 
 
 class FarmSerializer(serializers.ModelSerializer):
-    # Solo el id: la asociación lo cruza con el listado de productores, y así el nombre, un dato
-    # personal, no se copia en cada finca que los dispositivos guardan sin conexión.
-    producer_id = serializers.UUIDField(read_only=True)
     department = serializers.SerializerMethodField()
     municipality = serializers.SerializerMethodField()
     location = serializers.SerializerMethodField()
@@ -35,7 +32,6 @@ class FarmSerializer(serializers.ModelSerializer):
         model = Farm
         fields = [
             "id",
-            "producer_id",
             "name",
             "department",
             "municipality",
@@ -96,9 +92,6 @@ class FarmWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 class FarmCreateSerializer(FarmWriteSerializer):
     # Lo genera el dispositivo cuando registra sin conexión; si no llega, lo genera el servidor.
     id = serializers.UUIDField(required=False)
-    # Obligatorio para la asociación, que no tiene productor propio; un productor o su empleado
-    # puede omitirlo. Quién puede crear para quién lo decide el servicio.
-    producer_id = serializers.UUIDField(required=False)
     # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
     captured_at = serializers.DateTimeField(required=False, allow_null=True)
 

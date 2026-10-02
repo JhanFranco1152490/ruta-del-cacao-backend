@@ -14,7 +14,7 @@ from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
 from .exceptions import FarmIdConflict, StaleFarmVersion
-from .filters import FarmFilterSerializer, FarmMapPointsFilterSerializer, validated_filters
+from .filters import validated_filters
 from .serializers import (
     MODEL_TO_API_FIELDS,
     FarmConflictErrorSerializer,
@@ -98,7 +98,7 @@ class FarmViewSet(GenericViewSet):
     def get_queryset(self):
         return list_farms(
             self.request.user,
-            **validated_filters(FarmFilterSerializer, self.request.query_params),
+            **validated_filters(self.request.query_params),
         )
 
     def list(self, request):
@@ -137,21 +137,21 @@ class FarmViewSet(GenericViewSet):
     )
     @action(detail=False, methods=["get"], url_path="map/municipalities")
     def map_municipalities(self, request):
-        filters = validated_filters(FarmFilterSerializer, request.query_params)
+        filters = validated_filters(request.query_params)
         counts = municipality_counts(request.user, **filters)
         return Response(FarmMunicipalityCountSerializer(counts, many=True).data)
 
     @extend_schema(
         description=(
-            "Las fincas de un municipio (`municipality`, obligatorio) con lo justo para "
-            "dibujarlas, sin paginar, con el alcance y filtros del listado."
+            "Las fincas con lo justo para dibujarlas, sin paginar, con el alcance y filtros "
+            "del listado: de un municipio con `municipality`, o todas las del alcance sin él."
         ),
         parameters=FARM_FILTER_PARAMETERS,
         responses={200: FarmMapPointSerializer(many=True), **error_responses(400, 401, 403)},
     )
     @action(detail=False, methods=["get"], url_path="map/points")
     def map_points(self, request):
-        filters = validated_filters(FarmMapPointsFilterSerializer, request.query_params)
+        filters = validated_filters(request.query_params)
         points = municipality_points(request.user, **filters)
         return Response(FarmMapPointSerializer(points, many=True).data)
 

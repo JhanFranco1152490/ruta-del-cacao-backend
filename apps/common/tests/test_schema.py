@@ -134,6 +134,9 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/cacao-varieties"),
     ("post", "/api/cacao-varieties"),
     ("patch", "/api/cacao-varieties/{id}"),
+    ("get", "/api/plot-characterizations"),
+    ("get", "/api/plot-characterizations/{id}"),
+    ("put", "/api/plot-characterizations/{id}"),
 }
 
 

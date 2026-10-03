@@ -11,15 +11,17 @@ from apps.common import territorial
 from apps.farms import services
 from apps.farms.exceptions import (
     DuplicateFarmName,
+    FarmHasRecords,
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
+    LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
     ProducerRequired,
     StaleFarmVersion,
 )
 from apps.farms.models import Farm, FarmAuditEvent
-from apps.farms.services import create_farm, get_farm, list_farms, update_farm
+from apps.farms.services import create_farm, delete_farm, get_farm, list_farms, update_farm
 from apps.farms.tests.factories import FarmFactory, farm_data
 from apps.producers.tests.factories import ProducerFactory
 
@@ -175,6 +177,31 @@ def test_create_rejects_out_of_range_coordinates(owner, overrides):
     assert not Farm.objects.exists()
 
 
+@pytest.mark.parametrize(
+    "overrides, field",
+    [
+        ({"latitude": Decimal("6.8719999")}, "latitude"),
+        ({"latitude": Decimal("9.2910001")}, "latitude"),
+        ({"longitude": Decimal("-73.6340001")}, "longitude"),
+        ({"longitude": Decimal("-72.0469999")}, "longitude"),
+    ],
+)
+def test_create_rejects_a_point_outside_norte_de_santander(owner, overrides, field):
+    with pytest.raises(LocationOutsideOperatingArea) as error:
+        create_farm(owner, farm_data(**overrides))
+
+    assert list(error.value.fields) == [field]
+    assert not Farm.objects.exists()
+
+
+def test_create_accepts_a_point_on_the_border_of_the_operating_area(owner):
+    farm, _ = create_farm(
+        owner, farm_data(latitude=Decimal("6.872"), longitude=Decimal("-73.634"))
+    )
+
+    assert (farm.latitude, farm.longitude) == (Decimal("6.872"), Decimal("-73.634"))
+
+
 def test_create_rejects_a_municipality_from_another_department(owner, monkeypatch):
     monkeypatch.setattr(
         territorial,
@@ -266,14 +293,35 @@ def test_list_only_returns_own_farms_ordered_by_name(owner, stranger):
     assert names == ["el Arrayán", "Zapatoca"]
 
 
+def test_list_shows_active_farms_first_and_then_inactive_ones(owner):
+    # El orden lo da el servidor: la lista viene paginada y el cliente no puede reordenarla.
+    FarmFactory(producer=owner.producer, name="Arrayán", is_active=False)
+    FarmFactory(producer=owner.producer, name="Zapatoca")
+    FarmFactory(producer=owner.producer, name="Bellavista")
+    FarmFactory(producer=owner.producer, name="Altamira", is_active=False)
+
+    names = [farm.name for farm in list_farms(owner)]
+
+    assert names == ["Bellavista", "Zapatoca", "Altamira", "Arrayán"]
+
+
 def test_list_of_an_account_without_producer_is_empty():
     FarmFactory()
 
     assert list(list_farms(UserFactory())) == []
 
 
-@pytest.mark.parametrize("search", ["arrayan", "ARRAYÁN", "portico", "cucuta"])
-def test_list_searches_name_details_and_municipality_ignoring_accents(owner, search):
+@pytest.mark.parametrize(
+    "search, expected",
+    [
+        ("arrayan", ["El Arrayán"]),
+        ("ARRAYÁN", ["El Arrayán"]),
+        # Solo el nombre: el municipio tiene su propio filtro y los detalles no se buscan.
+        ("portico", []),
+        ("cucuta", []),
+    ],
+)
+def test_list_searches_only_the_name_ignoring_accents(owner, search, expected):
     FarmFactory(
         producer=owner.producer,
         name="El Arrayán",
@@ -284,7 +332,7 @@ def test_list_searches_name_details_and_municipality_ignoring_accents(owner, sea
 
     names = [farm.name for farm in list_farms(owner, search=search)]
 
-    assert names == ["El Arrayán"]
+    assert names == expected
 
 
 def test_blank_search_does_not_filter(owner):
@@ -378,6 +426,30 @@ def test_update_rejects_out_of_range_coordinates(owner):
     assert farm.version == 1
 
 
+def test_update_rejects_moving_the_point_outside_norte_de_santander(owner):
+    farm, _ = create_farm(owner, farm_data())
+
+    with pytest.raises(LocationOutsideOperatingArea):
+        update_farm(
+            owner, farm.id, 1, {"latitude": Decimal("4.6"), "longitude": Decimal("-74.08")}
+        )
+
+    farm.refresh_from_db()
+    assert (farm.latitude, farm.version) == (Decimal("7.8234567"), 1)
+
+
+def test_a_farm_already_outside_can_still_edit_its_other_fields(owner):
+    # Una finca guardada antes de la regla (o en datos de prueba) no queda bloqueada: solo se
+    # valida el rectángulo cuando cambian las coordenadas.
+    farm = FarmFactory(
+        producer=owner.producer, latitude=Decimal("4.6"), longitude=Decimal("-74.08")
+    )
+
+    updated = update_farm(owner, farm.id, 1, {"name": "Otro nombre", "latitude": Decimal("4.6")})
+
+    assert (updated.name, updated.version) == ("Otro nombre", 2)
+
+
 def test_deactivating_and_reactivating_is_audited_as_a_status_change(owner):
     farm, _ = create_farm(owner, farm_data())
 
@@ -404,3 +476,70 @@ def test_editing_data_and_status_together_records_both_events(owner):
             (FarmAuditEvent.Action.STATUS_CHANGED, ["is_active"]),
         ]
     )
+
+
+# --- Eliminar ----------------------------------------------------------------------------
+
+
+def test_deleting_a_farm_keeps_its_audit_and_records_the_deletion(owner):
+    farm, _ = create_farm(owner, farm_data(name="Creada por error"))
+    update_farm(owner, farm.id, 1, {"altitude_masl": 1000})
+    farm_id = farm.id
+
+    delete_farm(owner, farm_id, 2)
+
+    assert not Farm.objects.filter(pk=farm_id).exists()
+    events = FarmAuditEvent.objects.filter(farm_ref=farm_id).order_by("occurred_at")
+    assert [event.action for event in events] == [
+        FarmAuditEvent.Action.CREATED,
+        FarmAuditEvent.Action.UPDATED,
+        FarmAuditEvent.Action.DELETED,
+    ]
+    assert all(event.farm is None for event in events)
+    assert {event.farm_name for event in events} == {"Creada por error"}
+    assert events.last().actor == owner
+
+
+def test_a_farm_with_business_records_cannot_be_deleted(owner, farm_dependent_model):
+    farm, _ = create_farm(owner, farm_data())
+    farm_dependent_model.objects.create(farm=farm)
+
+    with pytest.raises(FarmHasRecords):
+        delete_farm(owner, farm.id, 1)
+
+    assert Farm.objects.filter(pk=farm.id).exists()
+    assert not FarmAuditEvent.objects.filter(action=FarmAuditEvent.Action.DELETED).exists()
+
+
+def test_deleting_with_a_stale_version_keeps_the_farm(owner):
+    farm, _ = create_farm(owner, farm_data())
+    update_farm(owner, farm.id, 1, {"altitude_masl": 1000})
+
+    with pytest.raises(StaleFarmVersion) as error:
+        delete_farm(owner, farm.id, 1)
+
+    assert error.value.current_farm.version == 2
+    assert Farm.objects.filter(pk=farm.id).exists()
+
+
+def test_deleting_a_farm_of_another_producer_is_not_found(owner, stranger):
+    farm = FarmFactory(producer=stranger.producer)
+
+    with pytest.raises(FarmNotFound):
+        delete_farm(owner, farm.id, 1)
+
+    assert Farm.objects.filter(pk=farm.id).exists()
+
+
+def test_a_failing_audit_rolls_back_the_deletion(owner, monkeypatch):
+    farm, _ = create_farm(owner, farm_data())
+
+    def fail(**kwargs):
+        raise RuntimeError("audit down")
+
+    monkeypatch.setattr(services.farms, "record_farm_audit_event", fail)
+
+    with pytest.raises(RuntimeError):
+        delete_farm(owner, farm.id, 1)
+
+    assert Farm.objects.filter(pk=farm.id).exists()

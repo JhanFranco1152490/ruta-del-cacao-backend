@@ -81,14 +81,15 @@ class Farm(models.Model):
                 name="farms_longitude_in_range",
             ),
         ]
-        # Una finca se desactiva, nunca se borra: conserva su historial y lo que dependa de ella.
         # Se declaran a mano, con los mismos códigos que generaría Django, para que el productor
-        # los lea en español al armar un rol para sus empleados.
+        # los lea en español al armar un rol para sus empleados. Eliminar existe solo para fincas
+        # creadas por error, sin registros del negocio; las demás se desactivan.
         default_permissions = ()
         permissions = [
             ("view_farm", "Puede consultar fincas"),
             ("add_farm", "Puede registrar fincas"),
             ("change_farm", "Puede editar, activar y desactivar fincas"),
+            ("delete_farm", "Puede eliminar fincas creadas por error"),
         ]
 
     def clean(self):
@@ -137,16 +138,24 @@ class FarmAuditEvent(models.Model):
         CREATED = "created", "Finca creada"
         UPDATED = "updated", "Finca actualizada"
         STATUS_CHANGED = "status_changed", "Estado de finca modificado"
+        DELETED = "deleted", "Finca eliminada"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # La auditoría sobrevive a la finca y a quien actuó: al eliminar una finca creada por error,
+    # o una cuenta, sus eventos quedan sin la relación pero con la copia de `farm_ref` y
+    # `farm_name`, que dice de qué finca eran.
     farm = models.ForeignKey(
         Farm,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="audit_events",
     )
+    farm_ref = models.UUIDField(db_index=True)
+    farm_name = models.CharField(max_length=200)
     actor = models.ForeignKey(
         "accounts.User",
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="farm_audit_events",
     )
     action = models.CharField(max_length=32, choices=Action.choices)

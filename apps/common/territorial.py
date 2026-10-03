@@ -1,6 +1,7 @@
 """Catálogo territorial (departamentos y municipios por código DIVIPOLA) que usa el dominio."""
 
 from dataclasses import dataclass
+from decimal import Decimal
 from types import MappingProxyType
 
 
@@ -101,3 +102,34 @@ def validate_municipality_department(municipality_code: str, department_code: st
     if municipality.department_code != department.code:
         raise MunicipalityDepartmentMismatch("Municipality does not belong to department.")
     return municipality
+
+
+@dataclass(frozen=True)
+class Bounds:
+    min_latitude: Decimal
+    max_latitude: Decimal
+    min_longitude: Decimal
+    max_longitude: Decimal
+
+
+# Rectángulo que encierra Norte de Santander, calculado del Marco Geoestadístico Nacional 2025
+# del DANE y redondeado hacia afuera. El frontend valida con los mismos cuatro números antes de
+# guardar: si difieren, un punto aceptado en el teléfono se rechazaría al sincronizar y quedaría
+# trabado en la cola. Los bordes cuentan como adentro.
+OPERATING_AREA_BOUNDS = Bounds(
+    min_latitude=Decimal("6.872"),
+    max_latitude=Decimal("9.291"),
+    min_longitude=Decimal("-73.634"),
+    max_longitude=Decimal("-72.047"),
+)
+
+
+def coordinates_outside_operating_area(latitude: Decimal, longitude: Decimal) -> list[str]:
+    """Las coordenadas (`latitude`, `longitude`) que quedan fuera del rectángulo de operación."""
+    bounds = OPERATING_AREA_BOUNDS
+    outside = []
+    if not bounds.min_latitude <= latitude <= bounds.max_latitude:
+        outside.append("latitude")
+    if not bounds.min_longitude <= longitude <= bounds.max_longitude:
+        outside.append("longitude")
+    return outside

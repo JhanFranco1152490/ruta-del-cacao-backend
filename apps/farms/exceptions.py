@@ -35,6 +35,12 @@ class DuplicateFarmName(ApiError):
         super().__init__(fields={"name": ["El nombre debe ser único para el productor."]})
 
 
+class FarmHasRecords(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La finca tiene registros asociados. Desactívala en lugar de eliminarla."
+    default_code = "farm_has_records"
+
+
 class FarmIdConflict(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El identificador ya pertenece a otra finca."
@@ -57,6 +63,14 @@ class InvalidCoordinates(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "Coordenadas no válidas."
     default_code = "invalid_coordinates"
+
+
+class LocationOutsideOperatingArea(ApiError):
+    # Distinto de `invalid_coordinates`: el punto existe, pero está fuera de la zona donde opera
+    # la asociación.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "La ubicación está fuera de Norte de Santander."
+    default_code = "location_outside_operating_area"
 
 
 class MunicipalityDepartmentMismatch(ApiError):

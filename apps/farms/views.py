@@ -1,7 +1,9 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.urls import reverse
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -12,27 +14,40 @@ from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
 from .exceptions import FarmIdConflict, StaleFarmVersion
+from .filters import validated_filters
 from .serializers import (
     MODEL_TO_API_FIELDS,
     FarmConflictErrorSerializer,
     FarmCreateSerializer,
+    FarmDeleteSerializer,
+    FarmMapPointSerializer,
+    FarmMunicipalityCountSerializer,
     FarmSerializer,
     FarmUpdateSerializer,
 )
-from .services import create_farm, get_farm, list_farms, update_farm
+from .services import (
+    create_farm,
+    delete_farm,
+    get_farm,
+    list_farms,
+    municipality_counts,
+    municipality_points,
+    update_farm,
+)
+
+# Los mismos filtros en el listado y en el mapa: así los dos muestran siempre lo mismo.
+FARM_FILTER_PARAMETERS = [
+    OpenApiParameter("search", str, description="Busca en el nombre, sin distinguir tildes."),
+    OpenApiParameter("producer", OpenApiTypes.UUID, description="Solo las de este productor."),
+    OpenApiParameter("municipality", str, description="Código DIVIPOLA del municipio."),
+]
 
 
 @extend_schema_view(
     list=extend_schema(
-        parameters=[
-            OpenApiParameter(
-                "search",
-                str,
-                description="Busca en nombre, municipio o detalles, sin distinguir tildes.",
-            )
-        ],
-        # 404: página fuera de rango.
-        responses={200: FarmSerializer(many=True), **error_responses(401, 403, 404)},
+        parameters=FARM_FILTER_PARAMETERS,
+        # 400: filtro mal formado. 404: página fuera de rango.
+        responses={200: FarmSerializer(many=True), **error_responses(400, 401, 403, 404)},
     ),
     retrieve=extend_schema(responses={200: FarmSerializer, **error_responses(401, 403, 404)}),
     create=extend_schema(
@@ -64,6 +79,27 @@ from .services import create_farm, get_farm, list_farms, update_farm
             **error_responses(400, 401, 403, 404, 422),
         },
     ),
+    destroy=extend_schema(
+        description=(
+            "Elimina una finca creada por error. Requiere `expected_version` en la URL. Si la "
+            "finca tiene registros del negocio responde 409 `farm_has_records` (se desactiva en "
+            "su lugar); si cambió, 409 `stale_version` con la versión del servidor en `current`. "
+            "La auditoría de la finca se conserva."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "expected_version",
+                int,
+                required=True,
+                description="La `version` de la finca que se leyó.",
+            )
+        ],
+        responses={
+            204: None,
+            409: FarmConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
 )
 class FarmViewSet(GenericViewSet):
     serializer_class = FarmSerializer
@@ -73,13 +109,19 @@ class FarmViewSet(GenericViewSet):
         "retrieve": "farms.view_farm",
         "create": "farms.add_farm",
         "partial_update": "farms.change_farm",
+        "destroy": "farms.delete_farm",
+        "map_municipalities": "farms.view_farm",
+        "map_points": "farms.view_farm",
     }
     # La búsqueda la resuelve el servicio: el municipio se busca por su nombre en el catálogo.
     filter_backends = []
     lookup_value_converter = "uuid"
 
     def get_queryset(self):
-        return list_farms(self.request.user, self.request.query_params.get("search"))
+        return list_farms(
+            self.request.user,
+            **validated_filters(self.request.query_params),
+        )
 
     def list(self, request):
         page = self.paginate_queryset(self.get_queryset())
@@ -106,6 +148,42 @@ class FarmViewSet(GenericViewSet):
         data = serializer.to_model_data()
         expected_version = data.pop("expected_version")
         return Response(FarmSerializer(update_farm(request.user, pk, expected_version, data)).data)
+
+    def destroy(self, request, pk):
+        # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP,
+        # algunos intermediarios lo descartan y el esquema OpenAPI no lo documenta.
+        serializer = FarmDeleteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        delete_farm(request.user, pk, serializer.validated_data["expected_version"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        description="Cuántas fincas hay en cada municipio, con el alcance y filtros del listado.",
+        parameters=FARM_FILTER_PARAMETERS,
+        responses={
+            200: FarmMunicipalityCountSerializer(many=True),
+            **error_responses(400, 401, 403),
+        },
+    )
+    @action(detail=False, methods=["get"], url_path="map/municipalities")
+    def map_municipalities(self, request):
+        filters = validated_filters(request.query_params)
+        counts = municipality_counts(request.user, **filters)
+        return Response(FarmMunicipalityCountSerializer(counts, many=True).data)
+
+    @extend_schema(
+        description=(
+            "Las fincas con lo justo para dibujarlas, sin paginar, con el alcance y filtros "
+            "del listado: de un municipio con `municipality`, o todas las del alcance sin él."
+        ),
+        parameters=FARM_FILTER_PARAMETERS,
+        responses={200: FarmMapPointSerializer(many=True), **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="map/points")
+    def map_points(self, request):
+        filters = validated_filters(request.query_params)
+        points = municipality_points(request.user, **filters)
+        return Response(FarmMapPointSerializer(points, many=True).data)
 
     def handle_exception(self, exc):
         if isinstance(exc, (StaleFarmVersion, FarmIdConflict)) and exc.current_farm is not None:

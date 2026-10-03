@@ -15,13 +15,14 @@ from .serializers import (
     OverlapSerializer,
     PlotConflictErrorSerializer,
     PlotCreateSerializer,
+    PlotDeleteQuerySerializer,
     PlotListQuerySerializer,
     PlotRuleErrorSerializer,
     PlotSerializer,
     PlotUpdateSerializer,
     VertexSerializer,
 )
-from .services import create_plot, get_plot, list_plots, update_plot
+from .services import create_plot, delete_plot, get_plot, list_plots, update_plot
 
 
 @extend_schema_view(
@@ -68,6 +69,27 @@ from .services import create_plot, get_plot, list_plots, update_plot
             **error_responses(400, 401, 403, 404),
         },
     ),
+    destroy=extend_schema(
+        description=(
+            "Elimina una parcela creada por error. Requiere `expected_version` en la URL. Si algo "
+            "depende de la parcela responde 409 `plot_has_records` (se desactiva en su lugar); "
+            "si cambió, 409 `stale_version` con la versión del servidor en `current`. Con la "
+            "finca inactiva, 422 `farm_inactive`. El historial de la parcela se conserva."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "expected_version",
+                int,
+                required=True,
+                description="La `version` de la parcela que se leyó.",
+            )
+        ],
+        responses={
+            204: None,
+            409: PlotConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404, 422),
+        },
+    ),
 )
 class PlotViewSet(GenericViewSet):
     serializer_class = PlotSerializer
@@ -77,6 +99,7 @@ class PlotViewSet(GenericViewSet):
         "retrieve": "plots.view_plot",
         "create": "plots.add_plot",
         "partial_update": "plots.change_plot",
+        "destroy": "plots.delete_plot",
     }
     # Los filtros los resuelve el servicio, con el alcance del productor de la sesión.
     filter_backends = []
@@ -120,6 +143,14 @@ class PlotViewSet(GenericViewSet):
         data = dict(serializer.validated_data)
         expected_version = data.pop("expected_version")
         return Response(PlotSerializer(update_plot(request.user, pk, expected_version, data)).data)
+
+    def destroy(self, request, pk):
+        # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP,
+        # algunos intermediarios lo descartan y el esquema OpenAPI no lo documenta.
+        query = PlotDeleteQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        delete_plot(request.user, pk, query.validated_data["expected_version"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def handle_exception(self, exc):
         # Los servicios lanzan los errores con objetos del dominio; aquí se convierten en los

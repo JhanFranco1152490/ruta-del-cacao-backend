@@ -9,6 +9,7 @@ from django.db.models import ProtectedError
 from apps.accounts.tests.factories import UserFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.models import Plot, PlotAuditEvent
+from apps.plots.services.audit import record_plot_audit_event
 from apps.plots.tests.factories import PlotFactory
 
 pytestmark = pytest.mark.django_db
@@ -90,24 +91,24 @@ def test_a_farm_with_plots_cannot_be_deleted():
 def test_audit_event_keeps_both_areas_after_the_change():
     plot = PlotFactory(boundary=BOUNDARY, measured_area_hectares=Decimal("0.6125"))
 
-    event = PlotAuditEvent.record(
+    event = record_plot_audit_event(
         plot=plot,
         actor=UserFactory(),
         action=PlotAuditEvent.Action.UPDATED,
         changed_fields=["boundary", "area_hectares"],
-        area_hectares=plot.area_hectares,
-        measured_area_hectares=plot.measured_area_hectares,
     )
 
     event.refresh_from_db()
     assert event.changed_fields == ["area_hectares", "boundary"]
+    # La copia del id y del código identifica a la parcela aunque después se elimine.
+    assert (event.plot_ref, event.plot_code) == (plot.pk, plot.code)
     assert (event.area_hectares, event.measured_area_hectares) == (
         Decimal("1.00"),
         Decimal("0.6125"),
     )
 
 
-def test_plots_can_be_viewed_added_and_changed_but_never_deleted():
+def test_plot_permissions_are_named_in_spanish_for_the_role_editor():
     names = dict(
         Permission.objects.filter(
             content_type__app_label="plots", content_type__model="plot"
@@ -118,4 +119,5 @@ def test_plots_can_be_viewed_added_and_changed_but_never_deleted():
         "view_plot": "Puede consultar parcelas",
         "add_plot": "Puede registrar parcelas",
         "change_plot": "Puede editar, activar y desactivar parcelas",
+        "delete_plot": "Puede eliminar parcelas creadas por error",
     }

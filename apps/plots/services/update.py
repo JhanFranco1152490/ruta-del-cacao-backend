@@ -2,7 +2,7 @@ from django.db import IntegrityError, transaction
 
 from apps.common.db import constraint_name
 
-from ..exceptions import DuplicatePlotCode, PlotNotFound, StalePlotVersion
+from ..exceptions import DuplicatePlotCode, StalePlotVersion
 from ..models import Plot, PlotAuditEvent
 from . import rules
 from .audit import record_plot_audit_event
@@ -14,6 +14,7 @@ from .content import (
     current_boundary,
     matches,
 )
+from .queries import lock_plot
 
 
 @transaction.atomic
@@ -25,17 +26,8 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
     cambia lo que ellas miran: su área, su contorno, o su estado al reactivarla. Desactivar no
     revisa nada, porque solo libera área.
     """
-    farm_id = (
-        Plot.objects.filter(pk=plot_id, farm__producer_id=actor.producer_id)
-        .values_list("farm_id", flat=True)
-        .first()
-    )
-    if farm_id is None:
-        raise PlotNotFound()
-    # Siempre la finca antes que la parcela, en el mismo orden que el alta: dos operaciones que
-    # toman los mismos bloqueos en orden distinto pueden quedar esperándose una a la otra.
-    farm = rules.lock_farm(actor, farm_id)
-    plot = Plot.objects.select_for_update().select_related("farm").get(pk=plot_id)
+    plot = lock_plot(actor, plot_id)
+    farm = plot.farm
     if plot.version != expected_version:
         # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
         # haya aplicado el cambio: si la parcela ya tiene justo lo que se pide, es un éxito.

@@ -8,10 +8,15 @@ from apps.common.tests.concurrency import run_in_parallel
 from apps.farms.exceptions import FarmAreaBelowPlots
 from apps.farms.services import update_farm
 from apps.farms.tests.factories import FarmFactory
-from apps.plots.exceptions import PlotAreaExceedsFarm, PlotOverlap
+from apps.plots.exceptions import (
+    PlotAreaExceedsFarm,
+    PlotNotFound,
+    PlotOverlap,
+    StalePlotVersion,
+)
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
-from apps.plots.services import create_plot
+from apps.plots.services import create_plot, delete_plot, update_plot
 from apps.plots.tests.factories import PlotFactory, plot_data, rect
 from apps.producers.tests.factories import ProducerFactory
 
@@ -99,3 +104,21 @@ def test_shrinking_the_farm_while_a_plot_arrives_never_leaves_it_overallocated(o
     farm.refresh_from_db()
     allocated = sum(plot.area_hectares for plot in farm.plots.filter(is_active=True))
     assert allocated <= farm.area_hectares
+
+
+def test_deleting_and_editing_the_same_plot_at_once_never_fails_unexpectedly(owner):
+    # Gane quien gane, la otra recibe un error conocido: si la parcela ya no está, `not_found`;
+    # si la edición llegó primero, `stale_version` para el borrado.
+    farm = FarmFactory(producer=owner.producer)
+    plot = PlotFactory(farm=farm)
+
+    def act(which):
+        if which == "delete":
+            return attempt(lambda: delete_plot(owner, plot.pk, 1))
+        return attempt(lambda: update_plot(owner, plot.pk, 1, {"code": "Editada"}))
+
+    results = run_in_parallel(act, ["delete", "edit"])
+
+    errors = [result for result in results if isinstance(result, Exception)]
+    assert len(errors) == 1
+    assert isinstance(errors[0], (PlotNotFound, StalePlotVersion))

@@ -46,6 +46,7 @@ SYSTEM_ROLES = {
             "plots.view_plot",
             "plots.add_plot",
             "plots.change_plot",
+            "plots.delete_plot",
         ],
     },
     FOREMAN: {"kind": Role.Kind.PREDEFINED, "name": "Capataz/Operario", "permissions": []},

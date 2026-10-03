@@ -43,6 +43,7 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "plots.view_plot": PermissionInfo(area="plots", delegable=True),
     "plots.add_plot": PermissionInfo(area="plots", delegable=True),
     "plots.change_plot": PermissionInfo(area="plots", delegable=True),
+    "plots.delete_plot": PermissionInfo(area="plots", delegable=True),
 }
 
 
@@ -77,6 +78,7 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "plots.view_plot": "farms.view_farm",
     "plots.add_plot": "plots.view_plot",
     "plots.change_plot": "plots.view_plot",
+    "plots.delete_plot": "plots.view_plot",
 }
 
 

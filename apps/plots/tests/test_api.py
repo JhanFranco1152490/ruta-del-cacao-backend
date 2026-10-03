@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 from django.db import connection
@@ -15,7 +16,13 @@ from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
 
-PLOT_PERMISSIONS = ["farms.view_farm", "plots.view_plot", "plots.add_plot", "plots.change_plot"]
+PLOT_PERMISSIONS = [
+    "farms.view_farm",
+    "plots.view_plot",
+    "plots.add_plot",
+    "plots.change_plot",
+    "plots.delete_plot",
+]
 
 
 @pytest.fixture
@@ -81,6 +88,7 @@ def test_requires_a_session():
         ("post", "", "plots.add_plot"),
         ("get", "/{id}", "plots.view_plot"),
         ("patch", "/{id}", "plots.change_plot"),
+        ("delete", "/{id}?expected_version=1", "plots.delete_plot"),
     ],
 )
 def test_each_action_requires_its_permission(auth_client, method, path_suffix, missing):
@@ -521,3 +529,69 @@ def test_a_vertex_may_omit_its_optional_fields(client, farm, method):
     assert response.status_code in (200, 201)
     assert response.data["boundary"][0]["accuracy_m"] is None
     assert response.data["boundary"][0]["captured_at"] is None
+
+
+# --- Eliminar ----------------------------------------------------------------------------
+
+
+def test_delete_removes_a_plot_created_by_mistake(client, farm):
+    plot = PlotFactory(farm=farm)
+
+    response = client.delete(f"/api/plots/{plot.pk}?expected_version=1")
+
+    assert response.status_code == 204
+    assert not response.content
+    assert client.get(f"/api/plots/{plot.pk}").status_code == 404
+
+
+@pytest.mark.parametrize("query", ["", "?expected_version=cero"], ids=["missing", "not_a_number"])
+def test_delete_requires_the_version_in_the_url(client, farm, query):
+    plot = PlotFactory(farm=farm)
+
+    response = client.delete(f"/api/plots/{plot.pk}{query}")
+
+    assert response.status_code == 400
+    assert "expected_version" in response.data["fields"]
+    assert Plot.objects.filter(pk=plot.pk).exists()
+
+
+def test_delete_with_an_outdated_version_returns_the_current_plot(client, farm):
+    plot = PlotFactory(farm=farm)
+    client.patch(f"/api/plots/{plot.pk}", {"code": "Nuevo", "expected_version": 1}, format="json")
+
+    response = client.delete(f"/api/plots/{plot.pk}?expected_version=1")
+
+    assert response.status_code == 409
+    assert response.data["code"] == "stale_version"
+    assert response.data["current"]["version"] == 2
+
+
+def test_delete_in_an_inactive_farm_is_rejected(client, farm):
+    plot = PlotFactory(farm=farm)
+    farm.is_active = False
+    farm.save()
+
+    response = client.delete(f"/api/plots/{plot.pk}?expected_version=1")
+
+    assert response.status_code == 422
+    assert response.data["code"] == "farm_inactive"
+
+
+def test_delete_with_dependent_records_suggests_deactivating(client, farm):
+    plot = PlotFactory(farm=farm)
+
+    with mock.patch("apps.plots.services.delete.has_dependent_rows", return_value=True):
+        response = client.delete(f"/api/plots/{plot.pk}?expected_version=1")
+
+    assert response.status_code == 409
+    assert response.data["code"] == "plot_has_records"
+    assert "Desactívala" in response.data["detail"]
+
+
+def test_delete_of_a_plot_of_another_producer_does_not_exist(client):
+    foreign = PlotFactory(farm=FarmFactory(producer=ProducerFactory()))
+
+    response = client.delete(f"/api/plots/{foreign.pk}?expected_version=1")
+
+    assert response.status_code == 404
+    assert Plot.objects.filter(pk=foreign.pk).exists()

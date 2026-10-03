@@ -97,6 +97,10 @@ class PlotUpdateSerializer(PlotWriteSerializer):
         return attrs
 
 
+class PlotDeleteQuerySerializer(serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+
+
 class PlotListQuerySerializer(serializers.Serializer):
     farm = serializers.UUIDField(required=False)
     is_active = serializers.BooleanField(required=False)

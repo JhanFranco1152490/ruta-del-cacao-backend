@@ -88,6 +88,12 @@ class StalePlotVersion(ApiError):
         self.current_plot = current_plot
 
 
+class PlotHasRecords(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La parcela tiene registros asociados. Desactívala en lugar de eliminarla."
+    default_code = "plot_has_records"
+
+
 class PlotIdConflict(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El identificador ya pertenece a otra parcela."

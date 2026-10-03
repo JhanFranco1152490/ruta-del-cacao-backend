@@ -14,6 +14,8 @@ def record_plot_audit_event(
 ) -> PlotAuditEvent:
     return PlotAuditEvent.record(
         plot=plot,
+        plot_ref=plot.pk,
+        plot_code=plot.code,
         actor=actor,
         action=action,
         changed_fields=changed_fields,

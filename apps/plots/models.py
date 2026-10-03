@@ -61,13 +61,15 @@ class Plot(models.Model):
                 name="plots_boundary_with_measured_area",
             ),
         ]
-        # Una parcela se desactiva, nunca se borra: lo que se registre en ella depende de que
-        # siga existiendo.
+        # Se declaran a mano, con los mismos códigos que generaría Django, para que el productor
+        # los lea en español al armar un rol para sus empleados. Eliminar es solo para lo creado
+        # por error: lo que deja de usarse se desactiva.
         default_permissions = ()
         permissions = [
             ("view_plot", "Puede consultar parcelas"),
             ("add_plot", "Puede registrar parcelas"),
             ("change_plot", "Puede editar, activar y desactivar parcelas"),
+            ("delete_plot", "Puede eliminar parcelas creadas por error"),
         ]
 
     def clean(self):
@@ -83,15 +85,23 @@ class PlotAuditEvent(AuditEventBase):
         CREATED = "created", "Parcela creada"
         UPDATED = "updated", "Parcela actualizada"
         STATUS_CHANGED = "status_changed", "Estado de parcela modificado"
+        DELETED = "deleted", "Parcela eliminada"
 
+    # El historial sobrevive a la parcela y a quien actuó: al eliminar una parcela creada por
+    # error, o una cuenta, sus eventos quedan sin la relación pero con la copia de `plot_ref` y
+    # `plot_code`, que dice de qué parcela eran.
     plot = models.ForeignKey(
         Plot,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="audit_events",
     )
+    plot_ref = models.UUIDField(db_index=True)
+    plot_code = models.CharField(max_length=50)
     actor = models.ForeignKey(
         "accounts.User",
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="plot_audit_events",
     )
     action = models.CharField(max_length=32, choices=Action.choices)

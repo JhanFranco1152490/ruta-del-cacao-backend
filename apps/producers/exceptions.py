@@ -15,6 +15,17 @@ class StaleVersion(ApiError):
     default_code = "stale_version"
 
 
+class ProducerHasRecords(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El productor tiene registros asociados. Desactívalo en lugar de eliminarlo."
+    default_code = "producer_has_records"
+
+    def __init__(self, reason: str | None = None):
+        # El motivo (qué dependiente es importante) acompaña al mensaje, para que la persona
+        # sepa por qué no se pudo eliminar.
+        super().__init__(f"{self.default_detail} {reason}" if reason else None)
+
+
 class DuplicateDocument(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El documento ya se encuentra registrado."

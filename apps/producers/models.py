@@ -48,6 +48,7 @@ class Producer(models.Model):
             ("create", "Puede crear productores"),
             ("update", "Puede actualizar productores"),
             ("change_status", "Puede cambiar el estado de productores"),
+            ("delete", "Puede eliminar productores creados por error"),
         ]
         ordering = ["last_name", "first_name", "id"]
 

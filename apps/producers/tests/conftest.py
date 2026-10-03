@@ -7,6 +7,7 @@ ALL_PERMISSIONS = [
     "producers.create",
     "producers.update",
     "producers.change_status",
+    "producers.delete",
 ]
 
 

@@ -120,6 +120,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `apps/common/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
   eliminan), como ya hacen `farms` y `accounts`: así `producers` no importa de ninguna. Deja un
   `ProducerAuditEvent` sin relación con el productor, que sobrevive.
+- **La altitud de una finca debe caber en el terreno de su municipio**, con 100 m de margen
+  (`apps/common/municipality_altitude.py`, calculado sobre un modelo de elevación de 30 m; el
+  frontend usa la misma tabla). Un vértice de parcela tampoco puede quedar a más de
+  `2 × √(área de la finca ÷ π) + 300 m` del punto de la finca (`422 plot_too_far_from_farm`).
 - **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
   tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
   declara con `register_dependent(FarmDependent(...))` de `apps/common/farm_dependents.py`. Una

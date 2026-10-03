@@ -4,7 +4,6 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.common.audit import AuditEventBase
-from apps.common.municipality_altitude import altitude_range_for
 from apps.common.territorial import (
     InvalidDepartmentCode,
     InvalidMunicipalityCode,
@@ -125,16 +124,6 @@ class Farm(models.Model):
                 errors["municipality_code"] = ValidationError(
                     "El municipio no pertenece al departamento.",
                     code=MUNICIPALITY_DEPARTMENT_MISMATCH,
-                )
-
-        if "municipality_code" not in errors and isinstance(self.altitude_masl, int):
-            # La altitud también tiene que caber en el terreno del municipio elegido.
-            terrain = altitude_range_for(self.municipality_code)
-            if terrain and not terrain[0] <= self.altitude_masl <= terrain[1]:
-                errors.setdefault(
-                    "altitude_masl",
-                    f"La altitud no corresponde al municipio elegido: allí el terreno va de "
-                    f"{terrain[0]} a {terrain[1]} m.",
                 )
 
         if errors:

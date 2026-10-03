@@ -158,12 +158,12 @@ def test_the_altitude_must_fit_the_terrain_of_the_municipality(client):
 
     assert response.status_code == 400
     assert response.data["fields"]["altitude_masl"] == [
-        "La altitud no corresponde al municipio elegido: allí el terreno va de -57 a 172 m."
+        "La altitud no corresponde a Puerto Santander: el terreno del municipio va de 0 a 172 m."
     ]
     assert not Farm.objects.exists()
 
 
-@pytest.mark.parametrize("altitude", [-57, 60, 172])
+@pytest.mark.parametrize("altitude", [0, 60, 172])
 def test_an_altitude_inside_the_range_of_the_municipality_is_accepted(client, altitude):
     data = {**VALID_DATA, "municipality_id": "54553", "altitude_masl": altitude}
 
@@ -181,6 +181,82 @@ def test_editing_the_altitude_is_checked_against_the_municipality_too(client):
 
     assert response.status_code == 400
     assert "altitude_masl" in response.data["fields"]
+
+
+def legacy_farm(owner, **fields):
+    """Una finca guardada antes de la regla del terreno del municipio: 2313 m en Cúcuta no cabe."""
+    return FarmFactory(producer=owner.producer, altitude_masl=2313, **fields)
+
+
+def test_a_farm_saved_before_the_altitude_rule_can_still_be_deactivated(client, owner):
+    farm = legacy_farm(owner)
+
+    response = client.patch(
+        f"/api/farms/{farm.pk}", {"is_active": False, "expected_version": 1}, format="json"
+    )
+
+    assert response.status_code == 200
+    assert response.data["is_active"] is False
+
+
+def test_a_farm_saved_before_the_altitude_rule_can_still_correct_its_other_data(client, owner):
+    farm = legacy_farm(owner)
+
+    response = client.patch(
+        f"/api/farms/{farm.pk}", {"name": "Otro nombre", "expected_version": 1}, format="json"
+    )
+
+    assert response.status_code == 200
+    assert response.data["altitude_masl"] == 2313
+
+
+def test_changing_the_altitude_of_a_legacy_farm_to_another_invalid_one_is_rejected(client, owner):
+    farm = legacy_farm(owner)
+
+    response = client.patch(
+        f"/api/farms/{farm.pk}", {"altitude_masl": 2400, "expected_version": 1}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert "Cúcuta" in response.data["fields"]["altitude_masl"][0]
+
+
+def test_fixing_the_altitude_of_a_legacy_farm_is_accepted(client, owner):
+    farm = legacy_farm(owner)
+
+    response = client.patch(
+        f"/api/farms/{farm.pk}", {"altitude_masl": 320, "expected_version": 1}, format="json"
+    )
+
+    assert response.status_code == 200
+
+
+def test_moving_a_farm_to_a_municipality_its_altitude_does_not_reach_is_rejected(client, owner):
+    farm = FarmFactory(producer=owner.producer, altitude_masl=950)
+
+    # Puerto Santander (54553): el terreno va de 43 a 72 m.
+    response = client.patch(
+        f"/api/farms/{farm.pk}",
+        {"municipality_id": "54553", "expected_version": 1},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "Puerto Santander" in response.data["fields"]["altitude_masl"][0]
+
+
+def test_a_retried_edit_of_a_legacy_farm_is_still_recognised_as_applied(client, owner):
+    farm = legacy_farm(owner)
+    first = client.patch(
+        f"/api/farms/{farm.pk}", {"name": "Renombrada", "expected_version": 1}, format="json"
+    )
+    assert first.status_code == 200
+
+    retry = client.patch(
+        f"/api/farms/{farm.pk}", {"name": "Renombrada", "expected_version": 1}, format="json"
+    )
+
+    assert retry.status_code == 200
 
 
 def test_create_without_id_generates_one(client):

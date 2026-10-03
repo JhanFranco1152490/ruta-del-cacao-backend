@@ -7,6 +7,7 @@ from django.db.models import DecimalField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 
 from apps.common.db import constraint_name, has_dependent_rows
+from apps.common.farm_dependents import registered_dependents
 from apps.common.territorial import coordinates_outside_operating_area
 
 from ..exceptions import (
@@ -190,13 +191,30 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
         # respuesta de una finca.
         _set_allocated_area(farm)
         raise StaleFarmVersion(farm)
-    # Cualquier tabla que apunte a la finca cuenta, salvo su auditoría: sus parcelas, y las
-    # capturas o cosechas que vengan después, bloquean el borrado sin que nadie las agregue a
-    # una lista.
-    if has_dependent_rows(farm, ignore=(FarmAuditEvent,)):
+    remove_unimportant_farm(farm, actor)
+
+
+def remove_unimportant_farm(farm: Farm, actor) -> None:
+    """Elimina `farm` con lo que depende de ella si nada de eso es importante; si lo es,
+    `FarmHasRecords` y no se toca nada. Quien llama ya validó quién puede hacerlo: aquí solo se
+    aplica la regla y se deja el rastro."""
+    if has_business_records(farm):
         raise FarmHasRecords()
+    for dependent in registered_dependents():
+        dependent.delete_all(farm, actor)
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.DELETED)
     farm.delete()
+
+
+def has_business_records(farm: Farm) -> bool:
+    """Si la finca tiene algo importante: un dependiente registrado (sus parcelas) que lo
+    considere así, o cualquier otra tabla que la apunte, salvo su auditoría. Así una tabla nueva
+    (capturas, cosechas) bloquea el borrado sin que nadie la agregue a una lista."""
+    dependents = registered_dependents()
+    if any(dependent.important_record(farm) for dependent in dependents):
+        return True
+    handled = tuple(model for dependent in dependents for model in dependent.models)
+    return has_dependent_rows(farm, ignore=(FarmAuditEvent, *handled))
 
 
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:

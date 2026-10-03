@@ -92,8 +92,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
-  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `duplicate_plot_code`,
-  `plot_id_conflict`, `plot_has_records` (409); `payload_too_large` (413);
+  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
+  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records` (409); `payload_too_large` (413);
   `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
   `municipality_department_mismatch`, `farm_inactive`, `farm_area_below_plots`,
   `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`, `plot_overlap` (422);
@@ -109,6 +109,21 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   pide (un reintento cuya respuesta se perdió) responde `200` sin cambios, y si no, `409
   stale_version`. `captured_at` (hora del dispositivo) es opcional e informativo: el orden y
   los conflictos se deciden con `version` y con la hora del servidor.
+- **Un `DELETE` lleva la versión en la URL** (`?expected_version=N`), nunca en el cuerpo: HTTP no
+  define su significado, algunos intermediarios lo descartan y el esquema OpenAPI no lo documenta.
+  Es el caso de fincas y de productores.
+- **Eliminar un productor creado por error** (`DELETE /api/producers/{id}`, `producers.delete`, no
+  delegable): se elimina todo lo que depende de él si nada de eso es importante; si algo lo es
+  responde `409 producer_has_records` y no se borra nada. Una app que agrega algo que depende de
+  un productor lo declara con `register_dependent(ProducerDependent(...))` de
+  `apps/common/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
+  eliminan), como ya hacen `farms` y `accounts`: así `producers` no importa de ninguna. Deja un
+  `ProducerAuditEvent` sin relación con el productor, que sobrevive.
+- **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
+  tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
+  declara con `register_dependent(FarmDependent(...))` de `apps/common/farm_dependents.py`. Una
+  tabla que apunte a la finca sin estar registrada también la bloquea. Los dos registros salen de
+  `apps/common/dependents.py`.
 - **Paginación única:** `page` (desde 1) y `page_size` (1–100, 20 por defecto); respuesta
   `{"count", "next", "previous", "results"}`. Una página fuera de rango responde 404
   `not_found`.
@@ -167,9 +182,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - Usuarios, roles y eventos (autenticación y de cuentas) en `apps/accounts/admin.py`;
   productores en `apps/producers/admin.py`.
 - **Productores:** los permisos siguen a los de la API (`producers.view`, `producers.update`,
-  `producers.change_status`), no a los que Django genera. No se puede crear ni borrar desde el
-  admin (el alta asigna el código de asociado y detecta el documento repetido; al productor se
-  le cambia el estado, no se le borra). Se editan nombre, teléfono, correo, municipio y fecha de
+  `producers.change_status`, `producers.delete`), no a los que Django genera. No se puede crear ni
+  borrar desde el admin (el alta asigna el código de asociado y detecta el documento repetido; al
+  productor se le cambia el estado, y solo la API elimina uno creado por error). Se editan nombre, teléfono, correo, municipio y fecha de
   ingreso; el documento, el código y el estado no. El estado cambia con las acciones "Activar" y
   "Desactivar".
 - **`Role` reemplaza a `Group`** en el admin (HU-03): `Group` se da de baja y `Role` entra de

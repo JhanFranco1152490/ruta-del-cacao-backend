@@ -27,6 +27,7 @@ SYSTEM_ROLES = {
             "producers.create",
             "producers.update",
             "producers.change_status",
+            "producers.delete",
             # La asociación lee las fincas de todos los productores: nombre y ubicación son la
             # base de sus reportes. Registrarlas, editarlas o eliminarlas es solo del productor y
             # de los empleados a los que él se lo delegue.

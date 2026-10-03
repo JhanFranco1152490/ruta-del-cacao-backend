@@ -70,17 +70,27 @@ def test_each_system_role_has_exactly_its_declared_permissions():
         assert actual == set(definition["permissions"])
 
 
-FARM_PERMISSIONS = {"farms.view_farm", "farms.add_farm", "farms.change_farm"}
+FARM_MANAGEMENT = {"farms.add_farm", "farms.change_farm", "farms.delete_farm"}
+# Los cuatro, incluido consultar: la asociación no ve parcelas.
 PLOT_PERMISSIONS = {"plots.view_plot", "plots.add_plot", "plots.change_plot", "plots.delete_plot"}
 
 
 @pytest.mark.parametrize(
-    "permissions", [FARM_PERMISSIONS, PLOT_PERMISSIONS], ids=["farms", "plots"]
+    "permissions", [FARM_MANAGEMENT, PLOT_PERMISSIONS], ids=["farm_management", "plots"]
 )
-def test_only_the_producer_role_manages_farms_and_plots(permissions):
+def test_only_the_producer_role_manages_farms_and_has_plots(permissions):
     for code, definition in SYSTEM_ROLES.items():
         granted = permissions & set(definition["permissions"])
         assert granted == (permissions if code == PRODUCER else set()), code
+
+
+def test_only_the_producer_and_the_association_read_farms():
+    readers = {
+        code
+        for code, definition in SYSTEM_ROLES.items()
+        if "farms.view_farm" in definition["permissions"]
+    }
+    assert readers == {PRODUCER, ADMINISTRATOR}
 
 
 @pytest.mark.parametrize(
@@ -93,6 +103,7 @@ def test_only_the_producer_role_manages_farms_and_plots(permissions):
         ("farms.view_farm", True),
         ("farms.add_farm", True),
         ("farms.change_farm", True),
+        ("farms.delete_farm", True),
         ("plots.view_plot", True),
         ("plots.add_plot", True),
         ("plots.change_plot", True),

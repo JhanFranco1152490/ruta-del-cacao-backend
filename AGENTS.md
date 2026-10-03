@@ -49,7 +49,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
-| `apps/farms/`      | Fincas del productor de la sesión: alta (también sin conexión), consulta, edición, activación y su auditoría |
+| `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 
 ### Capas
@@ -92,9 +92,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
-  `duplicate_farm_name`, `farm_id_conflict`, `duplicate_plot_code`, `plot_id_conflict`,
-  `plot_has_records` (409);
-  `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
+  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `duplicate_plot_code`,
+  `plot_id_conflict`, `plot_has_records` (409); `payload_too_large` (413);
+  `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
   `municipality_department_mismatch`, `farm_inactive`, `farm_area_below_plots`,
   `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`, `plot_overlap` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,

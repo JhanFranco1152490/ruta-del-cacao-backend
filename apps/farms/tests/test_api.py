@@ -282,6 +282,19 @@ def test_create_rejects_out_of_range_coordinates(client, field, value):
     assert not Farm.objects.exists()
 
 
+def test_create_rejects_a_real_point_outside_norte_de_santander(client):
+    # Bogotá: una coordenada posible en la Tierra, pero fuera de la zona de operación.
+    response = client.post(
+        "/api/farms", {**VALID_DATA, "latitude": "4.6", "longitude": "-74.08"}, format="json"
+    )
+
+    assert response.status_code == 422
+    assert response.data["code"] == "location_outside_operating_area"
+    assert response.data["detail"] == "La ubicación está fuera de Norte de Santander."
+    assert set(response.data["fields"]) == {"latitude", "longitude"}
+    assert not Farm.objects.exists()
+
+
 def test_create_rejects_a_non_positive_area(client):
     response = client.post("/api/farms", {**VALID_DATA, "area_hectares": "0"}, format="json")
 

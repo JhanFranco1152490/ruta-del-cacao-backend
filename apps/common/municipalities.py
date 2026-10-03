@@ -22,15 +22,6 @@ def list_municipalities():
     ]
 
 
-def municipality_codes_matching(term: str) -> list[str]:
-    folded = fold(term)
-    return [
-        municipality.code
-        for municipality in MUNICIPALITIES_BY_CODE.values()
-        if folded in fold(municipality.name)
-    ]
-
-
 def validate_municipality_code(value: str) -> None:
     if value not in MUNICIPALITIES_BY_CODE:
         raise ValidationError("El municipio no pertenece a Norte de Santander.")

@@ -75,15 +75,14 @@ class FarmModelTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.create_farm(longitude=Decimal("180.0000001"))
 
-    def test_farms_can_be_viewed_added_and_changed_but_never_deleted(self):
+    def test_farm_permissions_include_deleting_farms_created_by_mistake(self):
         codenames = set(
-            Permission.objects.filter(content_type__app_label="farms").values_list(
-                "codename", flat=True
-            )
+            Permission.objects.filter(
+                content_type__app_label="farms", content_type__model="farm"
+            ).values_list("codename", flat=True)
         )
 
-        self.assertTrue({"view_farm", "add_farm", "change_farm"} <= codenames)
-        self.assertNotIn("delete_farm", codenames)
+        self.assertEqual(codenames, {"view_farm", "add_farm", "change_farm", "delete_farm"})
 
     def test_farm_permissions_are_named_in_spanish_for_the_role_editor(self):
         names = dict(
@@ -98,5 +97,6 @@ class FarmModelTests(TestCase):
                 "view_farm": "Puede consultar fincas",
                 "add_farm": "Puede registrar fincas",
                 "change_farm": "Puede editar, activar y desactivar fincas",
+                "delete_farm": "Puede eliminar fincas creadas por error",
             },
         )

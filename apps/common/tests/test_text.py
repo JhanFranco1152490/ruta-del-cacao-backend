@@ -1,6 +1,5 @@
 import pytest
 
-from apps.common.municipalities import municipality_codes_matching
 from apps.common.text import fold, normalize_name
 
 
@@ -18,9 +17,3 @@ def test_fold_ignores_accents_and_case(text, expected):
 )
 def test_normalize_name_trims_and_ignores_case_and_width(text, expected):
     assert normalize_name(text) == expected
-
-
-def test_municipalities_match_by_name_without_accents():
-    assert municipality_codes_matching("cucuta") == ["54001"]
-    assert municipality_codes_matching("TIBÚ") == ["54810"]
-    assert municipality_codes_matching("zzz") == []

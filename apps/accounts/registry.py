@@ -40,6 +40,7 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "farms.view_farm": PermissionInfo(area="farms", delegable=True),
     "farms.add_farm": PermissionInfo(area="farms", delegable=True),
     "farms.change_farm": PermissionInfo(area="farms", delegable=True),
+    "farms.delete_farm": PermissionInfo(area="farms", delegable=True),
     "plots.view_plot": PermissionInfo(area="plots", delegable=True),
     "plots.add_plot": PermissionInfo(area="plots", delegable=True),
     "plots.change_plot": PermissionInfo(area="plots", delegable=True),
@@ -74,6 +75,7 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "producers.change_status": "producers.view",
     "farms.add_farm": "farms.view_farm",
     "farms.change_farm": "farms.view_farm",
+    "farms.delete_farm": "farms.view_farm",
     # Las parcelas se consultan desde su finca: sin ver la finca no hay cómo llegar a ellas.
     "plots.view_plot": "farms.view_farm",
     "plots.add_plot": "plots.view_plot",

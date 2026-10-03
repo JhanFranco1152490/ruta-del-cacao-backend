@@ -407,9 +407,15 @@ def test_concurrent_cross_deactivation_of_two_administrators_leaves_one_active(s
     with ThreadPoolExecutor(max_workers=2) as executor:
         responses = list(executor.map(attempt, zip(clients, targets)))
 
-    assert sorted(response.status_code for response in responses) == [200, 409]
-    loser = next(response for response in responses if response.status_code == 409)
-    assert loser.data["code"] == "last_administrator"
+    # La que pierde puede fallar de dos formas, según cuándo la alcance la otra: si llega al
+    # servicio, este ve que es el último administrador (409); si la otra ya confirmó antes de que
+    # se valide su sesión, esa sesión es de una cuenta inactiva (401). Las dos dejan a uno activo.
+    winner, loser = sorted(responses, key=lambda response: response.status_code)
+    assert winner.status_code == 200
+    assert (loser.status_code, loser.data["code"]) in {
+        (409, "last_administrator"),
+        (401, "authentication_failed"),
+    }
     assert User.objects.filter(pk__in=[first.pk, second.pk], is_active=True).count() == 1
 
 

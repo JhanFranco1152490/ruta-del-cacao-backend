@@ -13,5 +13,10 @@ def record_farm_audit_event(
     changed_fields: Iterable[str] = (),
 ) -> FarmAuditEvent:
     return FarmAuditEvent.record(
-        farm=farm, actor=actor, action=action, changed_fields=changed_fields
+        farm=farm,
+        farm_ref=farm.pk,
+        farm_name=farm.name,
+        actor=actor,
+        action=action,
+        changed_fields=changed_fields,
     )

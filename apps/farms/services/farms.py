@@ -6,21 +6,24 @@ from django.db import IntegrityError, transaction
 from django.db.models import DecimalField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 
-from apps.common.db import constraint_name
-from apps.common.municipalities import municipality_codes_matching
+from apps.common.db import constraint_name, has_dependent_rows
+from apps.common.territorial import coordinates_outside_operating_area
 
 from ..exceptions import (
     DuplicateFarmName,
     FarmAreaBelowPlots,
+    FarmHasRecords,
     FarmIdConflict,
     FarmNotFound,
     InvalidCoordinates,
+    LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
     ProducerRequired,
     StaleFarmVersion,
 )
 from ..models import MUNICIPALITY_DEPARTMENT_MISMATCH, Farm, FarmAuditEvent
 from .audit import record_farm_audit_event
+from .scope import readable_farms
 
 NAME_UNIQUE_CONSTRAINT = "farms_producer_name_normalized_unique"
 # Lo que describe a la finca. Dos envíos con el mismo id se consideran el mismo registro solo
@@ -45,28 +48,32 @@ ALLOCATED_AREA = Coalesce(
 )
 
 
-def list_farms(actor, search: str | None = None) -> QuerySet[Farm]:
-    farms = (
-        Farm.objects.filter(producer_id=actor.producer_id)
-        .annotate(allocated_area_hectares=ALLOCATED_AREA)
-        .order_by("name_normalized", "id")
-    )
+def filter_farms(farms, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+    """Los filtros comunes del listado y del mapa, siempre dentro del alcance ya aplicado."""
+    if producer is not None:
+        farms = farms.filter(producer_id=producer)
+    if municipality is not None:
+        farms = farms.filter(municipality_code=municipality)
     term = (search or "").strip()
     if term:
-        farms = farms.filter(
-            Q(name__unaccent__icontains=term)
-            | Q(details__unaccent__icontains=term)
-            # El municipio se guarda como código; su nombre vive en el catálogo en memoria, así
-            # que la búsqueda por nombre se traduce a los códigos que coinciden.
-            | Q(municipality_code__in=municipality_codes_matching(term))
-        )
+        # Solo el nombre: el municipio tiene su propio filtro y los detalles no se buscan.
+        farms = farms.filter(name__unaccent__icontains=term)
     return farms
+
+
+def list_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
+    # Activas primero: la lista llega paginada, así que solo el servidor puede dejar las
+    # inactivas al final de todas las páginas.
+    farms = readable_farms(actor).annotate(allocated_area_hectares=ALLOCATED_AREA)
+    return filter_farms(
+        farms, search=search, producer=producer, municipality=municipality
+    ).order_by("-is_active", "name_normalized", "id")
 
 
 def get_farm(actor, farm_id) -> Farm:
     try:
-        return Farm.objects.annotate(allocated_area_hectares=ALLOCATED_AREA).get(
-            pk=farm_id, producer_id=actor.producer_id
+        return (
+            readable_farms(actor).annotate(allocated_area_hectares=ALLOCATED_AREA).get(pk=farm_id)
         )
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
@@ -89,7 +96,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
             return _resent_farm(existing, actor, data), False
 
     farm = Farm(producer_id=actor.producer_id, **_without_empty_id(data))
-    _validate(farm)
+    _validate(farm, check_operating_area=True)
     try:
         with transaction.atomic():
             farm.save(force_insert=True)
@@ -128,7 +135,10 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     before = {name: getattr(farm, name) for name in data}
     for name, value in data.items():
         setattr(farm, name, value)
-    _validate(farm)
+    # El rectángulo de operación solo se exige si el punto se mueve: una finca guardada antes
+    # de esa regla puede seguir corrigiendo sus otros datos.
+    moved = any(data[name] != before[name] for name in COORDINATE_FIELDS & data.keys())
+    _validate(farm, check_operating_area=moved)
     # Se compara después de validar: `clean()` recorta el nombre, y un nombre que solo cambió
     # en espacios no es un cambio real.
     changed = [name for name in data if getattr(farm, name) != before[name]]
@@ -167,6 +177,28 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     return farm
 
 
+@transaction.atomic
+def delete_farm(actor, farm_id, expected_version: int) -> None:
+    """Elimina una finca creada por error. Solo si no tiene registros del negocio; la que los
+    tiene se desactiva. Su auditoría se conserva y el borrado queda registrado en ella."""
+    try:
+        farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
+    except Farm.DoesNotExist:
+        raise FarmNotFound() from None
+    if farm.version != expected_version:
+        # El conflicto devuelve la finca del servidor, con su área asignada como en toda
+        # respuesta de una finca.
+        _set_allocated_area(farm)
+        raise StaleFarmVersion(farm)
+    # Cualquier tabla que apunte a la finca cuenta, salvo su auditoría: sus parcelas, y las
+    # capturas o cosechas que vengan después, bloquean el borrado sin que nadie las agregue a
+    # una lista.
+    if has_dependent_rows(farm, ignore=(FarmAuditEvent,)):
+        raise FarmHasRecords()
+    record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.DELETED)
+    farm.delete()
+
+
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if existing.producer_id != actor.producer_id:
         raise FarmIdConflict()
@@ -203,7 +235,7 @@ def _matches(farm: Farm, data: dict, fields) -> bool:
     return all(getattr(candidate, name) == getattr(farm, name) for name in fields)
 
 
-def _validate(farm: Farm) -> None:
+def _validate(farm: Farm, *, check_operating_area: bool) -> None:
     try:
         farm.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError as error:
@@ -214,6 +246,14 @@ def _validate(farm: Farm) -> None:
         if errors.keys() <= COORDINATE_FIELDS:
             raise InvalidCoordinates(fields=errors) from None
         raise
+    # Después de full_clean(): una coordenada imposible (latitud 95) se informa como
+    # `invalid_coordinates`, no como un punto fuera de Norte de Santander.
+    if check_operating_area:
+        outside = coordinates_outside_operating_area(farm.latitude, farm.longitude)
+        if outside:
+            raise LocationOutsideOperatingArea(
+                fields={name: ["Debe estar dentro de Norte de Santander."] for name in outside}
+            )
 
 
 def _without_empty_id(data: dict) -> dict:

@@ -1,8 +1,10 @@
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Prefetch
 
-from .exceptions import DuplicateDocument, ProducerNotFound, StaleVersion
-from .models import DOCUMENT_UNIQUE_CONSTRAINT, PRODUCER_ROLE_CODE, Producer
+from apps.common.producer_dependents import registered_dependents
+
+from .exceptions import DuplicateDocument, ProducerHasRecords, ProducerNotFound, StaleVersion
+from .models import DOCUMENT_UNIQUE_CONSTRAINT, PRODUCER_ROLE_CODE, Producer, ProducerAuditEvent
 
 MEMBER_CODE_PREFIX = "PROD-"
 # La secuencia tiene MAXVALUE 999999: si se agota, PostgreSQL falla y la API responde 500.
@@ -78,6 +80,31 @@ def change_producer_status(producer_id, expected_version: int, status: str) -> P
     producer.version += 1
     producer.save(update_fields=["status", "version", "updated_at"])
     return producer
+
+
+@transaction.atomic
+def delete_producer(actor, producer_id, expected_version: int) -> None:
+    """Elimina un productor creado por error. Solo si nada de lo que depende de él es importante;
+    si lo es, no se borra nada y se ofrece desactivarlo. Deja un rastro mínimo."""
+    producer = _lock_at_version(producer_id, expected_version)
+    dependents = registered_dependents()
+    # Se revisan todos antes de borrar nada: uno importante basta para no tocar ninguno.
+    for dependent in dependents:
+        reason = dependent.important_record(producer)
+        if reason:
+            raise ProducerHasRecords(reason)
+    counts = {dependent.name: dependent.count(producer) for dependent in dependents}
+    for dependent in dependents:
+        dependent.delete_all(producer, actor)
+    ProducerAuditEvent.objects.create(
+        member_code=producer.member_code,
+        producer_name=f"{producer.first_name} {producer.last_name}",
+        actor=actor,
+        action=ProducerAuditEvent.Action.DELETED,
+        farms_deleted=counts.get("farms", 0),
+        accounts_deleted=counts.get("accounts", 0),
+    )
+    producer.delete()
 
 
 def _lock_at_version(producer_id, expected_version: int) -> Producer:

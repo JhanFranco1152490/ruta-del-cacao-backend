@@ -5,7 +5,7 @@ from django.contrib.auth.models import Permission
 
 from apps.accounts.apps import last_app_with_models
 from apps.accounts.models import Role
-from apps.accounts.registry import is_delegable
+from apps.accounts.registry import PERMISSION_DEPENDENCIES, is_delegable
 from apps.accounts.system_roles import (
     ADMINISTRATOR,
     FOREMAN,
@@ -88,6 +88,19 @@ def test_only_the_producer_and_the_association_read_farms():
     assert readers == {PRODUCER, ADMINISTRATOR}
 
 
+def test_only_the_association_can_delete_producers():
+    granted = {
+        code
+        for code, definition in SYSTEM_ROLES.items()
+        if "producers.delete" in definition["permissions"]
+    }
+    assert granted == {ADMINISTRATOR}
+
+
+def test_deleting_a_producer_requires_seeing_them():
+    assert PERMISSION_DEPENDENCIES["producers.delete"] == "producers.view"
+
+
 @pytest.mark.parametrize(
     "code, expected",
     [
@@ -95,6 +108,7 @@ def test_only_the_producer_and_the_association_read_farms():
         ("accounts.roles_manage", True),
         ("accounts.association_access_manage", False),
         ("producers.view", False),
+        ("producers.delete", False),
         ("farms.view_farm", True),
         ("farms.add_farm", True),
         ("farms.change_farm", True),

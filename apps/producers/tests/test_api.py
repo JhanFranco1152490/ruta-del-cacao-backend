@@ -80,11 +80,11 @@ def test_create_requires_csrf(anonymous_client):
     assert not Producer.objects.exists()
 
 
-@pytest.mark.parametrize("method", ["delete", "put"])
-def test_unsupported_methods_are_not_allowed(admin_client, method):
+def test_unsupported_methods_are_not_allowed(admin_client):
+    # `DELETE` sí existe (solo para un productor creado por error): ver test_delete_api.py.
     producer = ProducerFactory()
 
-    response = getattr(admin_client, method)(f"/api/producers/{producer.id}", {}, format="json")
+    response = admin_client.put(f"/api/producers/{producer.id}", {}, format="json")
 
     assert response.status_code == 405
     assert response.data["code"] == "method_not_allowed"

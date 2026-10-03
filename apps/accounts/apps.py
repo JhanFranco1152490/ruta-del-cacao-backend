@@ -25,6 +25,12 @@ class AccountsConfig(AppConfig):
         post_save.connect(
             _create_producer_account, sender=app_registry.get_model("producers", "Producer")
         )
+        # Lo que esta app elimina cuando se elimina un productor creado por error.
+        from apps.common.producer_dependents import register_dependent
+
+        from .producer_dependent import accounts_dependent
+
+        register_dependent(accounts_dependent)
 
 
 def last_app_with_models(app_configs):

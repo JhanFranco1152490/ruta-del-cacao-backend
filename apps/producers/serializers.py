@@ -133,6 +133,12 @@ class ProducerStatusSerializer(RejectUnknownFieldsMixin, serializers.Serializer)
     expected_version = serializers.IntegerField(min_value=1)
 
 
+class ProducerDeleteSerializer(serializers.Serializer):
+    # Query param del DELETE, con la versión leída: no se elimina un productor que otra persona
+    # acaba de cambiar.
+    expected_version = serializers.IntegerField(min_value=1)
+
+
 class ProducerConflictErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: el 409 lo arma el manejador global de errores. La clave únicamente
     # llega cuando el conflicto es un documento repetido y la persona puede ver productores.

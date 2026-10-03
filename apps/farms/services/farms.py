@@ -167,10 +167,20 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
         raise FarmNotFound() from None
     if farm.version != expected_version:
         raise StaleFarmVersion(farm)
+    remove_unimportant_farm(farm, actor)
+
+
+def remove_unimportant_farm(farm: Farm, actor) -> None:
+    """Elimina `farm` si no tiene registros del negocio; si no, `FarmHasRecords`. Quien llama
+    ya validó quién puede hacerlo: aquí solo se aplica la regla y se deja el rastro."""
     if _has_business_records(farm):
         raise FarmHasRecords()
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.DELETED)
     farm.delete()
+
+
+def has_business_records(farm: Farm) -> bool:
+    return _has_business_records(farm)
 
 
 def _has_business_records(farm: Farm) -> bool:

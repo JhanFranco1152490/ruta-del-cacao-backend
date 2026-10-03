@@ -1,5 +1,5 @@
 from django.urls import reverse
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -14,13 +14,20 @@ from .filters import ProducerFilter
 from .models import Producer
 from .serializers import (
     ProducerConflictErrorSerializer,
+    ProducerDeleteSerializer,
     ProducerDetailSerializer,
     ProducerListSerializer,
     ProducerSerializer,
     ProducerStatusSerializer,
     ProducerUpdateSerializer,
 )
-from .services import change_producer_status, create_producer, get_producer, update_producer
+from .services import (
+    change_producer_status,
+    create_producer,
+    delete_producer,
+    get_producer,
+    update_producer,
+)
 
 
 @extend_schema_view(
@@ -51,6 +58,21 @@ from .services import change_producer_status, create_producer, get_producer, upd
             **error_responses(400, 401, 403, 404),
         },
     ),
+    destroy=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "expected_version",
+                int,
+                required=True,
+                description="La `version` del productor que se leyó.",
+            )
+        ],
+        responses={
+            204: None,
+            409: ProducerConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
     change_status=extend_schema(
         request=ProducerStatusSerializer,
         responses={200: ProducerDetailSerializer, **error_responses(400, 401, 403, 404, 409)},
@@ -65,6 +87,7 @@ class ProducerViewSet(GenericViewSet):
         "retrieve": "producers.view",
         "create": "producers.create",
         "partial_update": "producers.update",
+        "destroy": "producers.delete",
         "change_status": "producers.change_status",
     }
     filterset_class = ProducerFilter
@@ -100,6 +123,15 @@ class ProducerViewSet(GenericViewSet):
         data = dict(serializer.validated_data)
         expected_version = data.pop("expected_version")
         return Response(ProducerSerializer(update_producer(pk, expected_version, data)).data)
+
+    # Elimina un productor creado por error. La versión va en la URL: un cuerpo en DELETE no tiene
+    # significado definido en HTTP y algunos intermediarios lo descartan. Sin conflicto de
+    # versión ni dependientes importantes responde 204; con ellos, 409 y no se borra nada.
+    def destroy(self, request, pk):
+        serializer = ProducerDeleteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        delete_producer(request.user, pk, serializer.validated_data["expected_version"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["patch"], url_path="status")
     def change_status(self, request, pk):

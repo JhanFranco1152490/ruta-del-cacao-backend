@@ -7,10 +7,12 @@ from apps.plots.exceptions import InvalidBoundary
 from apps.plots.geometry import (
     declared_area_matches,
     find_overlaps,
+    max_distance_from_farm_m,
     measured_area_hectares,
     suggest_boundary,
     to_polygon,
     validate_boundary,
+    vertices_too_far_from,
 )
 from apps.plots.tests.factories import LAT, LON, STEP, rect, vertex
 
@@ -236,3 +238,37 @@ def _regular_polygon(sides):
         )
         for i in range(sides)
     ]
+
+
+class TestReachOfTheFarm:
+    @pytest.mark.parametrize(
+        ("area", "expected"),
+        [("1", 413), ("10", 657), ("12.5", 699), ("100", 1428)],
+    )
+    def test_the_limit_grows_with_the_area_of_the_farm(self, area, expected):
+        # Los mismos valores que fija el frontend en sus pruebas.
+        assert max_distance_from_farm_m(Decimal(area)) == expected
+
+    def test_accepts_vertices_next_to_the_farm_point(self):
+        vertices = validate_boundary(rect(0, 0, 1, 1)).vertices
+
+        assert vertices_too_far_from(vertices, (LAT, LON), Decimal("10")) == []
+
+    def test_reports_the_vertices_that_pass_the_limit_with_their_position_and_distance(self):
+        vertices = validate_boundary(
+            [vertex(LON, LAT), vertex(LON + STEP, LAT), vertex(LON + STEP, LAT + 20 * STEP)]
+        ).vertices
+
+        far = vertices_too_far_from(vertices, (LAT, LON), Decimal("10"))
+
+        # El tercer vértice está a unos 2,2 km del punto: el límite de 10 ha es 657 m.
+        assert [position for position, _ in far] == [3]
+        assert 2200 < far[0][1] < 2300
+
+    def test_is_more_tolerant_with_a_bigger_farm(self):
+        vertices = validate_boundary(
+            [vertex(LON, LAT), vertex(LON + STEP, LAT), vertex(LON + STEP, LAT + 10 * STEP)]
+        ).vertices
+
+        assert len(vertices_too_far_from(vertices, (LAT, LON), Decimal("10"))) == 1
+        assert vertices_too_far_from(vertices, (LAT, LON), Decimal("100")) == []

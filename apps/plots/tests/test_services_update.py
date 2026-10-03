@@ -13,12 +13,13 @@ from apps.plots.exceptions import (
     PlotAreaExceedsFarm,
     PlotNotFound,
     PlotOverlap,
+    PlotTooFarFromFarm,
     StalePlotVersion,
 )
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
 from apps.plots.services import create_plot, rules, update_plot
-from apps.plots.tests.factories import PlotFactory, boundary_fields, plot_data, rect
+from apps.plots.tests.factories import NEAR_SHAPES, PlotFactory, boundary_fields, plot_data, rect
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -31,7 +32,7 @@ def owner():
 
 @pytest.fixture
 def farm(owner):
-    return FarmFactory(producer=owner.producer, area_hectares=Decimal("10.00"))
+    return FarmFactory(**NEAR_SHAPES, producer=owner.producer, area_hectares=Decimal("10.00"))
 
 
 def measured(vertices) -> Decimal:
@@ -275,3 +276,26 @@ def test_a_plot_deleted_while_waiting_for_the_farm_lock_is_not_found(owner, farm
     with mock.patch.object(rules, "lock_farm", side_effect=lock_after_someone_deletes_it):
         with pytest.raises(PlotNotFound):
             update_plot(owner, plot.pk, 1, {"code": "Tarde"})
+
+
+def test_a_new_boundary_too_far_from_the_farm_point_is_rejected(owner, farm):
+    plot = PlotFactory(farm=farm)
+
+    with pytest.raises(PlotTooFarFromFarm):
+        update_plot(owner, plot.pk, 1, drawn(rect(0, 20, 1, 21)[:3]))
+
+    plot.refresh_from_db()
+    assert plot.boundary is None
+    assert plot.version == 1
+
+
+def test_editing_only_the_area_does_not_look_at_the_distance_again(owner, farm):
+    plot = drawn_plot(farm, rect(0, 0, 1, 1))
+    # El punto de la finca se movió después de dibujar: la parcela ya dibujada no se rechaza
+    # por eso.
+    farm.latitude = Decimal("8.5")
+    farm.save()
+
+    updated = update_plot(owner, plot.pk, 1, {"code": "Otro código"})
+
+    assert updated.code == "Otro código"

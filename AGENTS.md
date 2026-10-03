@@ -96,7 +96,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records` (409); `payload_too_large` (413);
   `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
   `municipality_department_mismatch`, `farm_inactive`, `farm_area_below_plots`,
-  `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`, `plot_overlap` (422);
+  `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`, `plot_overlap`,
+  `plot_too_far_from_farm` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en

@@ -6,6 +6,7 @@ Un contorno es una lista de vértices (`latitude`, `longitude`, `accuracy_m`, `c
 como un plano no cambia qué se cruza ni qué se superpone; las áreas sí se miden en la esfera.
 """
 
+import math
 from collections.abc import Hashable
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,7 +16,7 @@ from django.core.exceptions import ValidationError
 from shapely import Polygon, unary_union
 from shapely.geometry.base import BaseGeometry
 
-from apps.common.geo import ring_area_m2
+from apps.common.geo import distance_m, ring_area_m2
 from apps.common.validators import validate_latitude, validate_longitude
 
 from .exceptions import InvalidBoundary
@@ -32,6 +33,10 @@ OVERLAP_TOLERANCE_M2 = 1.0
 # Diferencia máxima entre el área declarada y la del dibujo, relativa a la del dibujo.
 AREA_TOLERANCE = Decimal("0.05")
 ADJUSTED_SOURCE = "adjusted"
+# Un vértice no puede quedar lejos del punto de la finca (la casa o la entrada): el límite es el
+# doble del radio de una finca circular de esa área, porque el punto puede estar en un extremo,
+# más un margen para las fincas que no son redondas. El frontend aplica los mismos números.
+FARM_REACH_MARGIN_M = 300
 
 
 @dataclass(frozen=True)
@@ -92,8 +97,30 @@ def measured_area_hectares(geometry: BaseGeometry) -> Decimal:
     return _hectares(_area_m2(geometry))
 
 
+def max_distance_from_farm_m(farm_area_hectares: Decimal) -> int:
+    radius = math.sqrt(float(farm_area_hectares) * SQUARE_METRES_PER_HECTARE / math.pi)
+    # Redondeo hacia arriba en la mitad, como `Math.round` del frontend (el de Python redondea al
+    # par y daría otro número en los medios exactos).
+    return math.floor(2 * radius + FARM_REACH_MARGIN_M + 0.5)
+
+
 def declared_area_matches(declared: Decimal, measured: Decimal) -> bool:
     return abs(declared - measured) <= AREA_TOLERANCE * measured
+
+
+def vertices_too_far_from(
+    vertices: list[dict], origin: tuple[Decimal, Decimal], farm_area_hectares: Decimal
+) -> list[tuple[int, int]]:
+    """Los vértices que pasan del límite al punto `(latitud, longitud)` de la finca, como pares
+    `(posición desde 1, metros)`."""
+    limit = max_distance_from_farm_m(farm_area_hectares)
+    origin_point = (float(origin[1]), float(origin[0]))
+    far = []
+    for position, vertex in enumerate(vertices, start=1):
+        metres = distance_m(origin_point, _point(vertex))
+        if metres > limit:
+            far.append((position, round(metres)))
+    return far
 
 
 def find_overlaps(polygon: Polygon, neighbours: dict[Hashable, Polygon]) -> list[Overlap]:

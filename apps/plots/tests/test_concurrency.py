@@ -17,7 +17,7 @@ from apps.plots.exceptions import (
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
 from apps.plots.services import create_plot, delete_plot, update_plot
-from apps.plots.tests.factories import PlotFactory, plot_data, rect
+from apps.plots.tests.factories import NEAR_SHAPES, PlotFactory, plot_data, rect
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -39,7 +39,7 @@ def attempt(action):
 
 def test_two_plots_that_together_exceed_the_farm_area_cannot_both_be_saved(owner):
     # Dos teléfonos sin conexión registran 3 ha cada uno en una finca con 4 ha libres.
-    farm = FarmFactory(producer=owner.producer, area_hectares=Decimal("4.00"))
+    farm = FarmFactory(**NEAR_SHAPES, producer=owner.producer, area_hectares=Decimal("4.00"))
 
     results = run_in_parallel(
         lambda code: attempt(
@@ -54,7 +54,7 @@ def test_two_plots_that_together_exceed_the_farm_area_cannot_both_be_saved(owner
 
 
 def test_two_overlapping_plots_cannot_both_be_saved(owner):
-    farm = FarmFactory(producer=owner.producer, area_hectares=Decimal("50.00"))
+    farm = FarmFactory(**NEAR_SHAPES, producer=owner.producer, area_hectares=Decimal("50.00"))
     boundaries = {"P-01": rect(0, 0, 2, 1), "P-02": rect(1, 0, 3, 1)}
 
     def create(code):
@@ -73,7 +73,7 @@ def test_two_overlapping_plots_cannot_both_be_saved(owner):
 
 
 def test_two_simultaneous_syncs_of_the_same_plot_create_it_once(owner):
-    farm = FarmFactory(producer=owner.producer)
+    farm = FarmFactory(**NEAR_SHAPES, producer=owner.producer)
     data = plot_data(farm, id=uuid.uuid4())
 
     results = run_in_parallel(lambda _: create_plot(owner, dict(data)), [1, 2])
@@ -86,7 +86,7 @@ def test_two_simultaneous_syncs_of_the_same_plot_create_it_once(owner):
 def test_shrinking_the_farm_while_a_plot_arrives_never_leaves_it_overallocated(owner):
     # 2 ha ya asignadas en una finca de 10. A la vez: bajar la finca a 4 ha y registrar 3 ha.
     # Cualquiera de las dos que llegue primero deja sin lugar a la otra.
-    farm = FarmFactory(producer=owner.producer, area_hectares=Decimal("10.00"))
+    farm = FarmFactory(**NEAR_SHAPES, producer=owner.producer, area_hectares=Decimal("10.00"))
     PlotFactory(farm=farm, area_hectares=Decimal("2.00"))
 
     def act(which):
@@ -109,7 +109,7 @@ def test_shrinking_the_farm_while_a_plot_arrives_never_leaves_it_overallocated(o
 def test_deleting_and_editing_the_same_plot_at_once_never_fails_unexpectedly(owner):
     # Gane quien gane, la otra recibe un error conocido: si la parcela ya no está, `not_found`;
     # si la edición llegó primero, `stale_version` para el borrado.
-    farm = FarmFactory(producer=owner.producer)
+    farm = FarmFactory(**NEAR_SHAPES, producer=owner.producer)
     plot = PlotFactory(farm=farm)
 
     def act(which):

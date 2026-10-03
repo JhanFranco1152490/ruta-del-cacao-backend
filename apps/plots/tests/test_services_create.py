@@ -17,11 +17,13 @@ from apps.plots.exceptions import (
     PlotAreaExceedsFarm,
     PlotIdConflict,
     PlotOverlap,
+    PlotTooFarFromFarm,
 )
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
 from apps.plots.services import create_plot
 from apps.plots.tests.factories import (
+    NEAR_SHAPES,
     PlotFactory,
     boundary_fields,
     plot_data,
@@ -39,7 +41,7 @@ def owner():
 
 @pytest.fixture
 def farm(owner):
-    return FarmFactory(producer=owner.producer, area_hectares=Decimal("10.00"))
+    return FarmFactory(**NEAR_SHAPES, producer=owner.producer, area_hectares=Decimal("10.00"))
 
 
 def measured(vertices) -> Decimal:
@@ -166,7 +168,7 @@ def test_code_is_unique_within_the_farm(owner, farm):
 def test_the_same_code_is_accepted_in_another_farm(owner, farm):
     create_plot(owner, plot_data(farm, code="P-01"))
 
-    create_plot(owner, plot_data(FarmFactory(producer=owner.producer), code="P-01"))
+    create_plot(owner, plot_data(FarmFactory(**NEAR_SHAPES, producer=owner.producer), code="P-01"))
 
 
 def test_an_invalid_boundary_is_rejected_and_nothing_is_saved(owner, farm):
@@ -259,7 +261,7 @@ def test_plots_that_do_not_count_for_the_overlap(owner, farm, neighbour):
     elif neighbour == "without_boundary":
         PlotFactory(farm=farm)
     else:
-        other_farm = FarmFactory(producer=owner.producer)
+        other_farm = FarmFactory(**NEAR_SHAPES, producer=owner.producer)
         PlotFactory(farm=other_farm, **boundary_fields(rect(0, 0, 1, 1)))
 
     create_plot(owner, with_boundary(farm, rect(0, 0, 1, 1)))
@@ -296,7 +298,7 @@ def test_resending_an_id_with_other_content_returns_the_current_plot(owner, farm
 def test_an_id_of_another_producer_is_a_conflict_without_its_data(owner, farm):
     plot = PlotFactory(farm=farm)
     stranger = UserFactory(producer=ProducerFactory())
-    their_farm = FarmFactory(producer=stranger.producer)
+    their_farm = FarmFactory(**NEAR_SHAPES, producer=stranger.producer)
 
     with pytest.raises(PlotIdConflict) as error:
         create_plot(stranger, plot_data(their_farm, id=plot.pk))
@@ -313,3 +315,44 @@ def test_resending_does_not_need_the_farm_to_be_active(owner, farm):
     _, created = create_plot(owner, plot_data(farm, id=plot_id))
 
     assert created is False
+
+
+# --- Alcance de la finca ----------------------------------------------------------------
+
+
+def far_from_farm(offset_steps):
+    """Un triángulo de 0,001° (unos 110 m) de lado, `offset_steps` pasos al norte del punto de
+    la finca (cada paso son unos 110 m)."""
+    return rect(0, offset_steps, 1, offset_steps + 1)[:3]
+
+
+def test_a_boundary_too_far_from_the_farm_point_is_rejected_and_nothing_is_saved(owner, farm):
+    # La finca mide 10 ha: el límite es 657 m, y este vértice queda a unos 2,2 km.
+    with pytest.raises(PlotTooFarFromFarm) as error:
+        create_plot(owner, with_boundary(farm, far_from_farm(20)))
+
+    assert error.value.default_code == "plot_too_far_from_farm"
+    assert "657 m" in error.value.detail
+    assert not Plot.objects.exists()
+    assert not PlotAuditEvent.objects.exists()
+
+
+def test_a_boundary_within_reach_of_the_farm_point_is_accepted(owner, farm):
+    plot, created = create_plot(owner, with_boundary(farm, far_from_farm(1)))
+
+    assert created is True
+    assert plot.boundary is not None
+
+
+def test_a_bigger_farm_reaches_farther(owner):
+    big = FarmFactory(**NEAR_SHAPES, producer=owner.producer, area_hectares=Decimal("100.00"))
+
+    plot, _ = create_plot(owner, with_boundary(big, far_from_farm(10)))
+
+    assert plot.boundary is not None
+
+
+def test_a_plot_without_boundary_has_no_distance_to_check(owner, farm):
+    plot, _ = create_plot(owner, plot_data(farm))
+
+    assert plot.boundary is None

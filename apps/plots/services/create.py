@@ -39,6 +39,7 @@ def create_plot(actor, data: dict) -> tuple[Plot, bool]:
     boundary = apply_boundary(plot, data.get("boundary"))
     rules.check_available_area(farm, plot.area_hectares)
     if boundary is not None:
+        rules.check_within_farm_reach(farm, boundary)
         rules.check_no_overlap(farm, boundary)
 
     try:

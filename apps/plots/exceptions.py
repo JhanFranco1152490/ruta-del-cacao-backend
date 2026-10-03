@@ -53,6 +53,19 @@ class PlotAreaExceedsFarm(ApiError):
         super().__init__(fields={"area_hectares": [self.default_detail]})
 
 
+class PlotTooFarFromFarm(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "El polígono queda demasiado lejos del punto de la finca."
+    default_code = "plot_too_far_from_farm"
+
+    def __init__(self, position: int, metres: int, maximum_metres: int):
+        message = (
+            f"El vértice {position} está a {metres} m del punto de la finca; "
+            f"el máximo para esta finca es {maximum_metres} m."
+        )
+        super().__init__(message, fields={"boundary": [message]})
+
+
 class PlotOverlap(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El polígono se superpone con otra parcela de la finca."

@@ -26,3 +26,17 @@ def ring_area_m2(ring: Sequence[tuple[float, float]]) -> float:
         upper = ring[(index + 2) % count]
         total += (upper[0] * _RADIANS - lower[0] * _RADIANS) * math.sin(middle[1] * _RADIANS)
     return abs(total * _FACTOR)
+
+
+def distance_m(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Distancia en metros entre dos puntos `(longitud, latitud)`, por la fórmula de haversine
+    sobre la misma esfera del cálculo de áreas: la medición es la misma en el dispositivo."""
+    lon_a, lat_a = (value * _RADIANS for value in a)
+    lon_b, lat_b = (value * _RADIANS for value in b)
+    # Orden de las operaciones como en `@turf/distance`, para que dé el mismo número.
+    delta_lat = lat_b - lat_a
+    delta_lon = lon_b - lon_a
+    haversine = math.sin(delta_lat / 2) ** 2 + math.sin(delta_lon / 2) ** 2 * math.cos(
+        lat_a
+    ) * math.cos(lat_b)
+    return 2 * EARTH_RADIUS_M * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine))

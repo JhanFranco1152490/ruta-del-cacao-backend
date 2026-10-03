@@ -12,6 +12,9 @@ from apps.plots.models import Plot
 LON = Decimal("-72.5")
 LAT = Decimal("7.8")
 STEP = Decimal("0.001")
+# El punto de una finca junto a los polígonos de las pruebas: un vértice no puede quedar lejos
+# de él.
+NEAR_SHAPES = {"latitude": LAT + 2 * STEP, "longitude": LON + STEP}
 
 
 def vertex(lon, lat, source="map", accuracy_m=None):

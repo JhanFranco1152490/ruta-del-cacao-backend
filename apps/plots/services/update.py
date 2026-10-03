@@ -55,6 +55,8 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
     reactivated = "is_active" in changed and plot.is_active
     if plot.is_active and (reactivated or "area_hectares" in changed):
         rules.check_available_area(farm, plot.area_hectares, exclude_plot_id=plot.pk)
+    if boundary is not None and "boundary" in changed:
+        rules.check_within_farm_reach(farm, boundary)
     if plot.is_active and boundary is not None and (reactivated or "boundary" in changed):
         rules.check_no_overlap(farm, boundary, exclude_plot_id=plot.pk)
 

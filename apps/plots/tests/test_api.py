@@ -11,7 +11,7 @@ from apps.accounts.tests.factories import UserFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
-from apps.plots.tests.factories import PlotFactory, boundary_fields, rect
+from apps.plots.tests.factories import NEAR_SHAPES, PlotFactory, boundary_fields, rect
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -37,7 +37,9 @@ def client(auth_client, owner):
 
 @pytest.fixture
 def farm(owner):
-    return FarmFactory(producer=owner.producer, name="La Esperanza", area_hectares=Decimal("10"))
+    return FarmFactory(
+        **NEAR_SHAPES, producer=owner.producer, name="La Esperanza", area_hectares=Decimal("10")
+    )
 
 
 def measured(vertices) -> Decimal:
@@ -96,7 +98,7 @@ def test_each_action_requires_its_permission(auth_client, method, path_suffix, m
         producer=ProducerFactory(),
         permissions=[code for code in PLOT_PERMISSIONS if code != missing],
     )
-    plot = PlotFactory(farm=FarmFactory(producer=user.producer))
+    plot = PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=user.producer))
 
     response = getattr(auth_client(user), method)(
         "/api/plots" + path_suffix.format(id=plot.pk), {}, format="json"
@@ -176,7 +178,7 @@ def test_resending_an_id_with_other_content_returns_the_current_plot(client, far
 
 
 def test_an_id_of_another_producer_is_a_conflict_without_its_data(client, farm):
-    foreign = PlotFactory(farm=FarmFactory(producer=ProducerFactory()))
+    foreign = PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()))
 
     response = client.post("/api/plots", body(farm, id=str(foreign.pk)), format="json")
 
@@ -251,6 +253,16 @@ def test_an_overlap_returns_the_neighbour_and_the_suggested_boundary(client, far
     assert response.data["suggested_measured_area_hectares"] == str(measured(rect(0, 0, 1, 1)))
 
 
+def test_a_boundary_too_far_from_the_farm_point_is_a_422_that_names_the_vertex(client, farm):
+    response = client.post("/api/plots", body(farm, rect(0, 20, 1, 21)[:3]), format="json")
+
+    assert response.status_code == 422
+    assert response.data["code"] == "plot_too_far_from_farm"
+    (message,) = response.data["fields"]["boundary"]
+    assert message.startswith("El vértice 1 está a ")
+    assert message.endswith("el máximo para esta finca es 657 m.")
+
+
 def test_an_overlap_without_a_possible_suggestion(client, farm):
     farm.area_hectares = Decimal("50")
     farm.save()
@@ -266,7 +278,7 @@ def test_an_overlap_without_a_possible_suggestion(client, farm):
 def test_a_repeated_code_in_the_same_farm_is_rejected(client, farm):
     # CA-11: " p-01 " choca con "P-01" en la misma finca, no en otra.
     PlotFactory(farm=farm, code="P-01")
-    other_farm = FarmFactory(producer=farm.producer)
+    other_farm = FarmFactory(**NEAR_SHAPES, producer=farm.producer)
 
     repeated = client.post("/api/plots", body(farm, code=" p-01 "), format="json")
     elsewhere = client.post("/api/plots", body(other_farm, code=" p-01 "), format="json")
@@ -310,7 +322,7 @@ def test_code_and_area_are_validated(client, farm, change):
 
 def test_a_farm_of_another_producer_does_not_exist(client):
     # CA-14 al registrar.
-    foreign_farm = FarmFactory(producer=ProducerFactory())
+    foreign_farm = FarmFactory(**NEAR_SHAPES, producer=ProducerFactory())
 
     response = client.post("/api/plots", body(foreign_farm), format="json")
 
@@ -334,7 +346,7 @@ def test_an_inactive_farm_rejects_new_plots(client, farm):
 def test_list_returns_own_plots_ordered_by_code_and_paginated(client, farm):
     for code in ["P-03", "P-01", "P-02"]:
         PlotFactory(farm=farm, code=code)
-    PlotFactory(farm=FarmFactory(producer=ProducerFactory()), code="P-00")
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="P-00")
 
     response = client.get("/api/plots", {"page_size": 2})
 
@@ -344,7 +356,7 @@ def test_list_returns_own_plots_ordered_by_code_and_paginated(client, farm):
 
 
 def test_list_filters_by_farm_status_and_code(client, farm):
-    other_farm = FarmFactory(producer=farm.producer)
+    other_farm = FarmFactory(**NEAR_SHAPES, producer=farm.producer)
     # El prefijo fija el orden: así no depende de cómo ordene las tildes la base de datos.
     PlotFactory(farm=farm, code="A1 Árbol")
     PlotFactory(farm=farm, code="B2 Río", is_active=False)
@@ -359,7 +371,7 @@ def test_list_filters_by_farm_status_and_code(client, farm):
 
 
 def test_filtering_by_a_farm_of_another_producer_returns_nothing(client):
-    foreign_farm = FarmFactory(producer=ProducerFactory())
+    foreign_farm = FarmFactory(**NEAR_SHAPES, producer=ProducerFactory())
     PlotFactory(farm=foreign_farm)
 
     response = client.get("/api/plots", {"farm": foreign_farm.pk})
@@ -381,7 +393,7 @@ def test_the_list_query_count_does_not_grow_with_plots(client, farm):
     with CaptureQueriesContext(connection) as one:
         client.get("/api/plots")
     for x in range(1, 6):
-        drawn_plot(FarmFactory(producer=farm.producer), rect(x, 0, x + 1, 1))
+        drawn_plot(FarmFactory(**NEAR_SHAPES, producer=farm.producer), rect(x, 0, x + 1, 1))
 
     with CaptureQueriesContext(connection) as many:
         client.get("/api/plots")
@@ -402,7 +414,9 @@ def test_retrieve_returns_an_own_plot_with_its_boundary(client, farm):
 
 def test_a_plot_of_another_producer_does_not_exist(client):
     # CA-14 al consultar y al modificar.
-    foreign = PlotFactory(farm=FarmFactory(producer=ProducerFactory()), code="Ajena")
+    foreign = PlotFactory(
+        farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="Ajena"
+    )
 
     got = client.get(f"/api/plots/{foreign.pk}")
     patched = client.patch(
@@ -465,7 +479,7 @@ def test_update_deactivates_and_reactivates(client, farm):
 
 def test_update_cannot_move_a_plot_to_another_farm(client, farm):
     plot = PlotFactory(farm=farm)
-    other_farm = FarmFactory(producer=farm.producer)
+    other_farm = FarmFactory(**NEAR_SHAPES, producer=farm.producer)
 
     response = client.patch(
         f"/api/plots/{plot.pk}",
@@ -589,7 +603,7 @@ def test_delete_with_dependent_records_suggests_deactivating(client, farm):
 
 
 def test_delete_of_a_plot_of_another_producer_does_not_exist(client):
-    foreign = PlotFactory(farm=FarmFactory(producer=ProducerFactory()))
+    foreign = PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()))
 
     response = client.delete(f"/api/plots/{foreign.pk}?expected_version=1")
 

@@ -10,13 +10,21 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
-from ..exceptions import FarmInactive, FarmNotFound, PlotAreaExceedsFarm, PlotOverlap
+from ..exceptions import (
+    FarmInactive,
+    FarmNotFound,
+    PlotAreaExceedsFarm,
+    PlotOverlap,
+    PlotTooFarFromFarm,
+)
 from ..geometry import (
     Boundary,
     find_overlaps,
+    max_distance_from_farm_m,
     measured_area_hectares,
     suggest_boundary,
     to_polygon,
+    vertices_too_far_from,
 )
 from ..models import Plot
 
@@ -46,6 +54,17 @@ def check_available_area(farm, area_hectares: Decimal, exclude_plot_id=None) -> 
     allocated = totals["allocated"] or Decimal("0")
     if allocated + area_hectares > farm.area_hectares:
         raise PlotAreaExceedsFarm()
+
+
+def check_within_farm_reach(farm, boundary: Boundary) -> None:
+    """Ningún vértice puede quedar más lejos del punto de la finca de lo que cabe en una finca de
+    ese tamaño."""
+    far = vertices_too_far_from(
+        boundary.vertices, (farm.latitude, farm.longitude), farm.area_hectares
+    )
+    if far:
+        position, metres = far[0]
+        raise PlotTooFarFromFarm(position, metres, max_distance_from_farm_m(farm.area_hectares))
 
 
 def check_no_overlap(farm, boundary: Boundary, exclude_plot_id=None) -> None:

@@ -3,6 +3,8 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from apps.common.audit import AuditEventBase
+from apps.common.municipality_altitude import altitude_range_for
 from apps.common.territorial import (
     InvalidDepartmentCode,
     InvalidMunicipalityCode,
@@ -11,14 +13,10 @@ from apps.common.territorial import (
     get_municipality,
     validate_municipality_department,
 )
+from apps.common.text import normalize_name
+from apps.common.validators import validate_latitude, validate_longitude, validate_positive_area
 
-from .validators import (
-    normalize_farm_name,
-    validate_altitude,
-    validate_latitude,
-    validate_longitude,
-    validate_positive_area,
-)
+from .validators import validate_altitude
 
 # Código del error de `clean()` cuando el municipio no es del departamento: el servicio lo
 # reconoce por él para responderlo como un caso de negocio y no como un error de campo.
@@ -98,7 +96,7 @@ class Farm(models.Model):
         if isinstance(self.name, str):
             self.name = self.name.strip()
         if self.name:
-            self.name_normalized = normalize_farm_name(self.name)
+            self.name_normalized = normalize_name(self.name)
         else:
             errors["name"] = "Este campo es obligatorio."
 
@@ -129,18 +127,27 @@ class Farm(models.Model):
                     code=MUNICIPALITY_DEPARTMENT_MISMATCH,
                 )
 
+        if "municipality_code" not in errors and isinstance(self.altitude_masl, int):
+            # La altitud también tiene que caber en el terreno del municipio elegido.
+            terrain = altitude_range_for(self.municipality_code)
+            if terrain and not terrain[0] <= self.altitude_masl <= terrain[1]:
+                errors.setdefault(
+                    "altitude_masl",
+                    f"La altitud no corresponde al municipio elegido: allí el terreno va de "
+                    f"{terrain[0]} a {terrain[1]} m.",
+                )
+
         if errors:
             raise ValidationError(errors)
 
 
-class FarmAuditEvent(models.Model):
+class FarmAuditEvent(AuditEventBase):
     class Action(models.TextChoices):
         CREATED = "created", "Finca creada"
         UPDATED = "updated", "Finca actualizada"
         STATUS_CHANGED = "status_changed", "Estado de finca modificado"
         DELETED = "deleted", "Finca eliminada"
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # La auditoría sobrevive a la finca y a quien actuó: al eliminar una finca creada por error,
     # o una cuenta, sus eventos quedan sin la relación pero con la copia de `farm_ref` y
     # `farm_name`, que dice de qué finca eran.
@@ -159,8 +166,3 @@ class FarmAuditEvent(models.Model):
         related_name="farm_audit_events",
     )
     action = models.CharField(max_length=32, choices=Action.choices)
-    changed_fields = models.JSONField(default=list, blank=True)
-    occurred_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-occurred_at"]

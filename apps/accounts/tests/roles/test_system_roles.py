@@ -71,12 +71,17 @@ def test_each_system_role_has_exactly_its_declared_permissions():
 
 
 FARM_MANAGEMENT = {"farms.add_farm", "farms.change_farm", "farms.delete_farm"}
+# Los cuatro, incluido consultar: la asociación no ve parcelas.
+PLOT_PERMISSIONS = {"plots.view_plot", "plots.add_plot", "plots.change_plot", "plots.delete_plot"}
 
 
-def test_only_the_producer_role_manages_farms():
+@pytest.mark.parametrize(
+    "permissions", [FARM_MANAGEMENT, PLOT_PERMISSIONS], ids=["farm_management", "plots"]
+)
+def test_only_the_producer_role_manages_farms_and_has_plots(permissions):
     for code, definition in SYSTEM_ROLES.items():
-        granted = FARM_MANAGEMENT & set(definition["permissions"])
-        assert granted == (FARM_MANAGEMENT if code == PRODUCER else set()), code
+        granted = permissions & set(definition["permissions"])
+        assert granted == (permissions if code == PRODUCER else set()), code
 
 
 def test_only_the_producer_and_the_association_read_farms():
@@ -113,6 +118,10 @@ def test_deleting_a_producer_requires_seeing_them():
         ("farms.add_farm", True),
         ("farms.change_farm", True),
         ("farms.delete_farm", True),
+        ("plots.view_plot", True),
+        ("plots.add_plot", True),
+        ("plots.change_plot", True),
+        ("plots.delete_plot", True),
         ("accounts.unknown_permission", False),
     ],
 )

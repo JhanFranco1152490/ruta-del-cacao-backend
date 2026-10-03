@@ -42,6 +42,10 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "farms.add_farm": PermissionInfo(area="farms", delegable=True),
     "farms.change_farm": PermissionInfo(area="farms", delegable=True),
     "farms.delete_farm": PermissionInfo(area="farms", delegable=True),
+    "plots.view_plot": PermissionInfo(area="plots", delegable=True),
+    "plots.add_plot": PermissionInfo(area="plots", delegable=True),
+    "plots.change_plot": PermissionInfo(area="plots", delegable=True),
+    "plots.delete_plot": PermissionInfo(area="plots", delegable=True),
 }
 
 
@@ -74,15 +78,25 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "farms.add_farm": "farms.view_farm",
     "farms.change_farm": "farms.view_farm",
     "farms.delete_farm": "farms.view_farm",
+    # Las parcelas se consultan desde su finca: sin ver la finca no hay cómo llegar a ellas.
+    "plots.view_plot": "farms.view_farm",
+    "plots.add_plot": "plots.view_plot",
+    "plots.change_plot": "plots.view_plot",
+    "plots.delete_plot": "plots.view_plot",
 }
 
 
 def with_dependencies(codes) -> set[str]:
-    """Los códigos pedidos más el permiso de vista que cada uno necesita para tener sentido."""
+    """Los códigos pedidos más los permisos de vista que cada uno necesita para tener sentido.
+
+    La dependencia se sigue hasta el final de la cadena: un permiso de vista también puede
+    necesitar otro (consultar lo que cuelga de un registro exige poder consultar ese registro).
+    """
     resolved = set(codes)
-    resolved.update(
-        dependency
-        for code in codes
-        if (dependency := PERMISSION_DEPENDENCIES.get(code)) is not None
-    )
+    pending = list(resolved)
+    while pending:
+        dependency = PERMISSION_DEPENDENCIES.get(pending.pop())
+        if dependency is not None and dependency not in resolved:
+            resolved.add(dependency)
+            pending.append(dependency)
     return resolved

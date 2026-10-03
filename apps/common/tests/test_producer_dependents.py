@@ -11,7 +11,7 @@ from apps.common.producer_dependents import (
 @pytest.fixture(autouse=True)
 def isolated_registry(monkeypatch):
     # El registro real se llena en el arranque de las apps: cada prueba trabaja con uno vacío.
-    monkeypatch.setattr(dependents, "_REGISTRY", {})
+    monkeypatch.setattr(dependents.registry, "_items", {})
 
 
 def _dependent(name, **overrides):

@@ -1,13 +1,18 @@
 import copy
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import QuerySet
+from django.db.models import DecimalField, Q, QuerySet, Sum, Value
+from django.db.models.functions import Coalesce
 
+from apps.common.db import constraint_name, has_dependent_rows
+from apps.common.farm_dependents import registered_dependents
 from apps.common.territorial import coordinates_outside_operating_area
 
 from ..exceptions import (
     DuplicateFarmName,
+    FarmAreaBelowPlots,
     FarmHasRecords,
     FarmIdConflict,
     FarmNotFound,
@@ -35,6 +40,13 @@ CONTENT_FIELDS = (
     "longitude",
 )
 COORDINATE_FIELDS = frozenset({"latitude", "longitude"})
+# El área ya repartida en parcelas activas. Las parcelas se alcanzan por su relación con la finca
+# (`plots`), sin importar su app: así esta app no depende del código de la otra.
+ALLOCATED_AREA = Coalesce(
+    Sum("plots__area_hectares", filter=Q(plots__is_active=True)),
+    Value(Decimal("0")),
+    output_field=DecimalField(max_digits=12, decimal_places=2),
+)
 
 
 def filter_farms(farms, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
@@ -53,14 +65,17 @@ def filter_farms(farms, *, search=None, producer=None, municipality=None) -> Que
 def list_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
     # Activas primero: la lista llega paginada, así que solo el servidor puede dejar las
     # inactivas al final de todas las páginas.
+    farms = readable_farms(actor).annotate(allocated_area_hectares=ALLOCATED_AREA)
     return filter_farms(
-        readable_farms(actor), search=search, producer=producer, municipality=municipality
+        farms, search=search, producer=producer, municipality=municipality
     ).order_by("-is_active", "name_normalized", "id")
 
 
 def get_farm(actor, farm_id) -> Farm:
     try:
-        return readable_farms(actor).get(pk=farm_id)
+        return (
+            readable_farms(actor).annotate(allocated_area_hectares=ALLOCATED_AREA).get(pk=farm_id)
+        )
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
 
@@ -93,10 +108,11 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
         existing = Farm.objects.filter(pk=farm.pk).first() if farm_id is not None else None
         if existing is not None:
             return _resent_farm(existing, actor, data), False
-        if _constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
+        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
             raise DuplicateFarmName() from None
         raise
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.CREATED)
+    farm.allocated_area_hectares = Decimal("0")
     return farm, True
 
 
@@ -106,6 +122,9 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
         farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
+    # Con la finca bloqueada, ninguna parcela se registra ni se agranda hasta que esto termine.
+    # La suma va en una consulta aparte: PostgreSQL no bloquea filas de una consulta agrupada.
+    _set_allocated_area(farm)
     if farm.version != expected_version:
         # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
         # haya aplicado el cambio. Si la finca ya tiene justo lo que se pide, el resultado sería
@@ -126,6 +145,8 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     changed = [name for name in data if getattr(farm, name) != before[name]]
     if not changed:
         return farm
+    if "area_hectares" in changed and farm.area_hectares < farm.allocated_area_hectares:
+        raise FarmAreaBelowPlots(farm.allocated_area_hectares)
 
     farm.version += 1
     update_fields = [*changed, "version", "updated_at"]
@@ -135,7 +156,7 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
         with transaction.atomic():
             farm.save(update_fields=update_fields)
     except IntegrityError as error:
-        if _constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
+        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
             raise DuplicateFarmName() from None
         raise
 
@@ -166,41 +187,40 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
     if farm.version != expected_version:
+        # El conflicto devuelve la finca del servidor, con su área asignada como en toda
+        # respuesta de una finca.
+        _set_allocated_area(farm)
         raise StaleFarmVersion(farm)
     remove_unimportant_farm(farm, actor)
 
 
 def remove_unimportant_farm(farm: Farm, actor) -> None:
-    """Elimina `farm` si no tiene registros del negocio; si no, `FarmHasRecords`. Quien llama
-    ya validó quién puede hacerlo: aquí solo se aplica la regla y se deja el rastro."""
-    if _has_business_records(farm):
+    """Elimina `farm` con lo que depende de ella si nada de eso es importante; si lo es,
+    `FarmHasRecords` y no se toca nada. Quien llama ya validó quién puede hacerlo: aquí solo se
+    aplica la regla y se deja el rastro."""
+    if has_business_records(farm):
         raise FarmHasRecords()
+    for dependent in registered_dependents():
+        dependent.delete_all(farm, actor)
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.DELETED)
     farm.delete()
 
 
 def has_business_records(farm: Farm) -> bool:
-    return _has_business_records(farm)
-
-
-def _has_business_records(farm: Farm) -> bool:
-    # Cualquier tabla que apunte a la finca cuenta, salvo su auditoría: así una tabla nueva
-    # (parcelas, capturas, cosechas) bloquea el borrado sin que nadie la agregue a una lista.
-    # `include_hidden` incluye también las relaciones declaradas sin nombre inverso.
-    for relation in Farm._meta.get_fields(include_hidden=True):
-        if not relation.auto_created or relation.concrete:
-            continue
-        if relation.related_model is FarmAuditEvent:
-            continue
-        lookup = {relation.field.name: farm}
-        if relation.related_model._base_manager.filter(**lookup).exists():
-            return True
-    return False
+    """Si la finca tiene algo importante: un dependiente registrado (sus parcelas) que lo
+    considere así, o cualquier otra tabla que la apunte, salvo su auditoría. Así una tabla nueva
+    (capturas, cosechas) bloquea el borrado sin que nadie la agregue a una lista."""
+    dependents = registered_dependents()
+    if any(dependent.important_record(farm) for dependent in dependents):
+        return True
+    handled = tuple(model for dependent in dependents for model in dependent.models)
+    return has_dependent_rows(farm, ignore=(FarmAuditEvent, *handled))
 
 
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if existing.producer_id != actor.producer_id:
         raise FarmIdConflict()
+    _set_allocated_area(existing)
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
     # después de una creación cuya respuesta se perdió. El conflicto lleva la finca del servidor
     # para que el cliente envíe esa edición como un PATCH con su versión, en vez de quedar
@@ -208,6 +228,12 @@ def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
     if not _matches(existing, data, CONTENT_FIELDS):
         raise FarmIdConflict(existing)
     return existing
+
+
+def _set_allocated_area(farm: Farm) -> None:
+    farm.allocated_area_hectares = Farm.objects.filter(pk=farm.pk).aggregate(
+        allocated=ALLOCATED_AREA
+    )["allocated"]
 
 
 def _already_applied(farm: Farm, data: dict) -> bool:
@@ -250,8 +276,3 @@ def _validate(farm: Farm, *, check_operating_area: bool) -> None:
 
 def _without_empty_id(data: dict) -> dict:
     return {name: value for name, value in data.items() if name != "id" or value is not None}
-
-
-def _constraint_name(error: IntegrityError) -> str | None:
-    diagnostics = getattr(error.__cause__, "diag", None)
-    return getattr(diagnostics, "constraint_name", None)

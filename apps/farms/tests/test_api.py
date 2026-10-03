@@ -138,6 +138,7 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
         "municipality": {"id": "54001", "name": "Cúcuta"},
         "details": "Vereda El Pórtico, km 4",
         "area_hectares": "12.50",
+        "allocated_area_hectares": "0.00",
         "altitude_masl": 950,
         "location": {"latitude": "7.8234567", "longitude": "-72.5123456"},
         "version": 1,
@@ -147,6 +148,39 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
         "updated_at": body["updated_at"],
     }
     assert Farm.objects.get().producer_id == owner.producer_id
+
+
+def test_the_altitude_must_fit_the_terrain_of_the_municipality(client):
+    # Puerto Santander (54553): el terreno va de 43 a 72 m, con 100 m de margen.
+    data = {**VALID_DATA, "municipality_id": "54553", "altitude_masl": 950}
+
+    response = client.post("/api/farms", data, format="json")
+
+    assert response.status_code == 400
+    assert response.data["fields"]["altitude_masl"] == [
+        "La altitud no corresponde al municipio elegido: allí el terreno va de -57 a 172 m."
+    ]
+    assert not Farm.objects.exists()
+
+
+@pytest.mark.parametrize("altitude", [-57, 60, 172])
+def test_an_altitude_inside_the_range_of_the_municipality_is_accepted(client, altitude):
+    data = {**VALID_DATA, "municipality_id": "54553", "altitude_masl": altitude}
+
+    assert client.post("/api/farms", data, format="json").status_code == 201
+
+
+def test_editing_the_altitude_is_checked_against_the_municipality_too(client):
+    farm = client.post("/api/farms", VALID_DATA, format="json").data
+
+    response = client.patch(
+        f"/api/farms/{farm['id']}",
+        {"altitude_masl": 2500, "expected_version": 1},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "altitude_masl" in response.data["fields"]
 
 
 def test_create_without_id_generates_one(client):

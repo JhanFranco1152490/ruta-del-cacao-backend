@@ -39,16 +39,18 @@ vive en `AGENTS.md` del workspace, si lo tienes al lado)
 Python 3.12 · Django 6.1 + Django REST Framework · PostgreSQL (psycopg 3). Sesión con
 `djangorestframework-simplejwt`, bloqueo de intentos con `django-axes`, filtros con
 `django-filter`, esquema OpenAPI con `drf-spectacular`, correo con `django-anymail`, estáticos
-con WhiteNoise, `gunicorn` como servidor y Sentry opcional. Toda la configuración sale de
+con WhiteNoise, geometría de polígonos con `shapely`, `gunicorn` como servidor y Sentry
+opcional. Toda la configuración sale de
 variables de entorno (`python-decouple`, ver "Variables de entorno").
 
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, middleware `no-store`, vistas 404/500 en JSON |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
+| `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 
 ### Capas
 
@@ -78,7 +80,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Todo error tiene la forma** `{"detail": str, "code": str, "fields": {campo: [str]}}`;
   `fields` es `{}` si el error no es de un campo, y algunos errores agregan claves
   documentadas (`existing_producer_id`; `current` en el `stale_version` y en el
-  `farm_id_conflict` de una finca propia, con la versión del servidor). Los errores de negocio son subclases de `ApiError`
+  `farm_id_conflict` o `plot_id_conflict` de un registro propio, con la versión del servidor;
+  `measured_area_hectares` en el `area_mismatch`; `overlaps`, `suggested_boundary` y
+  `suggested_measured_area_hectares` en el `plot_overlap`). Los errores de negocio son
+  subclases de `ApiError`
   (su `default_code` es el `code`) y el manejador global de `apps/common/exceptions.py` arma el
   cuerpo: nunca se responde `Response({...})` a mano con otra forma. Una ruta que no existe
   bajo `/api/` (404) y un fallo no controlado (500, sin datos técnicos) responden con la misma
@@ -87,13 +92,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
-  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records` (409);
-  `payload_too_large`
-  (413);
+  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
+  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records` (409); `payload_too_large` (413);
   `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
-  `municipality_department_mismatch` (422); `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
+  `municipality_department_mismatch`, `farm_inactive`, `farm_area_below_plots`,
+  `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`, `plot_overlap`,
+  `plot_too_far_from_farm` (422);
+  `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
-- **Registros creados sin conexión** (hoy, fincas): el `POST` acepta un `id` UUID generado en
+- **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en
   el dispositivo. Reenviar el mismo `id` con el mismo contenido responde `200` con el registro
   ya creado (nunca duplica, ni con dos envíos simultáneos); con otro contenido u otro dueño,
   `409`. Si el registro es del mismo dueño, ese `409` trae el del servidor en `current`: suele
@@ -113,6 +120,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `apps/common/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
   eliminan), como ya hacen `farms` y `accounts`: así `producers` no importa de ninguna. Deja un
   `ProducerAuditEvent` sin relación con el productor, que sobrevive.
+- **La altitud de una finca debe caber en el terreno de su municipio**, con 100 m de margen
+  (`apps/common/municipality_altitude.py`, calculado sobre un modelo de elevación de 30 m; el
+  frontend usa la misma tabla). Un vértice de parcela tampoco puede quedar a más de
+  `2 × √(área de la finca ÷ π) + 300 m` del punto de la finca (`422 plot_too_far_from_farm`).
+- **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
+  tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
+  declara con `register_dependent(FarmDependent(...))` de `apps/common/farm_dependents.py`. Una
+  tabla que apunte a la finca sin estar registrada también la bloquea. Los dos registros salen de
+  `apps/common/dependents.py`.
 - **Paginación única:** `page` (desde 1) y `page_size` (1–100, 20 por defecto); respuesta
   `{"count", "next", "previous", "results"}`. Una página fuera de rango responde 404
   `not_found`.

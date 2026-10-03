@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -8,8 +9,11 @@ from apps.common.municipalities import list_municipalities, validate_municipalit
 from apps.common.validators import (
     strip_document_separators,
     validate_document_digits,
+    validate_latitude,
+    validate_longitude,
     validate_not_future,
     validate_phone,
+    validate_positive_area,
     validate_producer_document,
 )
 
@@ -80,3 +84,33 @@ def test_municipalities_are_sorted_ignoring_accents():
         "name": "Ábrego",
         "department": {"code": "54", "name": "Norte de Santander"},
     }
+
+
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [
+        (validate_positive_area, Decimal("0")),
+        (validate_positive_area, Decimal("-0.01")),
+        (validate_latitude, Decimal("90.0000001")),
+        (validate_latitude, Decimal("-90.0000001")),
+        (validate_longitude, Decimal("180.0000001")),
+        (validate_longitude, Decimal("-180.0000001")),
+    ],
+)
+def test_area_and_coordinate_validators_reject_out_of_range_values(validator, value):
+    with pytest.raises(ValidationError):
+        validator(value)
+
+
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [
+        (validate_positive_area, Decimal("0.01")),
+        (validate_latitude, Decimal("90")),
+        (validate_latitude, Decimal("-90")),
+        (validate_longitude, Decimal("180")),
+        (validate_longitude, Decimal("-180")),
+    ],
+)
+def test_area_and_coordinate_validators_accept_their_limits(validator, value):
+    validator(value)

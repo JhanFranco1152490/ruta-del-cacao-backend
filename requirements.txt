@@ -9,9 +9,11 @@ django-filter==26.1
 drf-spectacular==0.30.0
 djangorestframework-simplejwt==5.5.1
 gunicorn==26.2.0
+numpy==2.5.3
 PyJWT==2.14.0
 psycopg[binary]==3.3.6
 python-decouple==3.8
 sentry-sdk==2.70.0
+shapely==2.1.2
 sqlparse==0.6.0
 whitenoise==6.12.0

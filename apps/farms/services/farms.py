@@ -23,6 +23,7 @@ from ..exceptions import (
     StaleFarmVersion,
 )
 from ..models import MUNICIPALITY_DEPARTMENT_MISMATCH, Farm, FarmAuditEvent
+from ..validators import validate_altitude_for_municipality
 from .audit import record_farm_audit_event
 from .scope import readable_farms
 
@@ -40,6 +41,8 @@ CONTENT_FIELDS = (
     "longitude",
 )
 COORDINATE_FIELDS = frozenset({"latitude", "longitude"})
+# Lo que decide si la altitud cabe en el terreno: si ninguno cambia, no se vuelve a exigir.
+ALTITUDE_FIELDS = frozenset({"altitude_masl", "municipality_code"})
 # El área ya repartida en parcelas activas. Las parcelas se alcanzan por su relación con la finca
 # (`plots`), sin importar su app: así esta app no depende del código de la otra.
 ALLOCATED_AREA = Coalesce(
@@ -97,7 +100,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
             return _resent_farm(existing, actor, data), False
 
     farm = Farm(producer_id=actor.producer_id, **_without_empty_id(data))
-    _validate(farm, check_operating_area=True)
+    _validate(farm, check_operating_area=True, check_altitude=True)
     try:
         with transaction.atomic():
             farm.save(force_insert=True)
@@ -139,7 +142,9 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     # El rectángulo de operación solo se exige si el punto se mueve: una finca guardada antes
     # de esa regla puede seguir corrigiendo sus otros datos.
     moved = any(data[name] != before[name] for name in COORDINATE_FIELDS & data.keys())
-    _validate(farm, check_operating_area=moved)
+    # Igual con la altitud y el terreno del municipio: solo si cambia alguno de los dos.
+    location_changed = any(data[name] != before[name] for name in ALTITUDE_FIELDS & data.keys())
+    _validate(farm, check_operating_area=moved, check_altitude=location_changed)
     # Se compara después de validar: `clean()` recorta el nombre, y un nombre que solo cambió
     # en espacios no es un cambio real.
     changed = [name for name in data if getattr(farm, name) != before[name]]
@@ -253,7 +258,7 @@ def _matches(farm: Farm, data: dict, fields) -> bool:
     return all(getattr(candidate, name) == getattr(farm, name) for name in fields)
 
 
-def _validate(farm: Farm, *, check_operating_area: bool) -> None:
+def _validate(farm: Farm, *, check_operating_area: bool, check_altitude: bool) -> None:
     try:
         farm.full_clean(validate_unique=False, validate_constraints=False)
     except ValidationError as error:
@@ -272,6 +277,8 @@ def _validate(farm: Farm, *, check_operating_area: bool) -> None:
             raise LocationOutsideOperatingArea(
                 fields={name: ["Debe estar dentro de Norte de Santander."] for name in outside}
             )
+    if check_altitude:
+        validate_altitude_for_municipality(farm.altitude_masl, farm.municipality_code)
 
 
 def _without_empty_id(data: dict) -> dict:

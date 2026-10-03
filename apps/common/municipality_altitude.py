@@ -60,4 +60,6 @@ def altitude_range_for(municipality_code: str) -> tuple[int, int] | None:
     terrain = ALTITUDE_RANGES.get(municipality_code)
     if terrain is None:
         return None
-    return terrain[0] - ALTITUDE_MARGIN_M, terrain[1] + ALTITUDE_MARGIN_M
+    # Con el margen el mínimo puede quedar bajo el nivel del mar, y Norte de Santander no tiene
+    # terreno ahí: decir "de -49 a 1647 m" confunde.
+    return max(0, terrain[0] - ALTITUDE_MARGIN_M), terrain[1] + ALTITUDE_MARGIN_M

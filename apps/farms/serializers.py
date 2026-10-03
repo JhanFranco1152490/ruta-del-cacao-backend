@@ -27,6 +27,10 @@ class FarmSerializer(serializers.ModelSerializer):
     department = serializers.SerializerMethodField()
     municipality = serializers.SerializerMethodField()
     location = serializers.SerializerMethodField()
+    # La suma de las áreas declaradas de las parcelas activas: lo que ya no está disponible.
+    allocated_area_hectares = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
 
     class Meta:
         model = Farm
@@ -37,6 +41,7 @@ class FarmSerializer(serializers.ModelSerializer):
             "municipality",
             "details",
             "area_hectares",
+            "allocated_area_hectares",
             "altitude_masl",
             "location",
             "version",

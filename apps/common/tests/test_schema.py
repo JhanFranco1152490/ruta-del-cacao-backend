@@ -128,6 +128,9 @@ DOCUMENTED_OPERATIONS = {
     ("delete", "/api/farms/{id}"),
     ("get", "/api/farms/map/municipalities"),
     ("get", "/api/farms/map/points"),
+    ("post", "/api/plots"),
+    ("patch", "/api/plots/{id}"),
+    ("delete", "/api/plots/{id}"),
 }
 
 

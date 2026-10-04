@@ -55,7 +55,9 @@ def save_characterization(
     for name in SCALAR_FIELDS:
         setattr(characterization, name, data.get(name))
     characterization.captured_at = data.get("captured_at")
-    characterization.save()
+    # Su clave es la parcela, que no tiene valor por defecto: sin `force_insert`, Django
+    # intentaría primero un UPDATE de una fila que todavía no existe.
+    characterization.save(force_insert=current is None)
 
     characterization.varieties.all().delete()
     PlotCharacterizationVariety.objects.bulk_create(

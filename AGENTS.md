@@ -51,6 +51,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
+| `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: variedades con sus árboles, fecha de siembra, etapa, manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 
 ### Capas
 
@@ -93,11 +94,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
-  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records` (409); `payload_too_large` (413);
-  `unsupported_media_type` (415); `invalid_coordinates`, `location_outside_operating_area`,
-  `municipality_department_mismatch`, `farm_inactive`, `farm_area_below_plots`,
-  `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`, `plot_overlap`,
-  `plot_too_far_from_farm` (422);
+  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name` (409);
+  `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
+  `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
+  `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
+  `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en
@@ -138,6 +139,22 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   desde PostgreSQL 13, no exige ser superusuario).
 - **Todas las respuestas bajo `/api/` llevan `Cache-Control: no-store`** (traen datos
   personales).
+- **La ficha de una parcela se guarda con `PUT /api/plot-characterizations/{id}`**, donde `id` es
+  el de la parcela (hay una sola ficha por parcela, y la cola del dispositivo la sincroniza por
+  ese `id`). Lleva siempre `expected_version`: `null` para registrar y la versión leída para
+  editar. Responde `201` al crear y `200` al reemplazar o si la ficha ya tenía exactamente ese
+  contenido (un reintento, sin subir la versión); si no coincide, `409 stale_version` con la
+  ficha vigente, o `null`, en `current`. Una variedad que no existe es un `400` en
+  `fields.varieties` y no un `404`: la cola lee un `404` como registro eliminado y descartaría la
+  ficha. El listado (`GET /api/plot-characterizations?farm=`) exige `farm` y no se pagina.
+  Consultar pide `plots.view_plot`; la asociación no lee fichas.
+- **Una tabla que apunta a la parcela la vuelve importante:** la ficha (y su historial) impide
+  eliminar la parcela, su finca o su productor, sin que `plots` sepa nada de `crops`, porque el
+  borrado recorre todas las relaciones del modelo (`apps/common/db.py`).
+- **El catálogo de variedades** (`/api/cacao-varieties`) solo pide sesión para consultarlo y no
+  se pagina. Registrar, editar, activar y desactivar piden `crops.manage_cacaovariety`, que no es
+  delegable. El nombre se compara sin mayúsculas, tildes, espacios ni guiones (también los de
+  Unicode): `CCN-51`, `CCN 51` y `ccn51` son la misma variedad.
 - **Esquema OpenAPI** con `drf-spectacular`: `GET /api/schema` y Swagger en `/api/docs`, **solo
   con `DEBUG=True`**. Las vistas declaran sus respuestas de error con `error_responses(...)`
   (`apps/common/schema.py`) para que el esquema traiga la forma estándar. El frontend debe
@@ -204,6 +221,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   --identity-document 1234567 --first-name Ana --last-name Gómez`.
 - Todo cambio desde el admin pasa por `services` y sube `version`: la ficha lleva la versión con
   la que se abrió y, si otra persona la cambió antes, no se guarda.
+- **Variedades de cacao** (`apps/crops/admin.py`): con `crops.manage_cacaovariety`. Alta, edición
+  y borrado pasan por los servicios, que normalizan el nombre y dejan el historial. Solo se borra
+  una variedad que ninguna ficha usa (registrada por error); el historial sobrevive y registra el
+  borrado. No llevan `version`: dos ediciones simultáneas del catálogo no se contemplan, porque
+  la asociación va a tener una sola cuenta Administrador.
 
 ## Variables de entorno
 

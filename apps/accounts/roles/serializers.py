@@ -17,8 +17,15 @@ class RoleProducerSerializer(serializers.Serializer):
     last_name = serializers.CharField()
 
 
+class RolePermissionSerializer(serializers.Serializer):
+    # Un comentario y no un docstring: ver RoleProducerSerializer.
+    code = serializers.CharField()
+    name = serializers.CharField()
+
+
 class RoleSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
+    permission_details = serializers.SerializerMethodField()
     producer = serializers.SerializerMethodField()
 
     class Meta:
@@ -32,11 +39,20 @@ class RoleSerializer(serializers.ModelSerializer):
             "producer_id",
             "producer",
             "permissions",
+            "permission_details",
         ]
         read_only_fields = fields
 
     def get_permissions(self, role) -> list[str]:
         return sorted(role.permission_codes)
+
+    # Los permisos no delegables (los de la asociación) no están en `/api/permissions`, que solo
+    # alimenta el formulario de roles propios: sin el nombre aquí, el detalle de un rol del sistema
+    # mostraría el código. Mismo orden que `permissions`.
+    @extend_schema_field(RolePermissionSerializer(many=True))
+    def get_permission_details(self, role) -> list[dict]:
+        names = role.permission_names
+        return [{"code": code, "name": names[code]} for code in sorted(names)]
 
     @extend_schema_field(RoleProducerSerializer(allow_null=True))
     def get_producer(self, role) -> dict | None:

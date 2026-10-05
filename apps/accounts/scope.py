@@ -37,7 +37,10 @@ def visible_roles(actor) -> QuerySet[Role]:
     """Qué roles puede ver o asignar `actor`: los del sistema, más los propios de su alcance."""
     # select_related: RoleSerializer expone el productor dueño del rol, y una lista no debe
     # pagar una consulta aparte por cada fila para traerlo.
-    base = Role.objects.select_related("producer")
+    # prefetch: RoleSerializer lista los permisos de cada rol con su nombre.
+    base = Role.objects.select_related("producer").prefetch_related(
+        "group__permissions__content_type"
+    )
     if actor.is_superuser:
         return base
     if is_association_admin(actor):

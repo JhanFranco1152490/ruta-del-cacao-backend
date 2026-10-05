@@ -4,6 +4,8 @@ from decimal import Decimal
 from unittest import mock
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import make_delegate
@@ -513,3 +515,17 @@ def test_every_event_keeps_the_version_it_left(owner, plot, ccn51):
     save_characterization(owner, plot.pk, 2, data((ccn51, 1100)))
 
     assert sorted(events_of(plot).values_list("version", flat=True)) == [1, 2, 3]
+
+
+# --- Bloqueo ------------------------------------------------------------------------------------
+
+
+def test_saving_locks_only_the_farm_and_never_the_plot_row(owner, plot, ccn51):
+    # Toda escritura bajo una finca bloquea solo la finca: con un único bloqueo no puede haber dos
+    # operaciones esperándose entre sí.
+    with CaptureQueriesContext(connection) as queries:
+        save_characterization(owner, plot.pk, None, data((ccn51, 900)))
+
+    locking = [query["sql"] for query in queries if "FOR UPDATE" in query["sql"]]
+    assert len(locking) == 1
+    assert "farms_farm" in locking[0]

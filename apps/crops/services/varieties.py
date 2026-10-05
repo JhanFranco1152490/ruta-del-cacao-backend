@@ -1,7 +1,7 @@
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import QuerySet
 
-from apps.common.db import constraint_name
+from apps.common.db import save_translating_unique
 
 from ..exceptions import DuplicateVarietyName, VarietyNotFound
 from ..models import CacaoVariety, CacaoVarietyAuditEvent
@@ -103,12 +103,8 @@ def delete_variety(actor, variety: CacaoVariety) -> None:
 
 
 def _save(variety: CacaoVariety, update_fields=None) -> None:
-    try:
-        # Un punto de guardado propio: el choque con la restricción única no debe dejar rota la
-        # transacción de quien llama.
-        with transaction.atomic():
-            variety.save(update_fields=update_fields)
-    except IntegrityError as error:
-        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
-            raise DuplicateVarietyName() from None
-        raise
+    save_translating_unique(
+        lambda: variety.save(update_fields=update_fields),
+        constraint=NAME_UNIQUE_CONSTRAINT,
+        duplicate=DuplicateVarietyName,
+    )

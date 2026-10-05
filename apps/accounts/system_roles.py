@@ -32,6 +32,7 @@ SYSTEM_ROLES = {
             # base de sus reportes. Registrarlas, editarlas o eliminarlas es solo del productor y
             # de los empleados a los que él se lo delegue.
             "farms.view_farm",
+            "crops.manage_cacaovariety",
         ],
     },
     PRODUCER: {
@@ -53,6 +54,7 @@ SYSTEM_ROLES = {
             "plots.add_plot",
             "plots.change_plot",
             "plots.delete_plot",
+            "crops.change_plotcharacterization",
         ],
     },
     FOREMAN: {"kind": Role.Kind.PREDEFINED, "name": "Capataz/Operario", "permissions": []},

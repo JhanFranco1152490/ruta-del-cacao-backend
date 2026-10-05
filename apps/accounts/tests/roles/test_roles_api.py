@@ -603,6 +603,55 @@ def test_permission_catalog_marks_what_each_permission_requires(auth_client):
     assert by_code["accounts.users_view"]["requires"] is None
 
 
+def test_permission_catalog_offers_characterizing_plots_but_not_the_variety_catalog(auth_client):
+    owner = make_producer_owner(ProducerFactory())
+
+    response = auth_client(owner).get(PERMISSIONS_URL)
+
+    by_code = {item["code"]: item for item in response.data["results"]}
+    characterize = by_code["crops.change_plotcharacterization"]
+    assert characterize["area"] == "crops"
+    assert characterize["requires"] == "plots.view_plot"
+    assert characterize["grantable"] is True
+    assert "crops.manage_cacaovariety" not in by_code
+
+
+def test_a_custom_role_that_characterizes_plots_can_also_see_them(auth_client):
+    owner = make_producer_owner(ProducerFactory())
+
+    response = auth_client(owner).post(
+        ROLES_URL,
+        {"name": "Caracterizador", "permission_codes": ["crops.change_plotcharacterization"]},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert sorted(response.data["permissions"]) == [
+        "crops.change_plotcharacterization",
+        "farms.view_farm",
+        "plots.view_plot",
+    ]
+
+
+def test_the_association_cannot_delegate_the_variety_catalog_although_it_holds_it(auth_client):
+    admin = make_administrator()
+    producer = ProducerFactory()
+    enable_association_access(producer)
+
+    response = auth_client(admin).post(
+        ROLES_URL,
+        {
+            "name": "Catálogo",
+            "permission_codes": ["crops.manage_cacaovariety"],
+            "producer_id": str(producer.id),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["code"] == "exceeds_own_permissions"
+
+
 def test_permission_catalog_is_sorted_by_code(auth_client):
     admin = make_administrator()
 

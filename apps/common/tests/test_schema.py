@@ -131,6 +131,13 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/plots"),
     ("patch", "/api/plots/{id}"),
     ("delete", "/api/plots/{id}"),
+    ("get", "/api/cacao-varieties"),
+    ("post", "/api/cacao-varieties"),
+    ("patch", "/api/cacao-varieties/{id}"),
+    ("get", "/api/plot-characterizations"),
+    ("get", "/api/plot-characterizations/{id}"),
+    ("get", "/api/plot-characterizations/{id}/history"),
+    ("put", "/api/plot-characterizations/{id}"),
 }
 
 

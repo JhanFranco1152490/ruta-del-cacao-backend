@@ -2,11 +2,11 @@ import copy
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import DecimalField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 
-from apps.common.db import constraint_name, has_dependent_rows
+from apps.common.db import has_dependent_rows, save_translating_unique
 from apps.common.farm_dependents import registered_dependents
 from apps.common.territorial import coordinates_outside_operating_area
 
@@ -101,19 +101,17 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
 
     farm = Farm(producer_id=actor.producer_id, **_without_empty_id(data))
     _validate(farm, check_operating_area=True, check_altitude=True)
-    try:
-        with transaction.atomic():
-            farm.save(force_insert=True)
-    except IntegrityError as error:
-        # Dos sincronizaciones simultáneas del mismo registro: la otra ganó la carrera. Según
-        # el orden en que PostgreSQL revise los índices, el choque puede reportarse en la
-        # clave primaria o en el nombre, así que se decide mirando si el id ya existe.
-        existing = Farm.objects.filter(pk=farm.pk).first() if farm_id is not None else None
-        if existing is not None:
-            return _resent_farm(existing, actor, data), False
-        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
-            raise DuplicateFarmName() from None
-        raise
+    # Dos sincronizaciones simultáneas del mismo registro: la otra ganó la carrera.
+    existing = save_translating_unique(
+        lambda: farm.save(force_insert=True),
+        constraint=NAME_UNIQUE_CONSTRAINT,
+        duplicate=DuplicateFarmName,
+        find_existing=lambda: (
+            Farm.objects.filter(pk=farm.pk).first() if farm_id is not None else None
+        ),
+    )
+    if existing is not None:
+        return _resent_farm(existing, actor, data), False
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.CREATED)
     farm.allocated_area_hectares = Decimal("0")
     return farm, True
@@ -157,13 +155,11 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     update_fields = [*changed, "version", "updated_at"]
     if "name" in changed:
         update_fields.append("name_normalized")
-    try:
-        with transaction.atomic():
-            farm.save(update_fields=update_fields)
-    except IntegrityError as error:
-        if constraint_name(error) == NAME_UNIQUE_CONSTRAINT:
-            raise DuplicateFarmName() from None
-        raise
+    save_translating_unique(
+        lambda: farm.save(update_fields=update_fields),
+        constraint=NAME_UNIQUE_CONSTRAINT,
+        duplicate=DuplicateFarmName,
+    )
 
     content_changes = [name for name in changed if name != "is_active"]
     if content_changes:

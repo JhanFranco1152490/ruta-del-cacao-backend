@@ -1,6 +1,6 @@
-from django.db import IntegrityError, transaction
+from django.db import transaction
 
-from apps.common.db import constraint_name
+from apps.common.db import save_translating_unique
 
 from ..exceptions import DuplicatePlotCode, StalePlotVersion
 from ..models import Plot, PlotAuditEvent
@@ -66,13 +66,11 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
         update_fields.append("code_normalized")
     if "boundary" in changed:
         update_fields.append("measured_area_hectares")
-    try:
-        with transaction.atomic():
-            plot.save(update_fields=update_fields)
-    except IntegrityError as error:
-        if constraint_name(error) == CODE_UNIQUE_CONSTRAINT:
-            raise DuplicatePlotCode() from None
-        raise
+    save_translating_unique(
+        lambda: plot.save(update_fields=update_fields),
+        constraint=CODE_UNIQUE_CONSTRAINT,
+        duplicate=DuplicatePlotCode,
+    )
 
     content_changes = [name for name in changed if name != "is_active"]
     if content_changes:

@@ -84,6 +84,24 @@ def test_only_the_producer_role_manages_farms_and_has_plots(permissions):
         assert granted == (permissions if code == PRODUCER else set()), code
 
 
+@pytest.mark.parametrize(
+    "permission, holder",
+    [
+        # Caracterizar es parte de la operación de cada productor.
+        ("crops.change_plotcharacterization", PRODUCER),
+        # El catálogo de variedades es de toda la asociación.
+        ("crops.manage_cacaovariety", ADMINISTRATOR),
+    ],
+)
+def test_each_crops_permission_belongs_to_a_single_system_role(permission, holder):
+    granted = {
+        code
+        for code, definition in SYSTEM_ROLES.items()
+        if permission in definition["permissions"]
+    }
+    assert granted == {holder}
+
+
 def test_only_the_producer_and_the_association_read_farms():
     readers = {
         code
@@ -122,6 +140,8 @@ def test_deleting_a_producer_requires_seeing_them():
         ("plots.add_plot", True),
         ("plots.change_plot", True),
         ("plots.delete_plot", True),
+        ("crops.change_plotcharacterization", True),
+        ("crops.manage_cacaovariety", False),
         ("accounts.unknown_permission", False),
     ],
 )

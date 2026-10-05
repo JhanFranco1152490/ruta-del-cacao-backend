@@ -1,4 +1,6 @@
-from django.db import IntegrityError, models
+from collections.abc import Callable
+
+from django.db import IntegrityError, models, transaction
 
 
 def constraint_name(error: IntegrityError) -> str | None:
@@ -6,6 +8,35 @@ def constraint_name(error: IntegrityError) -> str | None:
     de negocio (un nombre repetido) en vez de un 500."""
     diagnostics = getattr(error.__cause__, "diag", None)
     return getattr(diagnostics, "constraint_name", None)
+
+
+def save_translating_unique(
+    save: Callable[[], None],
+    *,
+    constraint: str,
+    duplicate: Callable[[], Exception],
+    find_existing: Callable[[], models.Model | None] | None = None,
+) -> models.Model | None:
+    """Corre `save` en un punto de guardado propio y traduce el choque con la restricción única
+    `constraint` al error de negocio `duplicate()` (un nombre repetido) en vez de un 500. Cualquier
+    otro choque se vuelve a lanzar. El punto de guardado deja usable la transacción de quien llama.
+
+    `find_existing` es para las altas que se reintentan sin conexión: si dos envíos del mismo
+    registro llegan a la vez, el segundo choca con el primero. Se llama antes que nada, porque
+    según el orden en que PostgreSQL revise los índices el choque se reporta en la clave primaria
+    o en el nombre, y un reenvío no es un nombre repetido. Si devuelve el registro, ese es el
+    resultado; si devuelve `None`, el choque se trata como cualquier otro.
+    """
+    try:
+        with transaction.atomic():
+            save()
+    except IntegrityError as error:
+        if find_existing is not None and (existing := find_existing()) is not None:
+            return existing
+        if constraint_name(error) == constraint:
+            raise duplicate() from None
+        raise
+    return None
 
 
 def has_dependent_rows(instance: models.Model, *, ignore=()) -> bool:

@@ -42,3 +42,19 @@ def test_record_account_event_stores_role_target_without_actor():
     assert event.actor is None
     assert event.target_user is None
     assert event.target_role_id == role_id
+
+
+def test_a_deleted_account_event_keeps_only_the_internal_id():
+    actor = UserFactory()
+    ref = uuid.uuid4()
+
+    record_account_event(
+        AccountManagementEvent.EventType.ACCOUNT_DELETED,
+        uuid.uuid4(),
+        actor=actor,
+        target_user_ref=ref,
+    )
+
+    event = AccountManagementEvent.objects.get()
+    assert event.target_user is None
+    assert event.target_user_ref == ref

@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 from django.contrib.auth.models import Group
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch, QuerySet
+from django.db.models import Prefetch, ProtectedError, QuerySet
 from rest_framework.exceptions import ValidationError
 
 from apps.common.validators import strip_document_separators
@@ -22,6 +22,7 @@ from ..authorization import (
 )
 from ..events import record_account_event
 from ..exceptions import (
+    AccountHasActivity,
     AccountNotFound,
     AdministratorAlreadyExists,
     DuplicateAccountDocument,
@@ -290,6 +291,39 @@ def set_account_status(actor, user_id, status: str, request_id) -> User:
             target_user=locked,
         )
     return locked
+
+
+def delete_account(actor, user_id, request_id) -> None:
+    """Elimina una cuenta creada por error: una que nunca inició sesión. La que ya entró se
+    desactiva. Sus historiales se conservan con el actor en nulo y el evento guarda solo el id."""
+    user = get_account(actor, user_id)
+    ensure_not_self(actor, user)
+    ensure_can_manage_account(actor, user)
+
+    with transaction.atomic():
+        # Mismo orden de bloqueo que `set_account_status`: primero el del conjunto de
+        # administradores y solo después la fila de la cuenta.
+        if is_association_admin(user):
+            ensure_not_last_administrator(user)
+        locked = User.objects.select_for_update(of=("self",)).filter(pk=user.pk).first()
+        # Otra solicitud pudo eliminarla mientras se esperaba el bloqueo.
+        if locked is None:
+            raise AccountNotFound()
+        # Con la fila bloqueada: un inicio de sesión que llega a la vez espera aquí.
+        if locked.last_login is not None:
+            raise AccountHasActivity()
+        user_ref = locked.pk
+        try:
+            with transaction.atomic():
+                locked.delete()
+        except ProtectedError:
+            raise AccountHasActivity() from None
+        record_account_event(
+            AccountManagementEvent.EventType.ACCOUNT_DELETED,
+            request_id,
+            actor=actor,
+            target_user_ref=user_ref,
+        )
 
 
 def resend_activation(actor, user_id) -> bool:

@@ -147,3 +147,13 @@ def test_deleting_a_producer_requires_seeing_them():
 )
 def test_is_delegable(code, expected):
     assert is_delegable(code) is expected
+
+
+@pytest.mark.parametrize("code", [ADMINISTRATOR, PRODUCER])
+def test_the_administrator_and_the_producer_can_delete_accounts(code):
+    assert "accounts.users_delete" in get_system_role(code).permission_codes
+
+
+@pytest.mark.parametrize("code", [FOREMAN, QUALITY_MANAGER, SALES_MANAGER])
+def test_the_predefined_roles_cannot_delete_accounts(code):
+    assert "accounts.users_delete" not in get_system_role(code).permission_codes

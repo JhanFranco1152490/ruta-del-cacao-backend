@@ -133,6 +133,12 @@ class ProducerAlreadyLinked(ApiError):
     default_code = "producer_already_linked"
 
 
+class AccountHasActivity(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La cuenta ya inició sesión: desactívala en lugar de eliminarla."
+    default_code = "account_has_activity"
+
+
 class NotActivationPending(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "La cuenta ya está activada."

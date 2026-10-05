@@ -38,3 +38,9 @@ def test_adding_plots_brings_the_permissions_to_see_them_and_their_farm():
         "plots.view_plot",
         "farms.view_farm",
     }
+
+
+def test_users_delete_is_delegable_and_needs_the_view_permission():
+    assert registry.is_delegable("accounts.users_delete")
+    assert registry.PERMISSION_DEPENDENCIES["accounts.users_delete"] == "accounts.users_view"
+    assert registry.area_of("accounts.users_delete") == "users"

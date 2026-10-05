@@ -210,6 +210,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   vista en `PERMISSION_DEPENDENCIES` (crear o editar sin poder consultar no sirve). Un código
   que no está en el registro queda no delegable, pero eso es una red contra el olvido, no la
   forma de decidirlo.
+- **Quien actúa lee `effective_producer_id`, nunca `actor.producer_id`.** La cuenta técnica
+  (superusuario, sin productor propio) elige un productor con el encabezado `X-Acting-Producer`;
+  `CookieJWTAuthentication` lo resuelve en un solo punto y deja `user.acting_producer_id` solo
+  para esa petición (nada se guarda). `user.effective_producer_id` vale el elegido si es
+  superusuario y el propio en los demás casos. Un servicio o vista nuevo que necesite "el
+  productor de quien llama" usa esa propiedad; una prueba (`apps/common/tests/test_effective_producer.py`)
+  falla si alguien lee el campo directo. `user.producer_id` sigue siendo correcto para la cuenta
+  que se consulta, no la que actúa. La auditoría registra siempre al superusuario real. El
+  encabezado de una cuenta que no es superusuario es un `403`, no se ignora.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché

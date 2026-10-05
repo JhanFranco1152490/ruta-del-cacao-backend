@@ -6,6 +6,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from apps.common.csrf import enforce_csrf
 
 from ..access import is_effectively_active
+from ..acting_producer import resolve_acting_producer
 
 
 class CookieJWTAuthentication(JWTAuthentication):
@@ -23,6 +24,7 @@ class CookieJWTAuthentication(JWTAuthentication):
         user = self.get_user(validated_token)
         if request.method not in SAFE_METHODS:
             enforce_csrf(request)
+        user.acting_producer_id = resolve_acting_producer(user, request)
         return user, validated_token
 
     def get_user(self, validated_token):

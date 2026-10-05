@@ -531,3 +531,19 @@ def test_the_list_takes_the_same_queries_with_one_or_many_characterizations(clie
 
     assert len(response.data["results"]) == 5
     assert len(many) == len(one)
+
+
+def test_a_stale_version_takes_the_same_queries_with_one_or_many_varieties(client, farm, ccn51):
+    small = characterize(PlotFactory(farm=farm), (CacaoVarietyFactory(), 10), version=2)
+    with CaptureQueriesContext(connection) as one:
+        client.put(detail_url(small.plot), body((ccn51, 5), expected_version=1), format="json")
+
+    rows = [(CacaoVarietyFactory(), 10 * n) for n in range(1, 6)]
+    large = characterize(PlotFactory(farm=farm), *rows, version=2)
+    with CaptureQueriesContext(connection) as many:
+        response = client.put(
+            detail_url(large.plot), body((ccn51, 5), expected_version=1), format="json"
+        )
+
+    assert len(response.data["current"]["varieties"]) == 5
+    assert len(many) == len(one)

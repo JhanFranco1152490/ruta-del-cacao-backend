@@ -16,6 +16,7 @@ from ..models import (
 from .audit import record_characterization_audit_event
 from .content import SCALAR_FIELDS, changed_fields
 from .locks import lock_plot
+from .queries import with_rows
 
 
 @transaction.atomic
@@ -36,8 +37,9 @@ def save_characterization(
     if not plot.is_active:
         raise PlotInactive()
 
-    # El bloqueo de la parcela basta: todo guardado de su ficha lo toma antes de leerla.
-    current = PlotCharacterization.objects.filter(plot=plot).prefetch_related("varieties").first()
+    # El bloqueo de la parcela basta: todo guardado de su ficha lo toma antes de leerla. Con sus
+    # variedades cargadas, porque un conflicto la devuelve entera en `current`.
+    current = with_rows(PlotCharacterization.objects.filter(plot=plot)).first()
     changes = changed_fields(current, data) if current is not None else None
     if changes == []:
         return current, False

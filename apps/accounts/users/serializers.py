@@ -30,6 +30,7 @@ class AccountSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     activation_pending = serializers.SerializerMethodField()
+    has_signed_in = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="date_joined", read_only=True)
 
     class Meta:
@@ -46,6 +47,7 @@ class AccountSerializer(serializers.ModelSerializer):
             "roles",
             "status",
             "activation_pending",
+            "has_signed_in",
             "created_at",
         ]
         read_only_fields = fields
@@ -61,6 +63,9 @@ class AccountSerializer(serializers.ModelSerializer):
 
     def get_activation_pending(self, user) -> bool:
         return not user.has_usable_password()
+
+    def get_has_signed_in(self, user) -> bool:
+        return user.last_login is not None
 
 
 class AccountCreatedSerializer(AccountSerializer):

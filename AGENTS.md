@@ -94,7 +94,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
-  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name` (409);
+  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity` (409);
   `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
@@ -128,6 +128,14 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   municipio: una finca guardada antes de la regla puede seguir desactivándose o corrigiendo sus
   otros datos. Un vértice de parcela tampoco puede quedar a más de
   `2 × √(área de la finca ÷ π) + 300 m` del punto de la finca (`422 plot_too_far_from_farm`).
+- **Eliminar una cuenta creada por error** (`DELETE /api/users/{id}`, `accounts.users_delete`,
+  delegable, `204`, sin `version`): solo la que nunca inició sesión (`last_login` vacío), sea
+  empleado, Productor o Administrador. Una que ya entró responde `409 account_has_activity` y se
+  desactiva en su lugar; el último administrador activo, `409 last_administrator`. Rigen las mismas
+  reglas de acceso que al desactivar. Los historiales donde la cuenta era actor quedan con el actor
+  en nulo, y el evento `account_deleted` guarda solo su id (`target_user_ref`, sin FK). Una tabla
+  nueva que apunte a la cuenta usa `SET_NULL` o `PROTECT`; con `PROTECT` la cuenta no se elimina.
+  La cuenta expone `has_signed_in` para que el frontend sepa si ofrecer eliminar.
 - **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
   tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
   declara con `register_dependent(FarmDependent(...))` de `apps/common/farm_dependents.py`. Una

@@ -159,6 +159,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (`apps/common/csrf.py`), desde `CookieJWTAuthentication` y `CsrfProtectedMixin`.
 - **Permisos por acción:** la vista declara `action_permissions = {"list": "app.codename", ...}`
   y `ActionPermission` los exige; una acción sin permiso declarado se niega.
+- **Cada rol trae sus permisos con su nombre** (`permission_details`: `code` y `name`), además de
+  la lista de códigos (`permissions`). `/api/permissions` solo ofrece los delegables, que son los
+  que puede llevar un rol propio, así que no sirve para nombrar los de un rol del sistema.
 - **Todo permiso nuevo se declara en `apps/accounts/registry.py` y es delegable por defecto.**
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
   productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca

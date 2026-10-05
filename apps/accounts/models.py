@@ -138,12 +138,18 @@ class Role(models.Model):
         return self.name
 
     @property
+    def permission_names(self) -> dict[str, str]:
+        """Cada permiso del rol con su nombre legible, en la misma forma "app_label.codename" que
+        `has_perm`."""
+        return {
+            f"{permission.content_type.app_label}.{permission.codename}": permission.name
+            for permission in self.group.permissions.all()
+        }
+
+    @property
     def permission_codes(self) -> frozenset[str]:
         """Los permisos del rol, en la misma forma "app_label.codename" que `has_perm`."""
-        return frozenset(
-            f"{permission.content_type.app_label}.{permission.codename}"
-            for permission in self.group.permissions.all()
-        )
+        return frozenset(self.permission_names)
 
 
 class AssociationAccess(models.Model):

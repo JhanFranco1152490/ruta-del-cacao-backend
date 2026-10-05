@@ -1,4 +1,6 @@
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.accounts.models import AccountManagementEvent, Role
@@ -616,3 +618,47 @@ def test_producer_holding_the_role_code_matches_the_role_it_was_assigned():
     producer = ProducerFactory()
     owner = make_producer_owner(producer)
     assert owner.groups.filter(role__code=PRODUCER).exists()
+
+
+# --- Nombres de los permisos de cada rol --------------------------------------------------------
+
+
+def test_a_role_brings_the_name_of_each_permission_even_if_it_is_not_delegable(auth_client):
+    # Los permisos no delegables no están en el catálogo de /api/permissions (que solo alimenta
+    # el formulario de roles propios), pero el detalle de un rol del sistema debe poder nombrarlos.
+    admin = make_administrator()
+
+    response = auth_client(admin).get(role_url(get_system_role(ADMINISTRATOR)))
+
+    details = {item["code"]: item["name"] for item in response.data["permission_details"]}
+    assert details["producers.view"] == "Puede consultar productores"
+    assert set(details) == set(response.data["permissions"])
+
+
+def test_the_permission_details_follow_the_order_of_the_permission_codes(auth_client):
+    admin = make_administrator()
+
+    response = auth_client(admin).get(role_url(get_system_role(PRODUCER)))
+
+    assert [item["code"] for item in response.data["permission_details"]] == response.data[
+        "permissions"
+    ]
+
+
+def test_the_list_takes_the_same_queries_with_one_or_many_roles(auth_client):
+    admin = make_administrator()
+    client = auth_client(admin)
+    with CaptureQueriesContext(connection) as one:
+        client.get(ROLES_URL)
+
+    producer = ProducerFactory()
+    for _ in range(5):
+        RoleFactory(
+            producer=producer, permissions=["accounts.users_view", "accounts.users_create"]
+        )
+    enable_association_access(producer)
+    with CaptureQueriesContext(connection) as many:
+        response = client.get(ROLES_URL)
+
+    assert len(response.data["results"]) > 5
+    assert len(many) == len(one)

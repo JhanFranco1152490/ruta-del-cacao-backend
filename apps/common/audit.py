@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from django.db import models
 
@@ -30,3 +30,23 @@ class AuditEventBase(models.Model):
             raise ValueError("Changed fields must be non-empty strings.")
 
         return cls.objects.create(action=action, changed_fields=normalized_fields, **fields)
+
+
+STATUS_FIELD = "is_active"
+
+
+def record_update_events(
+    record: Callable[..., object], changed: Iterable[str], *, updated: str, status_changed: str
+) -> None:
+    """Deja en el historial lo que una edición cambió, en eventos separados: los campos de
+    contenido como `updated` y la activación o desactivación como `status_changed`.
+
+    `record` recibe `action` y `changed_fields`, y ya lleva el registro y quien actuó. Una edición
+    que cambia las dos cosas deja dos eventos; una que no cambia nada, ninguno.
+    """
+    changed = list(changed)
+    content = [name for name in changed if name != STATUS_FIELD]
+    if content:
+        record(action=updated, changed_fields=content)
+    if STATUS_FIELD in changed:
+        record(action=status_changed, changed_fields=[STATUS_FIELD])

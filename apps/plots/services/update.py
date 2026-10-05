@@ -1,6 +1,9 @@
+from functools import partial
+
 from django.db import transaction
 
-from apps.common.db import save_translating_unique
+from apps.common.audit import record_update_events
+from apps.common.versioning import check_expected_version, save_next_version
 
 from ..exceptions import DuplicatePlotCode, StalePlotVersion
 from ..models import Plot, PlotAuditEvent
@@ -28,12 +31,13 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
     """
     plot = lock_plot(actor, plot_id)
     farm = plot.farm
-    if plot.version != expected_version:
-        # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
-        # haya aplicado el cambio: si la parcela ya tiene justo lo que se pide, es un éxito.
-        if matches(plot, data, data.keys()):
-            return plot
-        raise StalePlotVersion(plot)
+    if check_expected_version(
+        plot,
+        expected_version,
+        stale=lambda: StalePlotVersion(plot),
+        already_applied=lambda: matches(plot, data, data.keys()),
+    ):
+        return plot
     rules.ensure_farm_active(farm)
 
     before = {name: getattr(plot, name) for name in (*UPDATABLE_FIELDS, "boundary")}
@@ -60,31 +64,18 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
     if plot.is_active and boundary is not None and (reactivated or "boundary" in changed):
         rules.check_no_overlap(farm, boundary, exclude_plot_id=plot.pk)
 
-    plot.version += 1
-    update_fields = [*changed, "version", "updated_at"]
+    update_fields = list(changed)
     if "code" in changed:
         update_fields.append("code_normalized")
     if "boundary" in changed:
         update_fields.append("measured_area_hectares")
-    save_translating_unique(
-        lambda: plot.save(update_fields=update_fields),
-        constraint=CODE_UNIQUE_CONSTRAINT,
-        duplicate=DuplicatePlotCode,
+    save_next_version(
+        plot, update_fields, constraint=CODE_UNIQUE_CONSTRAINT, duplicate=DuplicatePlotCode
     )
-
-    content_changes = [name for name in changed if name != "is_active"]
-    if content_changes:
-        record_plot_audit_event(
-            plot=plot,
-            actor=actor,
-            action=PlotAuditEvent.Action.UPDATED,
-            changed_fields=content_changes,
-        )
-    if "is_active" in changed:
-        record_plot_audit_event(
-            plot=plot,
-            actor=actor,
-            action=PlotAuditEvent.Action.STATUS_CHANGED,
-            changed_fields=["is_active"],
-        )
+    record_update_events(
+        partial(record_plot_audit_event, plot=plot, actor=actor),
+        changed,
+        updated=PlotAuditEvent.Action.UPDATED,
+        status_changed=PlotAuditEvent.Action.STATUS_CHANGED,
+    )
     return plot

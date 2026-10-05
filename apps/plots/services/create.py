@@ -1,6 +1,6 @@
-from django.db import IntegrityError, transaction
+from django.db import transaction
 
-from apps.common.db import constraint_name
+from apps.common.db import save_translating_unique
 
 from ..exceptions import DuplicatePlotCode, PlotIdConflict
 from ..models import Plot, PlotAuditEvent
@@ -42,18 +42,16 @@ def create_plot(actor, data: dict) -> tuple[Plot, bool]:
         rules.check_within_farm_reach(farm, boundary)
         rules.check_no_overlap(farm, boundary)
 
-    try:
-        with transaction.atomic():
-            plot.save(force_insert=True)
-    except IntegrityError as error:
-        # El mismo `id` en otra finca no pasa por el mismo bloqueo: el choque llega como clave
-        # primaria repetida.
-        existing = _existing(plot.pk) if plot_id is not None else None
-        if existing is not None:
-            return _resent_plot(existing, actor, data), False
-        if constraint_name(error) == CODE_UNIQUE_CONSTRAINT:
-            raise DuplicatePlotCode() from None
-        raise
+    # El mismo `id` en otra finca no pasa por el mismo bloqueo: el choque llega como clave
+    # primaria repetida.
+    existing = save_translating_unique(
+        lambda: plot.save(force_insert=True),
+        constraint=CODE_UNIQUE_CONSTRAINT,
+        duplicate=DuplicatePlotCode,
+        find_existing=lambda: _existing(plot.pk) if plot_id is not None else None,
+    )
+    if existing is not None:
+        return _resent_plot(existing, actor, data), False
     record_plot_audit_event(plot=plot, actor=actor, action=PlotAuditEvent.Action.CREATED)
     return plot, True
 

@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
+from apps.common import locks
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.exceptions import (
     AreaMismatch,
@@ -18,7 +19,7 @@ from apps.plots.exceptions import (
 )
 from apps.plots.geometry import measured_area_hectares, to_polygon, validate_boundary
 from apps.plots.models import Plot, PlotAuditEvent
-from apps.plots.services import create_plot, rules, update_plot
+from apps.plots.services import create_plot, update_plot
 from apps.plots.tests.factories import NEAR_SHAPES, PlotFactory, boundary_fields, plot_data, rect
 from apps.producers.tests.factories import ProducerFactory
 
@@ -266,14 +267,14 @@ def test_a_plot_deleted_while_waiting_for_the_farm_lock_is_not_found(owner, farm
     # Otra operación la elimina justo después de que se buscó y antes de obtener el bloqueo de
     # la finca: la edición debe responder `not_found`, no un error inesperado.
     plot = PlotFactory(farm=farm)
-    lock_farm = rules.lock_farm
+    lock_root_row = locks.lock_root_row
 
-    def lock_after_someone_deletes_it(actor, farm_id):
-        locked = lock_farm(actor, farm_id)
+    def lock_after_someone_deletes_it(*args, **kwargs):
+        locked = lock_root_row(*args, **kwargs)
         Plot.objects.filter(pk=plot.pk).delete()
         return locked
 
-    with mock.patch.object(rules, "lock_farm", side_effect=lock_after_someone_deletes_it):
+    with mock.patch.object(locks, "lock_root_row", side_effect=lock_after_someone_deletes_it):
         with pytest.raises(PlotNotFound):
             update_plot(owner, plot.pk, 1, {"code": "Tarde"})
 

@@ -1,6 +1,6 @@
 from django.db.models import QuerySet
 
-from apps.common.locks import lock_plot_of_producer
+from apps.common.locks import lock_aggregate_root
 
 from ..exceptions import PlotNotFound
 from ..models import Plot
@@ -36,8 +36,16 @@ def get_plot(actor, plot_id) -> Plot:
 
 
 def lock_plot(actor, plot_id) -> Plot:
-    """La parcela del productor de la sesión, con su finca y ella misma bloqueadas hasta el final
-    de la transacción, la finca primero (ver `apps/common/locks.py`)."""
-    return lock_plot_of_producer(
-        Plot, producer_id=actor.producer_id, plot_id=plot_id, not_found=PlotNotFound
+    """La parcela del productor de la sesión, con su finca bloqueada hasta el final de la
+    transacción. Solo la finca: es la raíz de todo lo que cuelga de ella, y bloquear además la
+    fila de la parcela no deja correr nada en paralelo (la finca ya lo serializa) y sí abriría la
+    puerta a que dos operaciones se esperen entre sí (ver `apps/common/locks.py`)."""
+    plot, farm = lock_aggregate_root(
+        Plot,
+        plot_id,
+        root="farm",
+        scope={"farm__producer_id": actor.producer_id},
+        not_found=PlotNotFound,
     )
+    plot.farm = farm
+    return plot

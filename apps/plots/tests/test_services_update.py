@@ -267,14 +267,14 @@ def test_a_plot_deleted_while_waiting_for_the_farm_lock_is_not_found(owner, farm
     # Otra operación la elimina justo después de que se buscó y antes de obtener el bloqueo de
     # la finca: la edición debe responder `not_found`, no un error inesperado.
     plot = PlotFactory(farm=farm)
-    lock_farm_row = locks.lock_farm_row
+    lock_root_row = locks.lock_root_row
 
     def lock_after_someone_deletes_it(*args, **kwargs):
-        locked = lock_farm_row(*args, **kwargs)
+        locked = lock_root_row(*args, **kwargs)
         Plot.objects.filter(pk=plot.pk).delete()
         return locked
 
-    with mock.patch.object(locks, "lock_farm_row", side_effect=lock_after_someone_deletes_it):
+    with mock.patch.object(locks, "lock_root_row", side_effect=lock_after_someone_deletes_it):
         with pytest.raises(PlotNotFound):
             update_plot(owner, plot.pk, 1, {"code": "Tarde"})
 

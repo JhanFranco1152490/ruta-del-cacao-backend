@@ -4,9 +4,10 @@ from django.test.utils import CaptureQueriesContext
 
 from apps.common import locks
 from apps.common.exceptions import ApiError
-from apps.common.locks import lock_plot_of_producer
+from apps.common.locks import lock_aggregate_root
 from apps.farms.tests.factories import FarmFactory
-from apps.plots.models import Plot
+from apps.plots.models import Plot, PlotAuditEvent
+from apps.plots.services.audit import record_plot_audit_event
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
 
@@ -19,70 +20,82 @@ class NothingThere(ApiError):
     default_code = "not_found"
 
 
-def lock(plot_id, producer_id):
-    return lock_plot_of_producer(
-        Plot, producer_id=producer_id, plot_id=plot_id, not_found=NothingThere
+def lock_plot(plot_id, producer_id):
+    return lock_aggregate_root(
+        Plot,
+        plot_id,
+        root="farm",
+        scope={"farm__producer_id": producer_id},
+        not_found=NothingThere,
     )
 
 
-def test_it_gives_the_plot_with_its_farm_loaded():
+def locking_statements(queries):
+    return [query["sql"] for query in queries if "FOR UPDATE" in query["sql"]]
+
+
+def test_it_gives_the_row_and_its_root():
     plot = PlotFactory()
 
     with transaction.atomic():
-        locked = lock(plot.pk, plot.farm.producer_id)
+        found, root = lock_plot(plot.pk, plot.farm.producer_id)
 
-    assert locked.pk == plot.pk
-    # La finca ya viene cargada: quien llama no paga otra consulta para leerla.
-    with CaptureQueriesContext(connection) as queries:
-        assert locked.farm.pk == plot.farm_id
-    assert len(queries) == 0
+    assert (found.pk, root.pk) == (plot.pk, plot.farm_id)
 
 
-def test_the_farm_is_locked_before_the_plot():
-    # Dos operaciones que toman los mismos bloqueos en orden distinto pueden esperarse una a la
-    # otra: todas toman la finca primero.
+def test_only_the_root_is_locked_never_the_row_itself():
+    # Con un solo bloqueo no puede haber dos operaciones esperándose entre sí: toda escritura bajo
+    # una finca toma el de la finca, y la fila de la parcela no se bloquea aparte.
     plot = PlotFactory()
 
     with transaction.atomic(), CaptureQueriesContext(connection) as queries:
-        lock(plot.pk, plot.farm.producer_id)
+        lock_plot(plot.pk, plot.farm.producer_id)
 
-    locking = [query["sql"] for query in queries if "FOR UPDATE" in query["sql"]]
-    assert len(locking) == 2
-    assert "farms_farm" in locking[0] and "plots_plot" in locking[1]
+    statements = locking_statements(queries)
+    assert len(statements) == 1
+    assert "farms_farm" in statements[0]
 
 
-def test_a_plot_of_another_producer_is_reported_as_not_found():
+def test_a_row_of_another_producer_is_reported_as_not_found():
     plot = PlotFactory()
 
     with pytest.raises(NothingThere):
-        lock(plot.pk, ProducerFactory().pk)
+        lock_plot(plot.pk, ProducerFactory().pk)
 
 
-def test_an_unknown_plot_is_not_found():
+def test_an_unknown_row_is_not_found():
     with pytest.raises(NothingThere):
-        lock("00000000-0000-4000-8000-000000000000", FarmFactory().producer_id)
+        lock_plot("00000000-0000-4000-8000-000000000000", FarmFactory().producer_id)
 
 
-def test_a_plot_deleted_while_waiting_for_the_farm_lock_is_not_found():
+def test_a_row_deleted_while_waiting_for_the_root_lock_is_not_found():
     plot = PlotFactory()
-    real_lock = locks.lock_farm_row
+    lock_root_row = locks.lock_root_row
 
     def lock_after_someone_deletes_it(*args, **kwargs):
-        locked = real_lock(*args, **kwargs)
+        locked = lock_root_row(*args, **kwargs)
         Plot.objects.filter(pk=plot.pk).delete()
         return locked
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(locks, "lock_farm_row", lock_after_someone_deletes_it)
+        patch.setattr(locks, "lock_root_row", lock_after_someone_deletes_it)
         with transaction.atomic(), pytest.raises(NothingThere):
-            lock(plot.pk, plot.farm.producer_id)
+            lock_plot(plot.pk, plot.farm.producer_id)
 
 
-def test_lock_farm_row_is_limited_to_the_producer():
-    farm = FarmFactory()
+def test_the_root_can_be_several_relations_up():
+    # Algo que cuelga de la parcela (aquí su historial) llega a la raíz por `plot__farm`.
+    plot = PlotFactory()
+    event = record_plot_audit_event(plot=plot, actor=None, action=PlotAuditEvent.Action.CREATED)
 
-    with transaction.atomic():
-        assert locks.lock_farm_row(type(farm), producer_id=farm.producer_id, farm_id=farm.pk)
-        assert not locks.lock_farm_row(
-            type(farm), producer_id=ProducerFactory().pk, farm_id=farm.pk
+    with transaction.atomic(), CaptureQueriesContext(connection) as queries:
+        found, root = lock_aggregate_root(
+            PlotAuditEvent,
+            event.pk,
+            root="plot__farm",
+            scope={"plot__farm__producer_id": plot.farm.producer_id},
+            not_found=NothingThere,
         )
+
+    assert (found.pk, root.pk) == (event.pk, plot.farm_id)
+    assert len(locking_statements(queries)) == 1

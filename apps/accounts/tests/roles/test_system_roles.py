@@ -129,7 +129,6 @@ def test_deleting_a_producer_requires_seeing_them():
     [
         ("accounts.users_view", True),
         ("accounts.roles_manage", True),
-        ("accounts.association_access_manage", False),
         ("producers.view", False),
         ("producers.delete", False),
         ("farms.view_farm", True),

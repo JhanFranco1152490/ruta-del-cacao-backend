@@ -2,10 +2,10 @@ import pytest
 from django.contrib.auth.models import Group
 from django.utils import timezone
 
-from apps.accounts.models import AssociationAccess, Role, User
+from apps.accounts.models import Role, User
 from apps.accounts.producer_dependent import accounts_dependent
 from apps.accounts.tests.factories import RoleFactory, UserFactory
-from apps.accounts.tests.role_helpers import enable_association_access, make_administrator
+from apps.accounts.tests.role_helpers import make_administrator
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -42,19 +42,17 @@ def test_the_reason_never_carries_personal_data():
     assert employee.identity_document not in reason
 
 
-def test_deleting_all_removes_accounts_own_roles_and_the_access_row():
+def test_deleting_all_removes_accounts_and_own_roles():
     producer = ProducerFactory()
     UserFactory(producer=producer)
     role = RoleFactory(producer=producer)
     group_id = role.group_id
-    enable_association_access(producer)
 
     accounts_dependent.delete_all(producer, make_administrator())
 
     assert not User.objects.filter(producer=producer).exists()
     assert not Role.objects.filter(producer=producer).exists()
     assert not Group.objects.filter(pk=group_id).exists()
-    assert not AssociationAccess.objects.filter(producer=producer).exists()
 
 
 def test_deleting_all_leaves_other_producers_and_the_association_alone():

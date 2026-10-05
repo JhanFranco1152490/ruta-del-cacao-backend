@@ -145,12 +145,6 @@ class NotActivationPending(ApiError):
     default_code = "not_activation_pending"
 
 
-class AssociationAccessNotFound(ApiError):
-    status_code = status.HTTP_404_NOT_FOUND
-    default_detail = "Esta cuenta no tiene un productor asociado."
-    default_code = "not_found"
-
-
 class AdministratorAlreadyExists(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Ya existe una cuenta Administrador."

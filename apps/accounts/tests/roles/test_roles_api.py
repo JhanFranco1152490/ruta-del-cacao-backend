@@ -583,17 +583,15 @@ def test_permission_catalog_marks_grantable_for_a_delegate(auth_client):
 
 
 def test_permission_catalog_excludes_permissions_no_custom_role_can_ever_hold(auth_client):
-    # Un rol propio siempre está atado a un productor: producers.* y association_access_manage
-    # nunca se le pueden asignar, para nadie, así que no tiene sentido ofrecerlos como opción
-    # aunque quien consulta el catálogo sea Administrador (con `producers.*` en su propio rol
-    # de sistema) o superusuario.
+    # Un rol propio siempre está atado a un productor: producers.* nunca se le puede asignar,
+    # para nadie, así que no tiene sentido ofrecerlo como opción aunque quien consulta el
+    # catálogo sea Administrador (con `producers.*` en su propio rol de sistema) o superusuario.
     admin = make_administrator()
 
     response = auth_client(admin).get(PERMISSIONS_URL)
 
     codes = {item["code"] for item in response.data["results"]}
     assert "producers.view" not in codes
-    assert "accounts.association_access_manage" not in codes
     assert "accounts.users_view" in codes
 
 

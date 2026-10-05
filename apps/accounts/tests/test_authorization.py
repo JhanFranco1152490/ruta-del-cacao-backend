@@ -251,6 +251,15 @@ def test_a_delegate_cannot_reach_the_producer_account():
         ensure_can_manage_account(delegate, owner)
 
 
+def test_a_delegate_with_every_permission_of_the_producer_still_cannot_reach_their_account():
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    delegate = make_delegate(producer, sorted(get_system_role(PRODUCER).permission_codes))
+
+    with pytest.raises(ExceedsOwnPermissions):
+        ensure_can_manage_account(delegate, owner)
+
+
 def test_a_delegate_cannot_manage_a_peer_with_more_permissions():
     producer = ProducerFactory()
     strong = make_delegate(producer, ["accounts.users_view", "accounts.roles_manage"])

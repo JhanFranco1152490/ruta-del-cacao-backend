@@ -27,12 +27,6 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "accounts.users_delete": PermissionInfo(area="users", delegable=True),
     "accounts.roles_view": PermissionInfo(area="roles", delegable=True),
     "accounts.roles_manage": PermissionInfo(area="roles", delegable=True),
-    # No delegable: es lo que impide que un empleado alcance a la cuenta Productor (nadie
-    # administra a quien tiene un permiso que él no tiene), y abre el espacio del productor a
-    # la asociación, una decisión que solo le corresponde al productor.
-    "accounts.association_access_manage": PermissionInfo(
-        area="association_access", delegable=False
-    ),
     # No delegables: administran a todos los productores de la asociación, no el espacio de uno.
     "producers.view": PermissionInfo(area="producers", delegable=False),
     "producers.create": PermissionInfo(area="producers", delegable=False),

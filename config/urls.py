@@ -27,7 +27,6 @@ urlpatterns = [
     path("api/auth/", include("apps.accounts.auth.urls")),
     path("api/", include("apps.accounts.roles.urls")),
     path("api/", include("apps.accounts.users.urls")),
-    path("api/", include("apps.accounts.access_switch.urls")),
     path("api/", include("apps.producers.urls")),
     path("api/", include("apps.farms.urls")),
     path("api/", include("apps.plots.urls")),

@@ -19,7 +19,6 @@ class ProducerAccountSerializer(serializers.Serializer):
 
 class ProducerSerializer(RejectUnknownFieldsMixin, serializers.ModelSerializer):
     account = serializers.SerializerMethodField()
-    association_access = serializers.SerializerMethodField()
     # Opcional en el modelo (se puede vaciar al editar, ver ProducerUpdateSerializer), pero
     # obligatorio al crear: HU-03 crea la cuenta Productor con este correo en la misma
     # operación, y una cuenta exige correo.
@@ -43,7 +42,6 @@ class ProducerSerializer(RejectUnknownFieldsMixin, serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "account",
-            "association_access",
         ]
         read_only_fields = [
             "id",
@@ -53,7 +51,6 @@ class ProducerSerializer(RejectUnknownFieldsMixin, serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "account",
-            "association_access",
         ]
         # Sin validador de unicidad previo: el duplicado lo decide la base de datos (409).
         validators = []
@@ -83,10 +80,6 @@ class ProducerSerializer(RejectUnknownFieldsMixin, serializers.ModelSerializer):
                 "activation_pending": not user.has_usable_password(),
             }
         ).data
-
-    def get_association_access(self, producer) -> bool:
-        access = getattr(producer, "association_access", None)
-        return bool(access and access.enabled)
 
 
 class ProducerDetailSerializer(ProducerSerializer):

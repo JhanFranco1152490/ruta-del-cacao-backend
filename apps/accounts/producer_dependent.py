@@ -1,6 +1,6 @@
 from apps.common.producer_dependents import ProducerDependent
 
-from .models import AssociationAccess, Role, User
+from .models import Role, User
 
 
 def _accounts_of(producer):
@@ -24,7 +24,6 @@ def _delete_all(producer, actor) -> None:
         group = role.group
         role.delete()
         group.delete()
-    AssociationAccess.objects.filter(producer_id=producer.pk).delete()
 
 
 accounts_dependent = ProducerDependent(

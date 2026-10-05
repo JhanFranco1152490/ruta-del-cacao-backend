@@ -204,8 +204,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
   productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca
   `delegable=False` con la razón escrita al lado, por ejemplo que actúe sobre toda la
-  asociación (`producers.*`) o que proteja la cuenta Productor
-  (`accounts.association_access_manage`). Un permiso de acción declara además su dependencia de
+  asociación (`producers.*`). La cuenta Productor no se protege con un permiso sino con una
+  regla (`ensure_can_manage_account`), porque todo lo que el rol Productor tiene es delegable.
+  Un permiso de acción declara además su dependencia de
   vista en `PERMISSION_DEPENDENCIES` (crear o editar sin poder consultar no sirve). Un código
   que no está en el registro queda no delegable, pero eso es una red contra el olvido, no la
   forma de decidirlo.

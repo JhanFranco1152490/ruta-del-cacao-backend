@@ -95,6 +95,11 @@ def ensure_can_manage_account(actor, target) -> None:
         if not acts_for_producer(actor, target.producer_id):
             raise ExceedsOwnPermissions()
         return
+    # La cuenta Productor es del productor y de la asociación: ni un empleado con todos sus
+    # permisos la administra. Es una regla y no un permiso que solo ella tenga, porque cada
+    # permiso del rol Productor se puede delegar.
+    if target.groups.filter(role__code=PRODUCER).exists():
+        raise ExceedsOwnPermissions()
     if actor.producer_id is None or actor.producer_id != target.producer_id:
         raise ExceedsOwnPermissions()
     if not effective_permissions(target) <= effective_permissions(actor):

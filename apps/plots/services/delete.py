@@ -1,6 +1,7 @@
 from django.db import transaction
 
 from apps.common.db import has_dependent_rows
+from apps.common.versioning import check_expected_version
 
 from ..exceptions import PlotHasRecords, StalePlotVersion
 from ..models import Plot, PlotAuditEvent
@@ -15,8 +16,7 @@ def delete_plot(actor, plot_id, expected_version: int) -> None:
     lotes): la que ya se usa se desactiva. Libera su área y su historial se conserva, con el
     borrado registrado en él."""
     plot = lock_plot(actor, plot_id)
-    if plot.version != expected_version:
-        raise StalePlotVersion(plot)
+    check_expected_version(plot, expected_version, stale=lambda: StalePlotVersion(plot))
     # Con la finca inactiva sus parcelas quedan congeladas, también para eliminarlas: al
     # reactivarla vuelven tal como estaban.
     rules.ensure_farm_active(plot.farm)

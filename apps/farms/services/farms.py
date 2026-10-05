@@ -1,14 +1,17 @@
 import copy
 from decimal import Decimal
+from functools import partial
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import DecimalField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 
+from apps.common.audit import record_update_events
 from apps.common.db import has_dependent_rows, save_translating_unique
 from apps.common.farm_dependents import registered_dependents
 from apps.common.territorial import coordinates_outside_operating_area
+from apps.common.versioning import check_expected_version, save_next_version
 
 from ..exceptions import (
     DuplicateFarmName,
@@ -126,13 +129,13 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     # Con la finca bloqueada, ninguna parcela se registra ni se agranda hasta que esto termine.
     # La suma va en una consulta aparte: PostgreSQL no bloquea filas de una consulta agrupada.
     _set_allocated_area(farm)
-    if farm.version != expected_version:
-        # Una cola sin conexión reintenta cuando no recibió la respuesta, aunque el servidor sí
-        # haya aplicado el cambio. Si la finca ya tiene justo lo que se pide, el resultado sería
-        # el mismo: se responde como éxito en vez de mandar esa edición a revisión manual.
-        if _already_applied(farm, data):
-            return farm
-        raise StaleFarmVersion(farm)
+    if check_expected_version(
+        farm,
+        expected_version,
+        stale=lambda: StaleFarmVersion(farm),
+        already_applied=lambda: _already_applied(farm, data),
+    ):
+        return farm
 
     before = {name: getattr(farm, name) for name in data}
     for name, value in data.items():
@@ -151,31 +154,16 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     if "area_hectares" in changed and farm.area_hectares < farm.allocated_area_hectares:
         raise FarmAreaBelowPlots(farm.allocated_area_hectares)
 
-    farm.version += 1
-    update_fields = [*changed, "version", "updated_at"]
-    if "name" in changed:
-        update_fields.append("name_normalized")
-    save_translating_unique(
-        lambda: farm.save(update_fields=update_fields),
-        constraint=NAME_UNIQUE_CONSTRAINT,
-        duplicate=DuplicateFarmName,
+    update_fields = [*changed, "name_normalized"] if "name" in changed else changed
+    save_next_version(
+        farm, update_fields, constraint=NAME_UNIQUE_CONSTRAINT, duplicate=DuplicateFarmName
     )
-
-    content_changes = [name for name in changed if name != "is_active"]
-    if content_changes:
-        record_farm_audit_event(
-            farm=farm,
-            actor=actor,
-            action=FarmAuditEvent.Action.UPDATED,
-            changed_fields=content_changes,
-        )
-    if "is_active" in changed:
-        record_farm_audit_event(
-            farm=farm,
-            actor=actor,
-            action=FarmAuditEvent.Action.STATUS_CHANGED,
-            changed_fields=["is_active"],
-        )
+    record_update_events(
+        partial(record_farm_audit_event, farm=farm, actor=actor),
+        changed,
+        updated=FarmAuditEvent.Action.UPDATED,
+        status_changed=FarmAuditEvent.Action.STATUS_CHANGED,
+    )
     return farm
 
 
@@ -187,11 +175,7 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
         farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
-    if farm.version != expected_version:
-        # El conflicto devuelve la finca del servidor, con su área asignada como en toda
-        # respuesta de una finca.
-        _set_allocated_area(farm)
-        raise StaleFarmVersion(farm)
+    check_expected_version(farm, expected_version, stale=lambda: _stale_with_allocated_area(farm))
     remove_unimportant_farm(farm, actor)
 
 
@@ -235,6 +219,13 @@ def _set_allocated_area(farm: Farm) -> None:
     farm.allocated_area_hectares = Farm.objects.filter(pk=farm.pk).aggregate(
         allocated=ALLOCATED_AREA
     )["allocated"]
+
+
+def _stale_with_allocated_area(farm: Farm) -> StaleFarmVersion:
+    # El conflicto devuelve la finca del servidor, con su área asignada como en toda respuesta de
+    # una finca.
+    _set_allocated_area(farm)
+    return StaleFarmVersion(farm)
 
 
 def _already_applied(farm: Farm, data: dict) -> bool:

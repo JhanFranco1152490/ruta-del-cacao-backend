@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), middleware `no-store`, vistas 404/500 en JSON |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -369,6 +369,14 @@ nada. Ruff y Black usan `line-length = 99`.
     traduce al error de negocio y cualquier otro se relanza. En las altas que se reintentan sin
     conexión, `find_existing` decide primero si el `id` ya existía, porque un reenvío no es un
     nombre repetido.
+  - **Editar un registro con `version`** se arma con las piezas de `apps/common/versioning.py` y
+    `record_update_events` de `apps/common/audit.py`, sin repetir sus pasos en cada servicio:
+    `check_expected_version` (versión leída frente a la del registro bloqueado, y reintento de una
+    cola sin conexión que ya se aplicó), `save_next_version` (sube la versión y guarda traduciendo la
+    restricción única) y `record_update_events` (`UPDATED` por contenido y `STATUS_CHANGED` por
+    `is_active`). Lo que sigue en cada servicio es lo que lo distingue: sus validaciones y cómo
+    calcula `changed`. Un servicio que no encaja (la ficha reemplaza todo su contenido, y
+    `producers` no tiene auditoría ni `current` en el conflicto) no se tuerce para usarlas.
 - **Fechas:** "hoy" es `django.utils.timezone.localdate()` (zona `America/Bogota`).
 - **Datos personales:** ningún log, mensaje de error ni comentario los incluye. El mensaje de
   una excepción puede traer un correo o un documento (un `IntegrityError` con el valor

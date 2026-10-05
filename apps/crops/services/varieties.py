@@ -1,6 +1,9 @@
+from functools import partial
+
 from django.db import transaction
 from django.db.models import QuerySet
 
+from apps.common.audit import record_update_events
 from apps.common.db import save_translating_unique
 
 from ..exceptions import DuplicateVarietyName, VarietyNotFound
@@ -74,21 +77,12 @@ def update_variety(actor, variety_id, data: dict) -> CacaoVariety:
         update_fields.append("search_normalized")
     _save(variety, update_fields=update_fields)
 
-    content_changes = [name for name in changed if name != "is_active"]
-    if content_changes:
-        record_variety_audit_event(
-            variety=variety,
-            actor=actor,
-            action=CacaoVarietyAuditEvent.Action.UPDATED,
-            changed_fields=content_changes,
-        )
-    if "is_active" in changed:
-        record_variety_audit_event(
-            variety=variety,
-            actor=actor,
-            action=CacaoVarietyAuditEvent.Action.STATUS_CHANGED,
-            changed_fields=["is_active"],
-        )
+    record_update_events(
+        partial(record_variety_audit_event, variety=variety, actor=actor),
+        changed,
+        updated=CacaoVarietyAuditEvent.Action.UPDATED,
+        status_changed=CacaoVarietyAuditEvent.Action.STATUS_CHANGED,
+    )
     return variety
 
 

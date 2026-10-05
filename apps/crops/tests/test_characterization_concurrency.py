@@ -26,9 +26,14 @@ def attempt(action):
 def content(variety, tree_count) -> dict:
     return {
         "plantings": [
-            {"variety_id": variety.pk, "planting_date": date(2021, 3, 1), "tree_count": tree_count}
+            {
+                "variety_id": variety.pk,
+                "planting_date": date(2021, 3, 1),
+                "tree_count": tree_count,
+                "propagation": "grafted",
+                "stage": "full_production",
+            }
         ],
-        "stage": "full_production",
         "management_system": None,
         "shade_type": None,
         "captured_at": None,

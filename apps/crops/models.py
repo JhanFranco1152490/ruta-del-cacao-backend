@@ -6,7 +6,7 @@ from django.db import models
 
 from apps.common.audit import AuditEventBase
 
-from .choices import ManagementSystem, ShadeType, Stage
+from .choices import ManagementSystem, Propagation, ShadeType, Stage
 from .text import normalize_variety_name
 
 MAX_COMMON_NAMES = 5
@@ -92,7 +92,6 @@ class PlotCharacterization(models.Model):
         primary_key=True,
         related_name="characterization",
     )
-    stage = models.CharField(max_length=32, choices=Stage.choices)
     management_system = models.CharField(
         max_length=32, choices=ManagementSystem.choices, null=True, blank=True
     )
@@ -131,6 +130,10 @@ class PlotPlanting(models.Model):
     # Mes y año; se guarda en el día 1. La edad no se guarda porque cambia con el tiempo.
     planting_date = models.DateField()
     tree_count = models.PositiveIntegerField()
+    propagation = models.CharField(max_length=16, choices=Propagation.choices)
+    # La etapa es de cada siembra: en una renovación gradual conviven tandas en etapas distintas, y
+    # una sola etapa por parcela obligaba a describir mal la vieja o la nueva.
+    stage = models.CharField(max_length=32, choices=Stage.choices)
 
     class Meta:
         constraints = [
@@ -168,6 +171,9 @@ class PlotCharacterizationAuditEvent(AuditEventBase):
         related_name="plot_characterization_audit_events",
     )
     action = models.CharField(max_length=32, choices=Action.choices)
+    # La versión de la ficha que dejó este cambio: es la que ve la persona y la que cosecha va a
+    # guardar, y sin ella solo se podría deducir contando eventos.
+    version = models.PositiveIntegerField()
     # A diferencia de otros historiales, guarda los valores de la ficha tras el cambio: no tiene
     # datos personales, y sin ellos el historial no serviría para seguir el ciclo productivo
     # (cuándo pasó de una etapa a otra o cuándo se renovó).

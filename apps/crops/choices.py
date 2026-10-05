@@ -13,6 +13,14 @@ class Stage(models.TextChoices):
     RENOVATION = "renovation", "Renovación o rehabilitación"
 
 
+class Propagation(models.TextChoices):
+    """Cómo se propagó la siembra. Los tiempos son distintos: las plantas injertadas empiezan a
+    producir hacia los 28 meses y las de semilla hacia los 5 años."""
+
+    GRAFTED = "grafted", "Injerto o clon"
+    SEED = "seed", "Semilla"
+
+
 class ManagementSystem(models.TextChoices):
     # El criterio que importa para vender: el cacao orgánico se comercializa distinto.
     CONVENTIONAL = "conventional", "Convencional"

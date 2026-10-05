@@ -138,17 +138,19 @@ def test_a_plot_with_a_characterization_cannot_be_deleted():
 
 def test_characterization_audit_event_keeps_the_values_of_the_version():
     characterization = PlotCharacterizationFactory()
-    snapshot = {"stage": "full_production", "plantings": [{"name": "CCN-51", "tree_count": 9}]}
+    snapshot = {"plantings": [{"name": "CCN-51", "tree_count": 9, "stage": "full_production"}]}
 
     event = PlotCharacterizationAuditEvent.record(
         plot=characterization.plot,
         actor=UserFactory(),
         action=PlotCharacterizationAuditEvent.Action.CREATED,
+        version=1,
         snapshot=snapshot,
     )
 
     event.refresh_from_db()
     assert event.snapshot == snapshot
+    assert event.version == 1
     assert event.plot == characterization.plot
 
 
@@ -158,6 +160,7 @@ def test_a_plot_with_characterization_history_cannot_be_deleted():
         plot=plot,
         actor=None,
         action=PlotCharacterizationAuditEvent.Action.UPDATED,
+        version=2,
         snapshot={},
     )
 

@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from datetime import date
 
 from ..models import (
     CacaoVariety,
@@ -15,7 +14,7 @@ def record_characterization_audit_event(
     actor,
     action: str,
     changed_fields: Iterable[str],
-    rows: Iterable[tuple[CacaoVariety, date, int]],
+    plantings: Iterable[tuple[CacaoVariety, dict]],
 ) -> PlotCharacterizationAuditEvent:
     """El evento lleva los valores de la ficha tras el cambio: con ellos, el historial muestra
     cuándo pasó la parcela de una etapa a otra o cuándo se renovó. La ficha no tiene datos
@@ -25,28 +24,30 @@ def record_characterization_audit_event(
         actor=actor,
         action=action,
         changed_fields=changed_fields,
-        snapshot=snapshot(characterization, rows),
+        version=characterization.version,
+        snapshot=snapshot(characterization, plantings),
     )
 
 
-def snapshot(characterization: PlotCharacterization, rows) -> dict:
+def snapshot(characterization: PlotCharacterization, plantings) -> dict:
     # El `id` además del nombre: si la variedad se renombra después, el historial sigue diciendo
     # cuál era.
-    plantings = sorted(
+    rows = sorted(
         (
             {
                 "variety_id": str(variety.pk),
                 "name": variety.name,
-                "planting_date": planting_date.strftime("%Y-%m"),
-                "tree_count": tree_count,
+                "planting_date": row["planting_date"].strftime("%Y-%m"),
+                "tree_count": row["tree_count"],
+                "propagation": row["propagation"],
+                "stage": row["stage"],
             }
-            for variety, planting_date, tree_count in rows
+            for variety, row in plantings
         ),
         key=lambda row: (row["name"], row["planting_date"], row["variety_id"]),
     )
     return {
-        "plantings": plantings,
-        "stage": characterization.stage,
+        "plantings": rows,
         "management_system": characterization.management_system,
         "shade_type": characterization.shade_type,
     }

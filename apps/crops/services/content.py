@@ -3,18 +3,25 @@
 from ..models import PlotCharacterization
 
 # `captured_at` no cuenta: es la hora del dispositivo, y un reintento la trae distinta.
-SCALAR_FIELDS = ("stage", "management_system", "shade_type")
+SCALAR_FIELDS = ("management_system", "shade_type")
 
 
 def requested_rows(data: dict) -> set[tuple]:
     return {
-        (row["variety_id"], row["planting_date"], row["tree_count"]) for row in data["plantings"]
+        (
+            row["variety_id"],
+            row["planting_date"],
+            row["tree_count"],
+            row["propagation"],
+            row["stage"],
+        )
+        for row in data["plantings"]
     }
 
 
 def stored_rows(characterization: PlotCharacterization) -> set[tuple]:
     return {
-        (row.variety_id, row.planting_date, row.tree_count)
+        (row.variety_id, row.planting_date, row.tree_count, row.propagation, row.stage)
         for row in characterization.plantings.all()
     }
 

@@ -54,19 +54,21 @@ def ics95():
 MARCH_2021 = date(2021, 3, 1)
 
 
-def data(*rows, **overrides) -> dict:
-    """Una ficha válida como la deja el serializer: siembras de `(variedad, árboles)` o
-    `(variedad, árboles, fecha)`; sin fecha, marzo de 2021."""
+def data(*rows, stage="full_production", propagation="grafted", **overrides) -> dict:
+    """Una ficha válida como la deja el serializer: siembras de `(variedad, árboles)`,
+    `(variedad, árboles, fecha)` o `(variedad, árboles, fecha, etapa)`; sin fecha, marzo de 2021,
+    y sin etapa, la de `stage`."""
     content = {
         "plantings": [
             {
                 "variety_id": row[0].pk,
                 "planting_date": row[2] if len(row) > 2 else MARCH_2021,
                 "tree_count": row[1],
+                "propagation": propagation,
+                "stage": row[3] if len(row) > 3 else stage,
             }
             for row in rows
         ],
-        "stage": "full_production",
         "management_system": "conventional",
         "shade_type": None,
         "captured_at": None,
@@ -97,10 +99,10 @@ def test_registers_the_characterization_of_a_plot(owner, plot, ccn51, ics95):
     assert characterization.version == 1
     assert rows_of(characterization) == {("CCN-51", 1800), ("ICS-95", 600)}
     assert set(characterization.plantings.values_list("planting_date", flat=True)) == {MARCH_2021}
-    assert (characterization.stage, characterization.management_system) == (
-        "full_production",
-        "conventional",
-    )
+    assert set(characterization.plantings.values_list("stage", "propagation")) == {
+        ("full_production", "grafted")
+    }
+    assert characterization.management_system == "conventional"
     assert characterization.shade_type is None
 
 
@@ -117,15 +119,18 @@ def test_registering_leaves_a_created_event_with_the_values(owner, plot, ccn51, 
                 "name": "CCN-51",
                 "planting_date": "2021-03",
                 "tree_count": 1800,
+                "propagation": "grafted",
+                "stage": "full_production",
             },
             {
                 "variety_id": str(ics95.pk),
                 "name": "ICS-95",
                 "planting_date": "2021-03",
                 "tree_count": 600,
+                "propagation": "grafted",
+                "stage": "full_production",
             },
         ],
-        "stage": "full_production",
         "management_system": "conventional",
         "shade_type": None,
     }
@@ -173,7 +178,8 @@ def test_replaces_the_whole_characterization_and_raises_the_version(
     characterization.refresh_from_db()
     assert characterization.version == 2
     assert rows_of(characterization) == {("CCN-51", 2000)}
-    assert (characterization.stage, characterization.management_system) == ("renovation", None)
+    assert set(characterization.plantings.values_list("stage", flat=True)) == {"renovation"}
+    assert characterization.management_system is None
     assert PlotPlanting.objects.count() == 1
 
 
@@ -181,14 +187,15 @@ def test_replacing_leaves_an_updated_event_with_what_changed(owner, plot, regist
     save_characterization(owner, plot.pk, 1, data((ccn51, 2000), stage="renovation"))
 
     event = events_of(plot).get(action=Action.UPDATED)
-    assert event.changed_fields == ["plantings", "stage"]
-    assert event.snapshot["stage"] == "renovation"
+    assert event.changed_fields == ["plantings"]
     assert event.snapshot["plantings"] == [
         {
             "variety_id": str(ccn51.pk),
             "name": "CCN-51",
             "planting_date": "2021-03",
             "tree_count": 2000,
+            "propagation": "grafted",
+            "stage": "renovation",
         }
     ]
 
@@ -204,7 +211,8 @@ def test_each_version_keeps_its_own_values(owner, plot, registered, ccn51, ics95
 
     # Por versión y no por hora: varios eventos seguidos pueden quedar con la misma hora.
     stages = sorted(
-        (event.snapshot["stage"], event.action, event.actor_id) for event in events_of(plot)
+        (event.snapshot["plantings"][0]["stage"], event.action, event.actor_id)
+        for event in events_of(plot)
     )
     assert stages == sorted(
         [
@@ -378,8 +386,15 @@ def test_the_snapshot_has_no_personal_data(owner, plot, ccn51):
     save_characterization(owner, plot.pk, None, data((ccn51, 900)))
 
     snapshot = events_of(plot).get().snapshot
-    assert set(snapshot) == {"plantings", "stage", "management_system", "shade_type"}
-    assert set(snapshot["plantings"][0]) == {"variety_id", "name", "planting_date", "tree_count"}
+    assert set(snapshot) == {"plantings", "management_system", "shade_type"}
+    assert set(snapshot["plantings"][0]) == {
+        "variety_id",
+        "name",
+        "planting_date",
+        "tree_count",
+        "propagation",
+        "stage",
+    }
     text = str(snapshot)
     for personal in (owner.email, plot.farm.producer.first_name, plot.farm.name, plot.code):
         assert personal not in text
@@ -434,3 +449,67 @@ def test_an_impossible_density_is_rejected_and_nothing_is_saved(owner, ccn51):
     assert "10.001 árboles/ha" in error.value.fields["plantings"][0]
     assert not PlotCharacterization.objects.exists()
     assert not events_of(plot).exists()
+
+
+# --- Etapa y propagación por siembra ------------------------------------------------------------
+
+
+def test_each_planting_keeps_its_own_stage(owner, plot, ccn51):
+    characterization, _ = save_characterization(
+        owner,
+        plot.pk,
+        None,
+        data(
+            (ccn51, 1000, date(2018, 4, 1), "full_production"),
+            (ccn51, 500, date(2024, 2, 1), "establishment"),
+        ),
+    )
+
+    assert sorted(characterization.plantings.values_list("planting_date", "stage")) == [
+        (date(2018, 4, 1), "full_production"),
+        (date(2024, 2, 1), "establishment"),
+    ]
+
+
+def test_changing_only_the_stage_of_one_planting_is_a_change(owner, plot, ccn51):
+    save_characterization(
+        owner,
+        plot.pk,
+        None,
+        data(
+            (ccn51, 1000, date(2018, 4, 1), "full_production"),
+            (ccn51, 500, date(2024, 2, 1), "establishment"),
+        ),
+    )
+
+    characterization, _ = save_characterization(
+        owner,
+        plot.pk,
+        1,
+        data(
+            (ccn51, 1000, date(2018, 4, 1), "renovation"),
+            (ccn51, 500, date(2024, 2, 1), "establishment"),
+        ),
+    )
+
+    assert characterization.version == 2
+    assert events_of(plot).get(action=Action.UPDATED).changed_fields == ["plantings"]
+
+
+def test_changing_only_the_propagation_is_a_change(owner, plot, ccn51):
+    save_characterization(owner, plot.pk, None, data((ccn51, 900)))
+
+    characterization, _ = save_characterization(
+        owner, plot.pk, 1, data((ccn51, 900), propagation="seed")
+    )
+
+    assert characterization.version == 2
+    assert set(characterization.plantings.values_list("propagation", flat=True)) == {"seed"}
+
+
+def test_every_event_keeps_the_version_it_left(owner, plot, ccn51):
+    save_characterization(owner, plot.pk, None, data((ccn51, 900)))
+    save_characterization(owner, plot.pk, 1, data((ccn51, 1000)))
+    save_characterization(owner, plot.pk, 2, data((ccn51, 1100)))
+
+    assert sorted(events_of(plot).values_list("version", flat=True)) == [1, 2, 3]

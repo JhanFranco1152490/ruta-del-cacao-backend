@@ -1,11 +1,17 @@
-from drf_spectacular.utils import extend_schema_serializer
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
 
-from .choices import ManagementSystem, ShadeType, Stage
+from .choices import ManagementSystem, Propagation, ShadeType, Stage
 from .fields import PlantingMonthField
-from .models import MAX_COMMON_NAMES, CacaoVariety, PlotCharacterization, PlotPlanting
+from .models import (
+    MAX_COMMON_NAMES,
+    CacaoVariety,
+    PlotCharacterization,
+    PlotCharacterizationAuditEvent,
+    PlotPlanting,
+)
 
 
 class CacaoVarietySerializer(serializers.ModelSerializer):
@@ -76,7 +82,7 @@ class PlantingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PlotPlanting
-        fields = ["variety", "planting_date", "tree_count"]
+        fields = ["variety", "planting_date", "tree_count", "propagation", "stage"]
         read_only_fields = fields
 
 
@@ -93,7 +99,6 @@ class PlotCharacterizationSerializer(serializers.ModelSerializer):
             "plot_id",
             "plantings",
             "total_trees",
-            "stage",
             "management_system",
             "shade_type",
             "version",
@@ -121,6 +126,8 @@ class PlantingInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     variety_id = serializers.UUIDField()
     planting_date = PlantingMonthField()
     tree_count = serializers.IntegerField(min_value=1, max_value=MAX_TREES)
+    propagation = serializers.ChoiceField(choices=Propagation.choices)
+    stage = serializers.ChoiceField(choices=Stage.choices)
 
 
 class PlotCharacterizationWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
@@ -131,7 +138,6 @@ class PlotCharacterizationWriteSerializer(RejectUnknownFieldsMixin, serializers.
     plantings = PlantingInputSerializer(
         many=True, error_messages={"required": SELECT_VARIETY, "null": SELECT_VARIETY}
     )
-    stage = serializers.ChoiceField(choices=Stage.choices)
     management_system = serializers.ChoiceField(
         choices=ManagementSystem.choices, allow_null=True, required=False, default=None
     )
@@ -159,3 +165,44 @@ class StaleCharacterizationErrorSerializer(ApiErrorSerializer):
     # Solo se documenta. `current` llega con `stale_version`: la ficha vigente, o `null` si la
     # parcela no tiene, para resolver el conflicto sin otra consulta.
     current = PlotCharacterizationSerializer(allow_null=True)
+
+
+class SnapshotPlantingSerializer(serializers.Serializer):
+    # Un comentario y no un docstring: aparecería como la descripción del componente.
+    # Solo documenta la forma de lo que guarda el historial: no valida nada.
+    variety_id = serializers.UUIDField()
+    name = serializers.CharField()
+    planting_date = serializers.CharField()
+    tree_count = serializers.IntegerField()
+    propagation = serializers.ChoiceField(choices=Propagation.choices)
+    stage = serializers.ChoiceField(choices=Stage.choices)
+
+
+class PlotCharacterizationSnapshotSerializer(serializers.Serializer):
+    plantings = SnapshotPlantingSerializer(many=True)
+    management_system = serializers.ChoiceField(choices=ManagementSystem.choices, allow_null=True)
+    shade_type = serializers.ChoiceField(choices=ShadeType.choices, allow_null=True)
+
+
+class PlotCharacterizationEventSerializer(serializers.ModelSerializer):
+    # Una versión de la ficha en su historial, con los valores que dejó. Un comentario y no un
+    # docstring: aparecería como la descripción del componente en el esquema.
+
+    # El nombre de la cuenta (su correo si no tiene nombre), y solo lo ve quien ve la parcela:
+    # el productor y su equipo. `null` si la cuenta se eliminó.
+    actor_name = serializers.SerializerMethodField()
+    changed_fields = serializers.ListField(child=serializers.CharField(), read_only=True)
+    snapshot = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlotCharacterizationAuditEvent
+        fields = ["version", "action", "occurred_at", "actor_name", "changed_fields", "snapshot"]
+        read_only_fields = fields
+
+    @extend_schema_field(PlotCharacterizationSnapshotSerializer)
+    def get_snapshot(self, event) -> dict:
+        # Tal como se guardó: es lo que dejó esa versión, y no se vuelve a interpretar.
+        return event.snapshot
+
+    def get_actor_name(self, event) -> str | None:
+        return event.actor.get_full_name() or event.actor.email if event.actor else None

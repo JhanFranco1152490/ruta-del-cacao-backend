@@ -2,11 +2,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.urls import reverse
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from apps.common.pagination import StandardPagination
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
@@ -17,6 +19,7 @@ from .serializers import (
     CacaoVarietyListSerializer,
     CacaoVarietySerializer,
     CacaoVarietyUpdateSerializer,
+    PlotCharacterizationEventSerializer,
     PlotCharacterizationListQuerySerializer,
     PlotCharacterizationListSerializer,
     PlotCharacterizationSerializer,
@@ -27,6 +30,7 @@ from .services import (
     create_variety,
     get_characterization,
     list_characterizations,
+    list_history,
     list_varieties,
     save_characterization,
     update_variety,
@@ -164,6 +168,7 @@ class PlotCharacterizationViewSet(DomainValidationMixin, GenericViewSet):
     action_permissions = {
         "list": "plots.view_plot",
         "retrieve": "plots.view_plot",
+        "history": "plots.view_plot",
         "update": "crops.change_plotcharacterization",
     }
     filter_backends = []
@@ -179,6 +184,24 @@ class PlotCharacterizationViewSet(DomainValidationMixin, GenericViewSet):
     def retrieve(self, request, pk):
         characterization = get_characterization(request.user, pk)
         return Response(PlotCharacterizationSerializer(characterization).data)
+
+    @extend_schema(
+        description=(
+            "Las versiones de la ficha de una parcela, de la más nueva a la más vieja, cada una "
+            "con los valores que dejó (`snapshot`), quién la guardó y qué campos cambió. Una "
+            "parcela sin ficha devuelve la lista vacía; una parcela ajena, 404."
+        ),
+        responses={
+            200: PlotCharacterizationEventSerializer(many=True),
+            **error_responses(401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="history", pagination_class=StandardPagination)
+    def history(self, request, pk):
+        page = self.paginate_queryset(list_history(request.user, pk))
+        return self.get_paginated_response(
+            PlotCharacterizationEventSerializer(page, many=True).data
+        )
 
     def update(self, request, pk):
         serializer = PlotCharacterizationWriteSerializer(data=request.data)

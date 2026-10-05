@@ -3,7 +3,7 @@ from datetime import date
 import factory
 from factory.django import DjangoModelFactory
 
-from apps.crops.choices import Stage
+from apps.crops.choices import Propagation, Stage
 from apps.crops.models import CacaoVariety, PlotCharacterization, PlotPlanting, search_text
 from apps.crops.text import normalize_variety_name
 from apps.plots.tests.factories import PlotFactory
@@ -27,7 +27,6 @@ class PlotCharacterizationFactory(DjangoModelFactory):
         model = PlotCharacterization
 
     plot = factory.SubFactory(PlotFactory)
-    stage = Stage.FULL_PRODUCTION
 
 
 class PlotPlantingFactory(DjangoModelFactory):
@@ -38,3 +37,5 @@ class PlotPlantingFactory(DjangoModelFactory):
     variety = factory.SubFactory(CacaoVarietyFactory)
     planting_date = date(2021, 3, 1)
     tree_count = 600
+    propagation = Propagation.GRAFTED
+    stage = Stage.FULL_PRODUCTION

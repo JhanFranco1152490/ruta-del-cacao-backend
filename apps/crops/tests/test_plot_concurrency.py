@@ -45,9 +45,14 @@ def characterize(owner, plot):
     variety = CacaoVarietyFactory()
     content = {
         "plantings": [
-            {"variety_id": variety.pk, "planting_date": date(2021, 3, 1), "tree_count": 900}
+            {
+                "variety_id": variety.pk,
+                "planting_date": date(2021, 3, 1),
+                "tree_count": 900,
+                "propagation": "grafted",
+                "stage": "full_production",
+            }
         ],
-        "stage": "full_production",
         "management_system": None,
         "shade_type": None,
         "captured_at": None,

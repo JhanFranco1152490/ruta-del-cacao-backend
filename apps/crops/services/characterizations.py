@@ -77,6 +77,8 @@ def save_characterization(
             variety=varieties[row["variety_id"]],
             planting_date=row["planting_date"],
             tree_count=row["tree_count"],
+            propagation=row["propagation"],
+            stage=row["stage"],
         )
         for row in data["plantings"]
     )
@@ -88,10 +90,7 @@ def save_characterization(
         actor=actor,
         action=action,
         changed_fields=changes or (),
-        rows=[
-            (varieties[row["variety_id"]], row["planting_date"], row["tree_count"])
-            for row in data["plantings"]
-        ],
+        plantings=[(varieties[row["variety_id"]], row) for row in data["plantings"]],
     )
     return characterization, current is None
 

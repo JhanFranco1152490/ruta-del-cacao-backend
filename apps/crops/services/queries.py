@@ -1,7 +1,7 @@
 from django.db.models import Prefetch, QuerySet
 
 from ..exceptions import CharacterizationNotFound, PlotNotFound
-from ..models import PlotCharacterization, PlotPlanting
+from ..models import PlotCharacterization, PlotCharacterizationAuditEvent, PlotPlanting
 from .locks import Plot
 
 
@@ -35,3 +35,15 @@ def get_characterization(actor, plot_id) -> PlotCharacterization:
     if Plot.objects.filter(pk=plot_id, farm__producer_id=actor.producer_id).exists():
         raise CharacterizationNotFound()
     raise PlotNotFound()
+
+
+def list_history(actor, plot_id) -> QuerySet:
+    """Las versiones de la ficha de una parcela del productor de la sesión, de la más nueva a la
+    más vieja. Una parcela sin ficha no da error: no tiene versiones que mostrar."""
+    if not Plot.objects.filter(pk=plot_id, farm__producer_id=actor.producer_id).exists():
+        raise PlotNotFound()
+    return (
+        PlotCharacterizationAuditEvent.objects.filter(plot_id=plot_id)
+        .select_related("actor")
+        .order_by("-version", "-occurred_at")
+    )

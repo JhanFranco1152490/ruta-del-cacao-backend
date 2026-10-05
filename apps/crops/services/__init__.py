@@ -1,7 +1,7 @@
 """Servicios del dominio de cultivos: catálogo de variedades y caracterización de parcelas."""
 
 from .characterizations import save_characterization
-from .queries import get_characterization, list_characterizations
+from .queries import get_characterization, list_characterizations, list_history
 from .varieties import create_variety, delete_variety, list_varieties, name_taken, update_variety
 
 __all__ = [
@@ -9,6 +9,7 @@ __all__ = [
     "delete_variety",
     "get_characterization",
     "list_characterizations",
+    "list_history",
     "list_varieties",
     "name_taken",
     "save_characterization",

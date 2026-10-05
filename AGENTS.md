@@ -51,7 +51,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
-| `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha y árboles; la misma variedad puede tener varias tandas), etapa, manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
+| `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 
 ### Capas
 
@@ -147,13 +147,20 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   ese `id`). Lleva siempre `expected_version`: `null` para registrar y la versión leída para
   editar. Responde `201` al crear y `200` al reemplazar o si la ficha ya tenía exactamente ese
   contenido (un reintento, sin subir la versión); si no coincide, `409 stale_version` con la
-  ficha vigente, o `null`, en `current`. Las filas son siembras (`plantings`: variedad, mes y
-  árboles), sin repetir la misma variedad en el mismo mes. Una variedad que no existe es un `400`
+  ficha vigente, o `null`, en `current`. Las filas son siembras (`plantings`: variedad, mes,
+  árboles, `propagation` y `stage`), sin repetir la misma variedad en el mismo mes. La etapa es de
+  cada siembra y no de la ficha: en una renovación gradual conviven etapas distintas. Una variedad que no existe es un `400`
   en `fields.plantings` y no un `404`: la cola lee un `404` como registro eliminado y descartaría
   la ficha. Más de 10.000 árboles/ha sobre el área declarada de la parcela es `422
   density_too_high` (1 m² por árbol: atrapa el cero de más sin bloquear siembras reales). El
   listado (`GET /api/plot-characterizations?farm=`) exige `farm` y no se pagina. Consultar pide
   `plots.view_plot`; la asociación no lee fichas.
+- **El historial de una ficha** (`GET /api/plot-characterizations/{id}/history`, paginado, de la
+  versión más nueva a la más vieja) devuelve, por versión, `version`, quién la guardó
+  (`actor_name`, `null` si la cuenta se eliminó), los campos que cambió y los valores que dejó
+  (`snapshot`). Pide `plots.view_plot` y se limita a las parcelas del productor de la sesión
+  (`404` si no es suya). Cada evento guarda la `version` de la ficha que dejó, para que cosecha
+  pueda referirse a una.
 - **Una tabla que apunta a la parcela la vuelve importante:** la ficha (y su historial) impide
   eliminar la parcela, su finca o su productor, sin que `plots` sepa nada de `crops`, porque el
   borrado recorre todas las relaciones del modelo (`apps/common/db.py`).

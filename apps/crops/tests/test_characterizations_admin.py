@@ -34,9 +34,14 @@ def event():
         None,
         {
             "plantings": [
-                {"variety_id": variety.pk, "planting_date": date(2021, 3, 1), "tree_count": 1800}
+                {
+                    "variety_id": variety.pk,
+                    "planting_date": date(2021, 3, 1),
+                    "tree_count": 1800,
+                    "propagation": "grafted",
+                    "stage": "renovation",
+                }
             ],
-            "stage": "renovation",
             "management_system": None,
             "shade_type": None,
             "captured_at": None,

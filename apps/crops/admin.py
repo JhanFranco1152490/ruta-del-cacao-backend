@@ -72,10 +72,18 @@ class CacaoVarietyAdmin(admin.ModelAdmin):
 class PlotCharacterizationAuditEventAdmin(admin.ModelAdmin):
     """El historial de las fichas con los valores de cada versión, de solo lectura."""
 
-    list_display = ("plot", "action", "actor", "occurred_at")
+    list_display = ("plot", "version", "action", "actor", "occurred_at")
     list_filter = ("action",)
     list_select_related = ("plot", "actor")
-    readonly_fields = ("plot", "action", "actor", "changed_fields", "snapshot", "occurred_at")
+    readonly_fields = (
+        "plot",
+        "version",
+        "action",
+        "actor",
+        "changed_fields",
+        "snapshot",
+        "occurred_at",
+    )
 
     # Solo superusuarios: el admin no filtra por productor, así que con el permiso de la API
     # (`plots.view_plot`) un empleado de un productor vería las fichas de todos, y la asociación

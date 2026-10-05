@@ -24,6 +24,7 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "accounts.users_create": PermissionInfo(area="users", delegable=True),
     "accounts.users_update": PermissionInfo(area="users", delegable=True),
     "accounts.users_change_status": PermissionInfo(area="users", delegable=True),
+    "accounts.users_delete": PermissionInfo(area="users", delegable=True),
     "accounts.roles_view": PermissionInfo(area="roles", delegable=True),
     "accounts.roles_manage": PermissionInfo(area="roles", delegable=True),
     # No delegable: es lo que impide que un empleado alcance a la cuenta Productor (nadie
@@ -74,6 +75,7 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "accounts.users_create": "accounts.users_view",
     "accounts.users_update": "accounts.users_view",
     "accounts.users_change_status": "accounts.users_view",
+    "accounts.users_delete": "accounts.users_view",
     "accounts.roles_manage": "accounts.roles_view",
     "producers.create": "producers.view",
     "producers.update": "producers.view",

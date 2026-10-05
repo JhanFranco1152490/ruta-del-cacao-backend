@@ -54,6 +54,7 @@ class User(AbstractUser):
             ("users_create", "Puede crear cuentas"),
             ("users_update", "Puede actualizar cuentas"),
             ("users_change_status", "Puede activar o desactivar cuentas"),
+            ("users_delete", "Puede eliminar cuentas creadas por error"),
             ("association_access_manage", "Puede administrar el acceso de la asociación"),
         ]
         ordering = ["last_name", "first_name", "id"]
@@ -208,6 +209,7 @@ class AccountManagementEvent(models.Model):
         ACCOUNT_ACTIVATED = "account_activated", "Cuenta activada"
         ACCOUNT_DEACTIVATED = "account_deactivated", "Cuenta desactivada"
         ACCOUNT_REACTIVATED = "account_reactivated", "Cuenta reactivada"
+        ACCOUNT_DELETED = "account_deleted", "Cuenta eliminada"
         ACCOUNT_ROLES_CHANGED = "account_roles_changed", "Roles de la cuenta cambiados"
         ROLE_CREATED = "role_created", "Rol creado"
         ROLE_UPDATED = "role_updated", "Rol actualizado"
@@ -232,6 +234,8 @@ class AccountManagementEvent(models.Model):
     # Sin FK: un rol borrado no debe borrar en cascada (ni bloquear el borrado por) su propio
     # historial de auditoría.
     target_role_id = models.UUIDField(null=True, blank=True)
+    # Sin FK: la cuenta eliminada ya no existe, y su rastro debe sobrevivirla sin sus datos.
+    target_user_ref = models.UUIDField(null=True, blank=True)
     request_id = models.UUIDField(default=uuid.uuid4, editable=False)
     occurred_at = models.DateTimeField(auto_now_add=True)
 

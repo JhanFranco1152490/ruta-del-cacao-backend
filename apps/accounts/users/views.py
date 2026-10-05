@@ -25,6 +25,7 @@ from .serializers import (
 )
 from .services import (
     create_account,
+    delete_account,
     get_account,
     list_accounts,
     set_account_roles,
@@ -51,6 +52,7 @@ from .services import resend_activation as resend_activation_service
         request=AccountRoleIdsSerializer,
         responses={200: AccountSerializer, **error_responses(400, 401, 403, 404)},
     ),
+    destroy=extend_schema(responses={204: None, **error_responses(401, 403, 404, 409)}),
     change_status=extend_schema(
         request=AccountStatusSerializer,
         responses={200: AccountSerializer, **error_responses(400, 401, 403, 404, 409)},
@@ -72,6 +74,7 @@ class AccountViewSet(GenericViewSet):
         "create": "accounts.users_create",
         "partial_update": "accounts.users_update",
         "roles": "accounts.users_update",
+        "destroy": "accounts.users_delete",
         "change_status": "accounts.users_change_status",
         "resend_activation": "accounts.users_update",
     }
@@ -108,6 +111,10 @@ class AccountViewSet(GenericViewSet):
             request.user, pk, serializer.validated_data, request_id_from(request)
         )
         return Response(AccountSerializer(user).data)
+
+    def destroy(self, request, pk):
+        delete_account(request.user, pk, request_id_from(request))
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["put"], url_path="roles")
     def roles(self, request, pk):

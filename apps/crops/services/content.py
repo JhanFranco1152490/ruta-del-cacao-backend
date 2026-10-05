@@ -3,15 +3,20 @@
 from ..models import PlotCharacterization
 
 # `captured_at` no cuenta: es la hora del dispositivo, y un reintento la trae distinta.
-SCALAR_FIELDS = ("planting_date", "stage", "management_system", "shade_type")
+SCALAR_FIELDS = ("stage", "management_system", "shade_type")
 
 
 def requested_rows(data: dict) -> set[tuple]:
-    return {(row["variety_id"], row["tree_count"]) for row in data["varieties"]}
+    return {
+        (row["variety_id"], row["planting_date"], row["tree_count"]) for row in data["plantings"]
+    }
 
 
 def stored_rows(characterization: PlotCharacterization) -> set[tuple]:
-    return {(row.variety_id, row.tree_count) for row in characterization.varieties.all()}
+    return {
+        (row.variety_id, row.planting_date, row.tree_count)
+        for row in characterization.plantings.all()
+    }
 
 
 def changed_fields(characterization: PlotCharacterization, data: dict) -> list[str]:
@@ -19,5 +24,5 @@ def changed_fields(characterization: PlotCharacterization, data: dict) -> list[s
     filas se comparan como conjunto: el orden en que llegan no es un cambio."""
     changed = [name for name in SCALAR_FIELDS if getattr(characterization, name) != data.get(name)]
     if stored_rows(characterization) != requested_rows(data):
-        changed.append("varieties")
+        changed.append("plantings")
     return sorted(changed)

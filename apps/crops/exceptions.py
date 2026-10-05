@@ -55,7 +55,21 @@ class UnknownVariety(ApiError):
     default_code = "validation_error"
 
     def __init__(self):
-        super().__init__(fields={"varieties": [self.default_detail]})
+        super().__init__(fields={"plantings": [self.default_detail]})
+
+
+class DensityTooHigh(ApiError):
+    # Un 422 y no un 400: depende del área de la parcela, que el cuerpo de la petición no trae.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "La densidad de siembra no es posible."
+    default_code = "density_too_high"
+
+    def __init__(self, density, limit):
+        message = (
+            f"Con {density:,} árboles/ha la densidad no es posible: el máximo es {limit:,}. "
+            "Revisa el número de árboles o el área de la parcela."
+        ).replace(",", ".")
+        super().__init__(fields={"plantings": [message]})
 
 
 class VarietyInactive(ApiError):
@@ -65,7 +79,7 @@ class VarietyInactive(ApiError):
 
     def __init__(self, names):
         message = f"Variedad desactivada: {', '.join(names)}. Elige otra del catálogo."
-        super().__init__(fields={"varieties": [message]})
+        super().__init__(fields={"plantings": [message]})
 
 
 class StaleCharacterizationVersion(ApiError):

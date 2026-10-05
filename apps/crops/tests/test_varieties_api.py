@@ -3,7 +3,7 @@ import pytest
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import make_administrator, make_producer_owner
 from apps.crops.models import CacaoVariety, CacaoVarietyAuditEvent
-from apps.crops.tests.factories import CacaoVarietyFactory, PlotCharacterizationVarietyFactory
+from apps.crops.tests.factories import CacaoVarietyFactory, PlotPlantingFactory
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("empty_catalog")]
@@ -42,7 +42,13 @@ def test_any_account_with_a_session_reads_the_catalog_sorted_by_name(auth_client
 
     assert response.status_code == 200
     assert [item["name"] for item in response.data["results"]] == ["CCN-51", "ICS-95"]
-    assert set(response.data["results"][1]) == {"id", "name", "description", "is_active"}
+    assert set(response.data["results"][1]) == {
+        "id",
+        "name",
+        "common_names",
+        "description",
+        "is_active",
+    }
     assert response.data["results"][1]["description"] == "Procedencia: Trinidad."
 
 
@@ -289,7 +295,7 @@ def test_a_patch_that_changes_nothing_leaves_no_event(admin_client):
 
 
 def test_deactivating_does_not_touch_the_characterizations_that_use_it(admin_client):
-    row = PlotCharacterizationVarietyFactory()
+    row = PlotPlantingFactory()
 
     admin_client.patch(variety_url(row.variety), {"is_active": False}, format="json")
 

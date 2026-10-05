@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from unittest import mock
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import make_delegate
 from apps.crops.exceptions import (
+    DensityTooHigh,
     FarmInactive,
     PlotInactive,
     PlotNotFound,
@@ -17,7 +19,7 @@ from apps.crops.exceptions import (
 from apps.crops.models import (
     PlotCharacterization,
     PlotCharacterizationAuditEvent,
-    PlotCharacterizationVariety,
+    PlotPlanting,
 )
 from apps.crops.services import save_characterization
 from apps.crops.tests.factories import CacaoVarietyFactory
@@ -49,13 +51,21 @@ def ics95():
     return CacaoVarietyFactory(name="ICS-95")
 
 
+MARCH_2021 = date(2021, 3, 1)
+
+
 def data(*rows, **overrides) -> dict:
-    """Una ficha válida como la deja el serializer: filas de `(variedad, árboles)`."""
+    """Una ficha válida como la deja el serializer: siembras de `(variedad, árboles)` o
+    `(variedad, árboles, fecha)`; sin fecha, marzo de 2021."""
     content = {
-        "varieties": [
-            {"variety_id": variety.pk, "tree_count": tree_count} for variety, tree_count in rows
+        "plantings": [
+            {
+                "variety_id": row[0].pk,
+                "planting_date": row[2] if len(row) > 2 else MARCH_2021,
+                "tree_count": row[1],
+            }
+            for row in rows
         ],
-        "planting_date": date(2021, 3, 1),
         "stage": "full_production",
         "management_system": "conventional",
         "shade_type": None,
@@ -66,7 +76,7 @@ def data(*rows, **overrides) -> dict:
 
 
 def rows_of(characterization) -> set:
-    return set(characterization.varieties.values_list("variety__name", "tree_count"))
+    return set(characterization.plantings.values_list("variety__name", "tree_count"))
 
 
 def events_of(plot):
@@ -86,7 +96,7 @@ def test_registers_the_characterization_of_a_plot(owner, plot, ccn51, ics95):
     assert characterization.pk == plot.pk
     assert characterization.version == 1
     assert rows_of(characterization) == {("CCN-51", 1800), ("ICS-95", 600)}
-    assert characterization.planting_date == date(2021, 3, 1)
+    assert set(characterization.plantings.values_list("planting_date", flat=True)) == {MARCH_2021}
     assert (characterization.stage, characterization.management_system) == (
         "full_production",
         "conventional",
@@ -101,11 +111,20 @@ def test_registering_leaves_a_created_event_with_the_values(owner, plot, ccn51, 
     assert event.action == Action.CREATED
     assert event.actor == owner
     assert event.snapshot == {
-        "varieties": [
-            {"variety_id": str(ccn51.pk), "name": "CCN-51", "tree_count": 1800},
-            {"variety_id": str(ics95.pk), "name": "ICS-95", "tree_count": 600},
+        "plantings": [
+            {
+                "variety_id": str(ccn51.pk),
+                "name": "CCN-51",
+                "planting_date": "2021-03",
+                "tree_count": 1800,
+            },
+            {
+                "variety_id": str(ics95.pk),
+                "name": "ICS-95",
+                "planting_date": "2021-03",
+                "tree_count": 600,
+            },
         ],
-        "planting_date": "2021-03",
         "stage": "full_production",
         "management_system": "conventional",
         "shade_type": None,
@@ -155,17 +174,22 @@ def test_replaces_the_whole_characterization_and_raises_the_version(
     assert characterization.version == 2
     assert rows_of(characterization) == {("CCN-51", 2000)}
     assert (characterization.stage, characterization.management_system) == ("renovation", None)
-    assert PlotCharacterizationVariety.objects.count() == 1
+    assert PlotPlanting.objects.count() == 1
 
 
 def test_replacing_leaves_an_updated_event_with_what_changed(owner, plot, registered, ccn51):
     save_characterization(owner, plot.pk, 1, data((ccn51, 2000), stage="renovation"))
 
     event = events_of(plot).get(action=Action.UPDATED)
-    assert event.changed_fields == ["stage", "varieties"]
+    assert event.changed_fields == ["plantings", "stage"]
     assert event.snapshot["stage"] == "renovation"
-    assert event.snapshot["varieties"] == [
-        {"variety_id": str(ccn51.pk), "name": "CCN-51", "tree_count": 2000}
+    assert event.snapshot["plantings"] == [
+        {
+            "variety_id": str(ccn51.pk),
+            "name": "CCN-51",
+            "planting_date": "2021-03",
+            "tree_count": 2000,
+        }
     ]
 
 
@@ -248,17 +272,17 @@ def test_a_retry_with_the_same_content_succeeds_without_changes(
 # --- Variedades ---------------------------------------------------------------------------------
 
 
-def test_an_unknown_variety_is_a_validation_error_of_the_varieties(owner, plot, ccn51):
-    missing = {"variety_id": uuid.uuid4(), "tree_count": 10}
+def test_an_unknown_variety_is_a_validation_error_of_the_plantings(owner, plot, ccn51):
+    missing = {"variety_id": uuid.uuid4(), "planting_date": MARCH_2021, "tree_count": 10}
     content = data((ccn51, 900))
-    content["varieties"].append(missing)
+    content["plantings"].append(missing)
 
     with pytest.raises(UnknownVariety) as error:
         save_characterization(owner, plot.pk, None, content)
 
     assert error.value.status_code == 400
     assert error.value.default_code == "validation_error"
-    assert "varieties" in error.value.fields
+    assert "plantings" in error.value.fields
     assert not PlotCharacterization.objects.exists()
 
 
@@ -268,7 +292,7 @@ def test_an_inactive_variety_cannot_be_added(owner, plot, ccn51):
     with pytest.raises(VarietyInactive) as error:
         save_characterization(owner, plot.pk, None, data((ccn51, 900), (retired, 10)))
 
-    assert "EET-8" in error.value.fields["varieties"][0]
+    assert "EET-8" in error.value.fields["plantings"][0]
     assert not PlotCharacterization.objects.exists()
 
 
@@ -354,14 +378,59 @@ def test_the_snapshot_has_no_personal_data(owner, plot, ccn51):
     save_characterization(owner, plot.pk, None, data((ccn51, 900)))
 
     snapshot = events_of(plot).get().snapshot
-    assert set(snapshot) == {
-        "varieties",
-        "planting_date",
-        "stage",
-        "management_system",
-        "shade_type",
-    }
-    assert set(snapshot["varieties"][0]) == {"variety_id", "name", "tree_count"}
+    assert set(snapshot) == {"plantings", "stage", "management_system", "shade_type"}
+    assert set(snapshot["plantings"][0]) == {"variety_id", "name", "planting_date", "tree_count"}
     text = str(snapshot)
     for personal in (owner.email, plot.farm.producer.first_name, plot.farm.name, plot.code):
         assert personal not in text
+
+
+# --- Siembras y densidad ------------------------------------------------------------------------
+
+
+def test_the_same_variety_is_kept_as_two_plantings_of_different_months(owner, plot, ccn51):
+    characterization, _ = save_characterization(
+        owner,
+        plot.pk,
+        None,
+        data((ccn51, 1000, date(2018, 4, 1)), (ccn51, 500, date(2024, 2, 1))),
+    )
+
+    assert sorted(characterization.plantings.values_list("planting_date", "tree_count")) == [
+        (date(2018, 4, 1), 1000),
+        (date(2024, 2, 1), 500),
+    ]
+
+
+def test_changing_only_the_date_of_a_planting_is_a_change(owner, plot, registered, ccn51, ics95):
+    characterization, _ = save_characterization(
+        owner, plot.pk, 1, data((ccn51, 1800, date(2019, 6, 1)), (ics95, 600))
+    )
+
+    assert characterization.version == 2
+    assert events_of(plot).get(action=Action.UPDATED).changed_fields == ["plantings"]
+
+
+def test_a_new_planting_of_a_deactivated_variety_the_plot_already_has_is_accepted(
+    owner, plot, ccn51
+):
+    save_characterization(owner, plot.pk, None, data((ccn51, 900)))
+    ccn51.is_active = False
+    ccn51.save()
+
+    characterization, _ = save_characterization(
+        owner, plot.pk, 1, data((ccn51, 900), (ccn51, 300, date(2025, 1, 1)))
+    )
+
+    assert characterization.version == 2
+
+
+def test_an_impossible_density_is_rejected_and_nothing_is_saved(owner, ccn51):
+    plot = PlotFactory(farm__producer=owner.producer, area_hectares=Decimal("1.00"))
+
+    with pytest.raises(DensityTooHigh) as error:
+        save_characterization(owner, plot.pk, None, data((ccn51, 10_001)))
+
+    assert "10.001 árboles/ha" in error.value.fields["plantings"][0]
+    assert not PlotCharacterization.objects.exists()
+    assert not events_of(plot).exists()

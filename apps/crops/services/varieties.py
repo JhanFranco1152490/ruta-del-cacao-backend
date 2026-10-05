@@ -9,17 +9,18 @@ from ..text import normalize_variety_name
 from .audit import record_variety_audit_event
 
 NAME_UNIQUE_CONSTRAINT = "crops_variety_name_normalized_unique"
-CONTENT_FIELDS = ("name", "description")
+CONTENT_FIELDS = ("name", "common_names", "description")
 
 
 def list_varieties(is_active: bool | None = None, search: str | None = None) -> QuerySet:
     varieties = CacaoVariety.objects.order_by("name_normalized", "id")
     if is_active is not None:
         varieties = varieties.filter(is_active=is_active)
-    # Se busca como se comparan los nombres del catálogo: "ccn 51" encuentra "CCN-51".
+    # Se busca como se comparan los nombres del catálogo, también en los nombres comunes: "ccn 51"
+    # encuentra "CCN-51" y "saravena" encuentra los tres FSA.
     term = normalize_variety_name(search or "")
     if term:
-        varieties = varieties.filter(name_normalized__contains=term)
+        varieties = varieties.filter(search_normalized__contains=term)
     return varieties
 
 
@@ -36,6 +37,7 @@ def create_variety(actor, data: dict) -> CacaoVariety:
     # `is_active` solo llega desde el admin; la API registra siempre activas.
     variety = CacaoVariety(
         name=data["name"],
+        common_names=data.get("common_names", []),
         description=data.get("description", ""),
         is_active=data.get("is_active", True),
     )
@@ -59,7 +61,8 @@ def update_variety(actor, variety_id, data: dict) -> CacaoVariety:
     for name, value in data.items():
         setattr(variety, name, value)
     variety.full_clean(validate_unique=False, validate_constraints=False)
-    # Se compara después de validar: un nombre que solo cambió en espacios no es un cambio.
+    # Se compara después de validar: un nombre que solo cambió en espacios no es un cambio. Lo
+    # mismo con los nombres comunes, que `clean()` limpia y deja sin repetidos.
     changed = [name for name in before if getattr(variety, name) != before[name]]
     if not changed:
         return variety
@@ -67,6 +70,8 @@ def update_variety(actor, variety_id, data: dict) -> CacaoVariety:
     update_fields = [*changed, "updated_at"]
     if "name" in changed:
         update_fields.append("name_normalized")
+    if "name" in changed or "common_names" in changed:
+        update_fields.append("search_normalized")
     _save(variety, update_fields=update_fields)
 
     content_changes = [name for name in changed if name != "is_active"]

@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from apps.accounts.tests.factories import UserFactory
 from apps.crops.models import CacaoVariety, CacaoVarietyAuditEvent
-from apps.crops.tests.factories import CacaoVarietyFactory, PlotCharacterizationVarietyFactory
+from apps.crops.tests.factories import CacaoVarietyFactory, PlotPlantingFactory
 
 pytestmark = [
     pytest.mark.django_db,
@@ -121,7 +121,7 @@ def test_deleting_several_from_the_list_leaves_one_event_each():
 
 
 def test_a_variety_in_use_is_not_deleted():
-    row = PlotCharacterizationVarietyFactory()
+    row = PlotPlantingFactory()
     client, _ = staff(MANAGE)
 
     client.post(delete_url(row.variety), {"post": "yes"})

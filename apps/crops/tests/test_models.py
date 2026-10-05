@@ -16,7 +16,7 @@ from apps.crops.models import (
 from apps.crops.tests.factories import (
     CacaoVarietyFactory,
     PlotCharacterizationFactory,
-    PlotCharacterizationVarietyFactory,
+    PlotPlantingFactory,
 )
 from apps.plots.tests.factories import PlotFactory
 
@@ -82,26 +82,40 @@ def test_a_new_characterization_starts_at_version_one_without_optional_fields():
 
 def test_planting_date_is_stored_on_the_first_day_of_the_month():
     with pytest.raises(IntegrityError), transaction.atomic():
-        PlotCharacterizationFactory(planting_date=date(2021, 3, 15))
+        PlotPlantingFactory(planting_date=date(2021, 3, 15))
+
+
+def test_the_same_variety_can_be_planted_on_different_months():
+    first = PlotPlantingFactory(planting_date=date(2018, 4, 1))
+    PlotPlantingFactory(
+        characterization=first.characterization,
+        variety=first.variety,
+        planting_date=date(2024, 2, 1),
+    )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        PlotPlantingFactory(
+            characterization=first.characterization,
+            variety=first.variety,
+            planting_date=date(2024, 2, 1),
+        )
 
 
 @pytest.mark.parametrize("tree_count", [0, -1])
 def test_tree_count_must_be_positive(tree_count):
     with pytest.raises(IntegrityError), transaction.atomic():
-        PlotCharacterizationVarietyFactory(tree_count=tree_count)
+        PlotPlantingFactory(tree_count=tree_count)
 
 
 def test_a_variety_appears_once_per_characterization():
-    row = PlotCharacterizationVarietyFactory()
+    row = PlotPlantingFactory()
 
     with pytest.raises(IntegrityError), transaction.atomic():
-        PlotCharacterizationVarietyFactory(
-            characterization=row.characterization, variety=row.variety
-        )
+        PlotPlantingFactory(characterization=row.characterization, variety=row.variety)
 
 
 def test_rows_go_away_with_their_characterization():
-    row = PlotCharacterizationVarietyFactory()
+    row = PlotPlantingFactory()
 
     row.characterization.delete()
 
@@ -109,7 +123,7 @@ def test_rows_go_away_with_their_characterization():
 
 
 def test_a_variety_used_by_a_characterization_cannot_be_deleted():
-    row = PlotCharacterizationVarietyFactory()
+    row = PlotPlantingFactory()
 
     with pytest.raises(ProtectedError):
         row.variety.delete()
@@ -124,7 +138,7 @@ def test_a_plot_with_a_characterization_cannot_be_deleted():
 
 def test_characterization_audit_event_keeps_the_values_of_the_version():
     characterization = PlotCharacterizationFactory()
-    snapshot = {"stage": "full_production", "varieties": [{"name": "CCN-51", "tree_count": 9}]}
+    snapshot = {"stage": "full_production", "plantings": [{"name": "CCN-51", "tree_count": 9}]}
 
     event = PlotCharacterizationAuditEvent.record(
         plot=characterization.plot,

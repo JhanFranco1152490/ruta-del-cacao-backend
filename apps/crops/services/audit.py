@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from datetime import date
 
 from ..models import (
     CacaoVariety,
@@ -14,7 +15,7 @@ def record_characterization_audit_event(
     actor,
     action: str,
     changed_fields: Iterable[str],
-    rows: Iterable[tuple[CacaoVariety, int]],
+    rows: Iterable[tuple[CacaoVariety, date, int]],
 ) -> PlotCharacterizationAuditEvent:
     """El evento lleva los valores de la ficha tras el cambio: con ellos, el historial muestra
     cuándo pasó la parcela de una etapa a otra o cuándo se renovó. La ficha no tiene datos
@@ -31,16 +32,20 @@ def record_characterization_audit_event(
 def snapshot(characterization: PlotCharacterization, rows) -> dict:
     # El `id` además del nombre: si la variedad se renombra después, el historial sigue diciendo
     # cuál era.
-    varieties = sorted(
+    plantings = sorted(
         (
-            {"variety_id": str(variety.pk), "name": variety.name, "tree_count": tree_count}
-            for variety, tree_count in rows
+            {
+                "variety_id": str(variety.pk),
+                "name": variety.name,
+                "planting_date": planting_date.strftime("%Y-%m"),
+                "tree_count": tree_count,
+            }
+            for variety, planting_date, tree_count in rows
         ),
-        key=lambda row: (row["name"], row["variety_id"]),
+        key=lambda row: (row["name"], row["planting_date"], row["variety_id"]),
     )
     return {
-        "varieties": varieties,
-        "planting_date": characterization.planting_date.strftime("%Y-%m"),
+        "plantings": plantings,
         "stage": characterization.stage,
         "management_system": characterization.management_system,
         "shade_type": characterization.shade_type,

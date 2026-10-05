@@ -5,13 +5,13 @@ from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
 
 from .choices import ManagementSystem, ShadeType, Stage
 from .fields import PlantingMonthField
-from .models import CacaoVariety, PlotCharacterization, PlotCharacterizationVariety
+from .models import MAX_COMMON_NAMES, CacaoVariety, PlotCharacterization, PlotPlanting
 
 
 class CacaoVarietySerializer(serializers.ModelSerializer):
     class Meta:
         model = CacaoVariety
-        fields = ["id", "name", "description", "is_active"]
+        fields = ["id", "name", "common_names", "description", "is_active"]
         # Solo de salida: así el esquema los marca como siempre presentes.
         read_only_fields = fields
 
@@ -28,13 +28,25 @@ class CacaoVarietyListQuerySerializer(serializers.Serializer):
     search = serializers.CharField(required=False, allow_blank=True)
 
 
+def common_names_field(**kwargs):
+    # Se repiten entre variedades a propósito (de un mismo lugar salen varios clones); dentro de
+    # una variedad, el modelo quita los repetidos.
+    return serializers.ListField(
+        child=serializers.CharField(max_length=60),
+        max_length=MAX_COMMON_NAMES,
+        **kwargs,
+    )
+
+
 class CacaoVarietyCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     name = serializers.CharField(max_length=60)
+    common_names = common_names_field(required=False)
     description = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
 class CacaoVarietyUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     name = serializers.CharField(max_length=60, required=False)
+    common_names = common_names_field(required=False)
     description = serializers.CharField(max_length=200, required=False, allow_blank=True)
     is_active = serializers.BooleanField(required=False)
 
@@ -46,7 +58,7 @@ class CacaoVarietyUpdateSerializer(RejectUnknownFieldsMixin, serializers.Seriali
 
 # --- Caracterización de parcelas ----------------------------------------------------------------
 
-MAX_VARIETIES = 10
+MAX_PLANTINGS = 10
 MAX_TREES = 1_000_000
 SELECT_VARIETY = "Seleccione la variedad de cacao."
 
@@ -58,30 +70,29 @@ class VarietyRefSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class CharacterizationRowSerializer(serializers.ModelSerializer):
+class PlantingSerializer(serializers.ModelSerializer):
     variety = VarietyRefSerializer()
+    planting_date = PlantingMonthField()
 
     class Meta:
-        model = PlotCharacterizationVariety
-        fields = ["variety", "tree_count"]
+        model = PlotPlanting
+        fields = ["variety", "planting_date", "tree_count"]
         read_only_fields = fields
 
 
 class PlotCharacterizationSerializer(serializers.ModelSerializer):
     plot_id = serializers.UUIDField(source="pk")
-    varieties = CharacterizationRowSerializer(many=True)
-    # La suma de las filas. La edad y la densidad no se envían: la edad cambia con el tiempo y
-    # la densidad depende del área de la parcela, así que las calcula la interfaz.
+    plantings = PlantingSerializer(many=True)
+    # La suma de las siembras. La edad media y la densidad no se envían: la edad cambia con el
+    # tiempo y la densidad depende del área de la parcela, así que las calcula la interfaz.
     total_trees = serializers.SerializerMethodField()
-    planting_date = PlantingMonthField()
 
     class Meta:
         model = PlotCharacterization
         fields = [
             "plot_id",
-            "varieties",
+            "plantings",
             "total_trees",
-            "planting_date",
             "stage",
             "management_system",
             "shade_type",
@@ -93,8 +104,8 @@ class PlotCharacterizationSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_total_trees(self, characterization) -> int:
-        # Desde las filas ya cargadas, sin otra consulta.
-        return sum(row.tree_count for row in characterization.varieties.all())
+        # Desde las siembras ya cargadas, sin otra consulta.
+        return sum(row.tree_count for row in characterization.plantings.all())
 
 
 @extend_schema_serializer(many=False)
@@ -106,8 +117,9 @@ class PlotCharacterizationListQuerySerializer(serializers.Serializer):
     farm = serializers.UUIDField()
 
 
-class CharacterizationRowInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+class PlantingInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     variety_id = serializers.UUIDField()
+    planting_date = PlantingMonthField()
     tree_count = serializers.IntegerField(min_value=1, max_value=MAX_TREES)
 
 
@@ -115,11 +127,10 @@ class PlotCharacterizationWriteSerializer(RejectUnknownFieldsMixin, serializers.
     # Obligatorio aunque admita `null`: `null` es "creo que la parcela no tiene ficha", y no
     # enviarlo sería no decir nada.
     expected_version = serializers.IntegerField(min_value=1, allow_null=True)
-    # Sin filas, o sin el campo, el mismo mensaje que muestra el formulario.
-    varieties = CharacterizationRowInputSerializer(
+    # Sin siembras, o sin el campo, el mismo mensaje que muestra el formulario.
+    plantings = PlantingInputSerializer(
         many=True, error_messages={"required": SELECT_VARIETY, "null": SELECT_VARIETY}
     )
-    planting_date = PlantingMonthField()
     stage = serializers.ChoiceField(choices=Stage.choices)
     management_system = serializers.ChoiceField(
         choices=ManagementSystem.choices, allow_null=True, required=False, default=None
@@ -130,16 +141,17 @@ class PlotCharacterizationWriteSerializer(RejectUnknownFieldsMixin, serializers.
     # Hora del dispositivo, informativa: no se valida contra la del servidor.
     captured_at = serializers.DateTimeField(allow_null=True, required=False, default=None)
 
-    def validate_varieties(self, rows):
+    def validate_plantings(self, rows):
         if not rows:
             raise serializers.ValidationError(SELECT_VARIETY)
-        if len(rows) > MAX_VARIETIES:
+        if len(rows) > MAX_PLANTINGS:
             raise serializers.ValidationError(
-                f"Una parcela admite hasta {MAX_VARIETIES} variedades."
+                f"Una parcela admite hasta {MAX_PLANTINGS} siembras."
             )
-        ids = [row["variety_id"] for row in rows]
-        if len(set(ids)) != len(ids):
-            raise serializers.ValidationError("Esta variedad ya está en la lista.")
+        # La misma variedad en otra fecha es otra tanda; con la misma fecha, un repetido.
+        keys = [(row["variety_id"], row["planting_date"]) for row in rows]
+        if len(set(keys)) != len(keys):
+            raise serializers.ValidationError("Esta siembra ya está en la lista.")
         return rows
 
 

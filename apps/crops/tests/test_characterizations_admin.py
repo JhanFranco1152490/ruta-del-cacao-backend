@@ -33,8 +33,9 @@ def event():
         plot.pk,
         None,
         {
-            "varieties": [{"variety_id": variety.pk, "tree_count": 1800}],
-            "planting_date": date(2021, 3, 1),
+            "plantings": [
+                {"variety_id": variety.pk, "planting_date": date(2021, 3, 1), "tree_count": 1800}
+            ],
             "stage": "renovation",
             "management_system": None,
             "shade_type": None,

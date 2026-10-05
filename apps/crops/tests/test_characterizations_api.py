@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import pytest
 from django.db import connection
@@ -13,11 +14,11 @@ from apps.accounts.tests.role_helpers import (
     make_delegate,
     make_producer_owner,
 )
-from apps.crops.models import PlotCharacterization, PlotCharacterizationAuditEvent
+from apps.crops.models import PlotCharacterization, PlotCharacterizationAuditEvent, PlotPlanting
 from apps.crops.tests.factories import (
     CacaoVarietyFactory,
     PlotCharacterizationFactory,
-    PlotCharacterizationVarietyFactory,
+    PlotPlantingFactory,
 )
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.tests.factories import PlotFactory
@@ -68,14 +69,19 @@ def ics95():
     return CacaoVarietyFactory(name="ICS-95")
 
 
-def body(*rows, **overrides) -> dict:
+def body(*rows, planting_date="2021-03", **overrides) -> dict:
+    """Cada fila es `(variedad, árboles)` o `(variedad, árboles, mes)`; sin mes, toma
+    `planting_date`."""
     content = {
         "expected_version": None,
-        "varieties": [
-            {"variety_id": str(variety.pk), "tree_count": tree_count}
-            for variety, tree_count in rows
+        "plantings": [
+            {
+                "variety_id": str(row[0].pk),
+                "planting_date": row[2] if len(row) > 2 else planting_date,
+                "tree_count": row[1],
+            }
+            for row in rows
         ],
-        "planting_date": "2021-03",
         "stage": "full_production",
         "management_system": "conventional",
         "shade_type": None,
@@ -86,10 +92,12 @@ def body(*rows, **overrides) -> dict:
 
 
 def characterize(plot, *rows, **fields):
+    """Cada fila es `(variedad, árboles)` o `(variedad, árboles, fecha)`."""
     characterization = PlotCharacterizationFactory(plot=plot, **fields)
-    for variety, tree_count in rows:
-        PlotCharacterizationVarietyFactory(
-            characterization=characterization, variety=variety, tree_count=tree_count
+    for row in rows:
+        extra = {"planting_date": row[2]} if len(row) > 2 else {}
+        PlotPlantingFactory(
+            characterization=characterization, variety=row[0], tree_count=row[1], **extra
         )
     return characterization
 
@@ -109,18 +117,19 @@ def test_registering_a_characterization_responds_201_with_it(client, plot, ccn51
     assert response["Location"].endswith(detail_url(plot))
     data = response.data
     assert data["plot_id"] == str(plot.pk)
-    assert data["varieties"] == [
+    assert data["plantings"] == [
         {
             "variety": {"id": str(ccn51.pk), "name": "CCN-51", "is_active": True},
+            "planting_date": "2021-03",
             "tree_count": 1800,
         },
         {
             "variety": {"id": str(ics95.pk), "name": "ICS-95", "is_active": True},
+            "planting_date": "2021-03",
             "tree_count": 600,
         },
     ]
     assert data["total_trees"] == 2400
-    assert data["planting_date"] == "2021-03"
     assert (data["stage"], data["management_system"], data["shade_type"]) == (
         "full_production",
         "conventional",
@@ -191,21 +200,21 @@ def test_management_and_shade_are_optional(client, plot, ccn51):
 # --- Validaciones del cuerpo --------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("varieties", [[], None, "missing"], ids=["empty_list", "null", "missing"])
-def test_without_varieties_asks_to_select_one(client, plot, varieties):
-    content = body(varieties=varieties)
-    if varieties == "missing":
-        del content["varieties"]
+@pytest.mark.parametrize("plantings", [[], None, "missing"], ids=["empty_list", "null", "missing"])
+def test_without_plantings_asks_to_select_a_variety(client, plot, plantings):
+    content = body(plantings=plantings)
+    if plantings == "missing":
+        del content["plantings"]
 
     response = client.put(detail_url(plot), content, format="json")
 
     assert response.status_code == 400
     assert response.data["code"] == "validation_error"
-    assert response.data["fields"]["varieties"] == [SELECT_VARIETY]
+    assert response.data["fields"]["plantings"] == [SELECT_VARIETY]
     assert not PlotCharacterization.objects.exists()
 
 
-def test_ten_varieties_are_accepted_and_eleven_are_not(client, plot):
+def test_ten_plantings_are_accepted_and_eleven_are_not(client, plot):
     varieties = CacaoVarietyFactory.create_batch(11)
 
     ten = client.put(
@@ -220,37 +229,88 @@ def test_ten_varieties_are_accepted_and_eleven_are_not(client, plot):
     assert ten.status_code == 201
     assert ten.data["total_trees"] == 100
     assert eleven.status_code == 400
-    assert "varieties" in eleven.data["fields"]
+    assert "plantings" in eleven.data["fields"]
 
 
-def test_a_repeated_variety_is_rejected(client, plot, ccn51):
+def test_the_same_variety_on_the_same_month_is_rejected(client, plot, ccn51):
     response = client.put(detail_url(plot), body((ccn51, 10), (ccn51, 20)), format="json")
 
     assert response.status_code == 400
-    assert response.data["fields"]["varieties"] == ["Esta variedad ya está en la lista."]
+    assert response.data["fields"]["plantings"] == ["Esta siembra ya está en la lista."]
+
+
+def test_the_same_variety_on_another_month_is_another_planting(client, plot, ccn51):
+    response = client.put(
+        detail_url(plot), body((ccn51, 1000, "2018-04"), (ccn51, 500, "2024-02")), format="json"
+    )
+
+    assert response.status_code == 201
+    assert [(row["planting_date"], row["tree_count"]) for row in response.data["plantings"]] == [
+        ("2018-04", 1000),
+        ("2024-02", 500),
+    ]
 
 
 @pytest.mark.parametrize(
     ("tree_count", "status_code"),
     [(0, 400), (1, 201), (1_000_000, 201), (1_000_001, 400), (2.5, 400), ("mil", 400)],
 )
-def test_tree_count_limits(client, plot, ccn51, tree_count, status_code):
-    content = body(varieties=[{"variety_id": str(ccn51.pk), "tree_count": tree_count}])
+def test_tree_count_limits(client, farm, ccn51, tree_count, status_code):
+    # Una parcela de 100 ha: el límite de densidad no debe ser el que responde.
+    farm.area_hectares = Decimal("200.00")
+    farm.save()
+    plot = PlotFactory(farm=farm, area_hectares=Decimal("100.00"))
+    content = body(
+        plantings=[
+            {"variety_id": str(ccn51.pk), "planting_date": "2021-03", "tree_count": tree_count}
+        ]
+    )
 
     response = client.put(detail_url(plot), content, format="json")
 
     assert response.status_code == status_code
 
 
-def test_an_unknown_variety_goes_to_the_varieties_field(client, plot, ccn51):
+@pytest.mark.parametrize(
+    ("trees", "status_code"), [(24_000, 201), (24_001, 422)], ids=["at_limit", "over"]
+)
+def test_the_density_can_reach_ten_thousand_trees_per_hectare(
+    client, farm, ccn51, trees, status_code
+):
+    plot = PlotFactory(farm=farm, area_hectares=Decimal("2.40"))
+
+    response = client.put(detail_url(plot), body((ccn51, trees)), format="json")
+
+    assert response.status_code == status_code
+    if status_code == 422:
+        assert response.data["code"] == "density_too_high"
+        assert response.data["fields"]["plantings"] == [
+            "Con 10.000 árboles/ha la densidad no es posible: el máximo es 10.000. "
+            "Revisa el número de árboles o el área de la parcela."
+        ]
+        assert not PlotCharacterization.objects.exists()
+
+
+def test_the_density_counts_every_planting(client, farm, ccn51, ics95):
+    plot = PlotFactory(farm=farm, area_hectares=Decimal("1.00"))
+
+    response = client.put(detail_url(plot), body((ccn51, 6000), (ics95, 5000)), format="json")
+
+    assert response.status_code == 422
+    assert "11.000 árboles/ha" in response.data["fields"]["plantings"][0]
+
+
+def test_an_unknown_variety_goes_to_the_plantings_field(client, plot, ccn51):
     content = body((ccn51, 10))
-    content["varieties"].append({"variety_id": str(uuid.uuid4()), "tree_count": 5})
+    content["plantings"].append(
+        {"variety_id": str(uuid.uuid4()), "planting_date": "2021-03", "tree_count": 5}
+    )
 
     response = client.put(detail_url(plot), content, format="json")
 
     assert response.status_code == 400
     assert response.data["code"] == "validation_error"
-    assert "varieties" in response.data["fields"]
+    assert "plantings" in response.data["fields"]
 
 
 def test_an_inactive_variety_is_unprocessable(client, plot):
@@ -272,7 +332,7 @@ def test_a_malformed_planting_date_is_rejected(client, plot, ccn51, planting_dat
     )
 
     assert response.status_code == 400
-    assert "planting_date" in response.data["fields"]
+    assert "plantings" in response.data["fields"]
 
 
 def test_planting_dates_from_1950_to_this_month_are_accepted(client, farm, ccn51):
@@ -284,7 +344,7 @@ def test_planting_dates_from_1950_to_this_month_are_accepted(client, farm, ccn51
             format="json",
         )
         assert response.status_code == 201, planting_date
-        assert response.data["planting_date"] == planting_date
+        assert response.data["plantings"][0]["planting_date"] == planting_date
 
 
 @pytest.mark.parametrize("which", ["before_1950", "next_month"])
@@ -296,13 +356,13 @@ def test_planting_dates_out_of_range_are_rejected(client, plot, ccn51, which):
     )
 
     assert response.status_code == 400
-    assert "planting_date" in response.data["fields"]
+    assert "plantings" in response.data["fields"]
 
 
 def test_the_planting_date_is_stored_on_the_first_of_the_month(client, plot, ccn51):
     client.put(detail_url(plot), body((ccn51, 10), planting_date="2019-11"), format="json")
 
-    assert PlotCharacterization.objects.get().planting_date == date(2019, 11, 1)
+    assert PlotPlanting.objects.get().planting_date == date(2019, 11, 1)
 
 
 @pytest.mark.parametrize(
@@ -349,7 +409,16 @@ def test_expected_version_is_required(client, plot, ccn51):
 
 
 def test_unknown_fields_in_a_row_are_rejected(client, plot, ccn51):
-    content = body(varieties=[{"variety_id": str(ccn51.pk), "tree_count": 10, "name": "X"}])
+    content = body(
+        plantings=[
+            {
+                "variety_id": str(ccn51.pk),
+                "planting_date": "2021-03",
+                "tree_count": 10,
+                "name": "X",
+            }
+        ]
+    )
 
     response = client.put(detail_url(plot), content, format="json")
 
@@ -436,7 +505,7 @@ def test_reading_a_characterization(client, plot, ccn51, ics95):
 
     assert response.status_code == 200
     assert response.data["total_trees"] == 2400
-    assert [row["variety"]["name"] for row in response.data["varieties"]] == ["CCN-51", "ICS-95"]
+    assert [row["variety"]["name"] for row in response.data["plantings"]] == ["CCN-51", "ICS-95"]
 
 
 def test_a_plot_without_characterization_is_not_found(client, plot):
@@ -452,7 +521,7 @@ def test_an_inactive_variety_is_shown_as_such(client, plot):
 
     response = client.get(detail_url(plot))
 
-    assert response.data["varieties"][0]["variety"] == {
+    assert response.data["plantings"][0]["variety"] == {
         "id": str(retired.pk),
         "name": "EET-8",
         "is_active": False,
@@ -533,7 +602,7 @@ def test_the_list_takes_the_same_queries_with_one_or_many_characterizations(clie
     assert len(many) == len(one)
 
 
-def test_a_stale_version_takes_the_same_queries_with_one_or_many_varieties(client, farm, ccn51):
+def test_a_stale_version_takes_the_same_queries_with_one_or_many_plantings(client, farm, ccn51):
     small = characterize(PlotFactory(farm=farm), (CacaoVarietyFactory(), 10), version=2)
     with CaptureQueriesContext(connection) as one:
         client.put(detail_url(small.plot), body((ccn51, 5), expected_version=1), format="json")
@@ -545,5 +614,5 @@ def test_a_stale_version_takes_the_same_queries_with_one_or_many_varieties(clien
             detail_url(large.plot), body((ccn51, 5), expected_version=1), format="json"
         )
 
-    assert len(response.data["current"]["varieties"]) == 5
+    assert len(response.data["current"]["plantings"]) == 5
     assert len(many) == len(one)

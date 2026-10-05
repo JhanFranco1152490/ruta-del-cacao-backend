@@ -54,7 +54,10 @@ class DomainValidationMixin:
             OpenApiParameter(
                 "search",
                 str,
-                description="Busca en el nombre sin mayúsculas, tildes, espacios ni guiones.",
+                description=(
+                    "Busca en el nombre y en los nombres comunes, sin mayúsculas, tildes, "
+                    "espacios ni guiones."
+                ),
             ),
         ],
         responses={200: CacaoVarietyListSerializer, **error_responses(400, 401)},
@@ -140,8 +143,9 @@ class CacaoVarietyViewSet(DomainValidationMixin, GenericViewSet):
             "para registrar y la versión que se leyó para editar; si no coincide responde 409 "
             "`stale_version` con la ficha vigente (o `null`) en `current`. Si la ficha ya tiene "
             "exactamente ese contenido responde 200 sin subir la versión: es un reintento. Una "
-            "variedad que no existe es un 400 en `fields.varieties`; una desactivada que no "
-            "estaba en la ficha, 422 `variety_inactive`."
+            "variedad que no existe es un 400 en `fields.plantings`; una desactivada que no "
+            "estaba en la ficha, 422 `variety_inactive`; una densidad mayor de 10.000 árboles/ha "
+            "sobre el área declarada de la parcela, 422 `density_too_high`."
         ),
         request=PlotCharacterizationWriteSerializer,
         responses={

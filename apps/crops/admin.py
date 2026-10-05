@@ -5,7 +5,7 @@ from .exceptions import DuplicateVarietyName
 from .models import CacaoVariety, PlotCharacterizationAuditEvent
 from .services import create_variety, delete_variety, name_taken, update_variety
 
-EDITABLE_FIELDS = ("name", "description", "is_active")
+EDITABLE_FIELDS = ("name", "common_names", "description", "is_active")
 MANAGE_PERMISSION = "crops.manage_cacaovariety"
 
 
@@ -26,9 +26,9 @@ class CacaoVarietyAdminForm(forms.ModelForm):
 @admin.register(CacaoVariety)
 class CacaoVarietyAdmin(admin.ModelAdmin):
     form = CacaoVarietyAdminForm
-    list_display = ("name", "description", "is_active")
+    list_display = ("name", "common_names", "description", "is_active")
     list_filter = ("is_active",)
-    search_fields = ("name", "name_normalized")
+    search_fields = ("name", "search_normalized")
     fields = EDITABLE_FIELDS
 
     # Los permisos siguen al de la API y no a los que Django genera, para que un mismo rol pueda

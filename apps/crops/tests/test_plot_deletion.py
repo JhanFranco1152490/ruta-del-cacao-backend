@@ -4,8 +4,8 @@ productor. Se prueba por las APIs de esas apps, que no saben nada de las fichas.
 import pytest
 
 from apps.accounts.tests.role_helpers import make_administrator, make_producer_owner
-from apps.crops.models import PlotCharacterization, PlotCharacterizationVariety
-from apps.crops.tests.factories import PlotCharacterizationVarietyFactory
+from apps.crops.models import PlotCharacterization, PlotPlanting
+from apps.crops.tests.factories import PlotPlantingFactory
 from apps.farms.models import Farm
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.models import Plot
@@ -18,13 +18,13 @@ pytestmark = pytest.mark.django_db
 
 def characterized_plot(farm):
     plot = PlotFactory(farm=farm)
-    PlotCharacterizationVarietyFactory(characterization__plot=plot)
+    PlotPlantingFactory(characterization__plot=plot)
     return plot
 
 
 def assert_characterization_kept(plot):
     assert PlotCharacterization.objects.filter(pk=plot.pk).exists()
-    assert PlotCharacterizationVariety.objects.filter(characterization_id=plot.pk).exists()
+    assert PlotPlanting.objects.filter(characterization_id=plot.pk).exists()
 
 
 def test_a_characterized_plot_is_not_deleted_and_can_be_deactivated(auth_client):

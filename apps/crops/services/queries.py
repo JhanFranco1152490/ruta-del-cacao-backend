@@ -1,17 +1,17 @@
 from django.db.models import Prefetch, QuerySet
 
 from ..exceptions import CharacterizationNotFound, PlotNotFound
-from ..models import PlotCharacterization, PlotCharacterizationVariety
+from ..models import PlotCharacterization, PlotPlanting
 from .locks import Plot
 
 
 def with_rows(characterizations: QuerySet) -> QuerySet:
-    """Las fichas con sus filas y la variedad de cada una, en dos consultas más sin importar
+    """Las fichas con sus siembras y la variedad de cada una, en dos consultas más sin importar
     cuántas sean."""
-    rows = PlotCharacterizationVariety.objects.select_related("variety").order_by(
-        "variety__name_normalized", "id"
+    rows = PlotPlanting.objects.select_related("variety").order_by(
+        "variety__name_normalized", "planting_date", "id"
     )
-    return characterizations.prefetch_related(Prefetch("varieties", queryset=rows))
+    return characterizations.prefetch_related(Prefetch("plantings", queryset=rows))
 
 
 def list_characterizations(actor, farm_id) -> QuerySet:

@@ -1,5 +1,6 @@
 import uuid
 
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -7,6 +8,8 @@ from apps.common.audit import AuditEventBase
 
 from .choices import ManagementSystem, ShadeType, Stage
 from .text import normalize_variety_name
+
+MAX_COMMON_NAMES = 5
 
 
 class CacaoVariety(models.Model):
@@ -16,6 +19,16 @@ class CacaoVariety(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=60)
     name_normalized = models.CharField(max_length=120, editable=False)
+    # El productor reconoce los clones por el lugar donde se seleccionaron ("Saravena"), y de un
+    # mismo lugar salen varios: por eso se repiten entre variedades y el nombre sigue siendo la
+    # identidad.
+    common_names = ArrayField(
+        models.CharField(max_length=60), size=MAX_COMMON_NAMES, default=list, blank=True
+    )
+    # El nombre y los nombres comunes normalizados, separados por `|`: la búsqueda los compara
+    # como el nombre, y el separador evita que un término una el final de uno con el inicio del
+    # siguiente.
+    search_normalized = models.TextField(editable=False, default="")
     description = models.CharField(max_length=200, blank=True, default="")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -47,6 +60,25 @@ class CacaoVariety(models.Model):
         # Un nombre hecho solo de espacios o guiones quedaría vacío al compararlo.
         if not self.name_normalized:
             raise ValidationError({"name": "Este campo es obligatorio."})
+        self.common_names = _clean_common_names(self.common_names or [])
+        self.search_normalized = search_text(self.name, self.common_names)
+
+
+def search_text(name: str, common_names) -> str:
+    return "|".join(normalize_variety_name(text) for text in [name, *common_names])
+
+
+def _clean_common_names(names) -> list[str]:
+    """Sin espacios a los lados, sin vacíos y sin repetir dentro de la variedad, comparando como
+    el nombre: "Saravena" y "saravena" son el mismo."""
+    cleaned, seen = [], set()
+    for name in names:
+        name = name.strip()
+        key = normalize_variety_name(name)
+        if key and key not in seen:
+            seen.add(key)
+            cleaned.append(name)
+    return cleaned
 
 
 class PlotCharacterization(models.Model):
@@ -60,9 +92,6 @@ class PlotCharacterization(models.Model):
         primary_key=True,
         related_name="characterization",
     )
-    # Mes y año de la siembra principal; se guarda en el día 1. La edad no se guarda porque
-    # cambia con el tiempo.
-    planting_date = models.DateField()
     stage = models.CharField(max_length=32, choices=Stage.choices)
     management_system = models.CharField(
         max_length=32, choices=ManagementSystem.choices, null=True, blank=True
@@ -75,12 +104,6 @@ class PlotCharacterization(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [
-            models.CheckConstraint(
-                condition=models.Q(planting_date__day=1),
-                name="crops_planting_date_first_of_month",
-            ),
-        ]
         default_permissions = ()
         permissions = [
             (
@@ -90,27 +113,34 @@ class PlotCharacterization(models.Model):
         ]
 
 
-class PlotCharacterizationVariety(models.Model):
-    """Una variedad sembrada en la parcela y cuántos árboles tiene. Se cuentan árboles y no
+class PlotPlanting(models.Model):
+    """Una siembra de la parcela: qué variedad, cuándo y cuántos árboles. La misma variedad en
+    otra fecha es otra tanda (una renovación gradual, por ejemplo). Se cuentan árboles y no
     porcentajes porque es lo que el productor cuenta en campo."""
 
     characterization = models.ForeignKey(
         PlotCharacterization,
         on_delete=models.CASCADE,
-        related_name="varieties",
+        related_name="plantings",
     )
     variety = models.ForeignKey(
         CacaoVariety,
         on_delete=models.PROTECT,
-        related_name="characterization_rows",
+        related_name="plantings",
     )
+    # Mes y año; se guarda en el día 1. La edad no se guarda porque cambia con el tiempo.
+    planting_date = models.DateField()
     tree_count = models.PositiveIntegerField()
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["characterization", "variety"],
-                name="crops_characterization_variety_unique",
+                fields=["characterization", "variety", "planting_date"],
+                name="crops_planting_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(planting_date__day=1),
+                name="crops_planting_date_first_of_month",
             ),
             models.CheckConstraint(
                 condition=models.Q(tree_count__gt=0),

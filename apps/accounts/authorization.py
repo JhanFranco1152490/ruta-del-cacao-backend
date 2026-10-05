@@ -84,8 +84,8 @@ def ensure_can_manage_account(actor, target) -> None:
     """Regla "administrar": solo cuentas del mismo productor cuyos permisos ya tiene.
 
     El Administrador siempre alcanza la cuenta Productor y las de otros Administradores
-    (`visible_users` ya las trata como siempre visibles), tenga o no sus permisos; para las
-    demás cuentas depende del interruptor de la asociación (`acts_for_producer`).
+    (`visible_users` ya las trata como siempre visibles), tenga o no sus permisos. Las de un
+    empleado no las alcanza: `acts_for_producer` es falso para él.
     """
     if actor.is_superuser:
         return

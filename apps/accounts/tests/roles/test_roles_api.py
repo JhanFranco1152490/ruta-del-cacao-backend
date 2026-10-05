@@ -7,7 +7,6 @@ from apps.accounts.models import AccountManagementEvent, Role
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import RoleFactory, UserFactory
 from apps.accounts.tests.role_helpers import (
-    enable_association_access,
     grant_role,
     make_administrator,
     make_delegate,
@@ -78,17 +77,22 @@ def test_retrieving_a_role_from_another_producer_is_not_found(auth_client):
     assert response.data["code"] == "not_found"
 
 
-def test_administrator_only_sees_custom_roles_with_association_access(auth_client):
+def test_administrator_does_not_see_the_custom_roles_of_a_producer(auth_client):
     admin = make_administrator()
-    producer = ProducerFactory()
-    role = RoleFactory(producer=producer)
+    role = RoleFactory(producer=ProducerFactory())
 
-    hidden = auth_client(admin).get(role_url(role))
-    assert hidden.status_code == 404
+    response = auth_client(admin).get(role_url(role))
 
-    enable_association_access(producer)
-    shown = auth_client(admin).get(role_url(role))
-    assert shown.status_code == 200
+    assert response.status_code == 404
+
+
+def test_superuser_sees_the_custom_roles_of_any_producer(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    role = RoleFactory(producer=ProducerFactory())
+
+    response = auth_client(superuser).get(role_url(role))
+
+    assert response.status_code == 200
 
 
 def test_list_is_paginated(auth_client):
@@ -253,25 +257,31 @@ def test_administrator_must_send_producer_id(auth_client):
     assert "producer_id" in response.data["fields"]
 
 
-def test_administrator_needs_association_access_to_create_for_a_producer(auth_client):
+def test_administrator_cannot_create_a_role_for_a_producer(auth_client):
     admin = make_administrator()
     producer = ProducerFactory()
 
-    denied = auth_client(admin).post(
+    response = auth_client(admin).post(
         ROLES_URL,
         {"name": "X", "permission_codes": [], "producer_id": str(producer.id)},
         format="json",
     )
-    assert denied.status_code == 403
-    assert denied.data["code"] == "exceeds_own_permissions"
 
-    enable_association_access(producer)
-    allowed = auth_client(admin).post(
+    assert response.status_code == 403
+    assert response.data["code"] == "exceeds_own_permissions"
+
+
+def test_superuser_creates_a_role_for_any_producer(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    producer = ProducerFactory()
+
+    response = auth_client(superuser).post(
         ROLES_URL,
         {"name": "Y", "permission_codes": [], "producer_id": str(producer.id)},
         format="json",
     )
-    assert allowed.status_code == 201
+
+    assert response.status_code == 201
 
 
 def test_cannot_grant_a_permission_the_actor_lacks(auth_client):
@@ -291,14 +301,12 @@ def test_cannot_grant_a_permission_the_actor_lacks(auth_client):
     assert "permission_codes" in response.data["fields"]
 
 
-def test_cannot_grant_a_non_delegable_permission_even_if_the_actor_has_it(auth_client):
-    admin = make_administrator()
-    producer = ProducerFactory()
-    enable_association_access(producer)
+def test_a_producer_cannot_grant_a_non_delegable_permission(auth_client):
+    owner = make_producer_owner(ProducerFactory())
 
-    response = auth_client(admin).post(
+    response = auth_client(owner).post(
         ROLES_URL,
-        {"name": "X", "permission_codes": ["producers.view"], "producer_id": str(producer.id)},
+        {"name": "X", "permission_codes": ["producers.view"]},
         format="json",
     )
 
@@ -633,18 +641,12 @@ def test_a_custom_role_that_characterizes_plots_can_also_see_them(auth_client):
     ]
 
 
-def test_the_association_cannot_delegate_the_variety_catalog_although_it_holds_it(auth_client):
-    admin = make_administrator()
-    producer = ProducerFactory()
-    enable_association_access(producer)
+def test_a_producer_cannot_delegate_the_variety_catalog(auth_client):
+    owner = make_producer_owner(ProducerFactory())
 
-    response = auth_client(admin).post(
+    response = auth_client(owner).post(
         ROLES_URL,
-        {
-            "name": "Catálogo",
-            "permission_codes": ["crops.manage_cacaovariety"],
-            "producer_id": str(producer.id),
-        },
+        {"name": "Catálogo", "permission_codes": ["crops.manage_cacaovariety"]},
         format="json",
     )
 
@@ -695,8 +697,8 @@ def test_the_permission_details_follow_the_order_of_the_permission_codes(auth_cl
 
 
 def test_the_list_takes_the_same_queries_with_one_or_many_roles(auth_client):
-    admin = make_administrator()
-    client = auth_client(admin)
+    superuser = UserFactory(is_superuser=True)
+    client = auth_client(superuser)
     with CaptureQueriesContext(connection) as one:
         client.get(ROLES_URL)
 
@@ -705,7 +707,6 @@ def test_the_list_takes_the_same_queries_with_one_or_many_roles(auth_client):
         RoleFactory(
             producer=producer, permissions=["accounts.users_view", "accounts.users_create"]
         )
-    enable_association_access(producer)
     with CaptureQueriesContext(connection) as many:
         response = client.get(ROLES_URL)
 

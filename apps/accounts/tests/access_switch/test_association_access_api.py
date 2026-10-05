@@ -109,23 +109,3 @@ def test_put_rejects_unknown_field(auth_client):
 
     assert response.status_code == 400
     assert "producer_id" in response.data["fields"]
-
-
-def test_switch_affects_the_administrators_scope(auth_client):
-    producer = ProducerFactory()
-    owner = make_producer_owner(producer)
-    employee = UserFactory(producer=producer)
-    admin = make_administrator()
-
-    hidden = auth_client(admin).get(f"/api/users/{employee.id}")
-    assert hidden.status_code == 404
-
-    auth_client(owner).put(ACCESS_URL, {"enabled": True}, format="json")
-
-    shown = auth_client(admin).get(f"/api/users/{employee.id}")
-    assert shown.status_code == 200
-
-    auth_client(owner).put(ACCESS_URL, {"enabled": False}, format="json")
-
-    hidden_again = auth_client(admin).get(f"/api/users/{employee.id}")
-    assert hidden_again.status_code == 404

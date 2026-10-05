@@ -3,11 +3,7 @@ import pytest
 from apps.accounts.scope import acts_for_producer, visible_roles, visible_users
 from apps.accounts.system_roles import ADMINISTRATOR, PRODUCER
 from apps.accounts.tests.factories import RoleFactory, UserFactory
-from apps.accounts.tests.role_helpers import (
-    enable_association_access,
-    make_administrator,
-    make_producer_owner,
-)
+from apps.accounts.tests.role_helpers import make_administrator, make_producer_owner
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -41,7 +37,7 @@ def test_administrator_always_sees_administrator_and_producer_accounts():
     assert {other_admin.id, owner.id} <= result
 
 
-def test_administrator_cannot_see_employees_without_association_access():
+def test_administrator_cannot_see_employees():
     admin = make_administrator()
     producer = ProducerFactory()
     make_producer_owner(producer)
@@ -50,18 +46,6 @@ def test_administrator_cannot_see_employees_without_association_access():
     result = visible_users(admin)
 
     assert not result.filter(id=employee.id).exists()
-
-
-def test_administrator_sees_employees_once_association_access_is_enabled():
-    admin = make_administrator()
-    producer = ProducerFactory()
-    make_producer_owner(producer)
-    employee = UserFactory(producer=producer)
-    enable_association_access(producer)
-
-    result = visible_users(admin)
-
-    assert result.filter(id=employee.id).exists()
 
 
 def test_a_producer_only_sees_its_own_accounts():
@@ -103,18 +87,21 @@ def test_a_producer_sees_system_roles_and_only_its_own_custom_roles():
     assert other_role.id not in ids
 
 
-def test_administrator_sees_custom_roles_only_from_producers_with_access_enabled():
+def test_administrator_sees_only_system_roles():
     admin = make_administrator()
-    producer = ProducerFactory()
-    allowed_role = RoleFactory(producer=producer)
-    blocked_producer = ProducerFactory()
-    blocked_role = RoleFactory(producer=blocked_producer)
-    enable_association_access(producer)
+    own_role = RoleFactory(producer=ProducerFactory())
 
-    ids = set(visible_roles(admin).values_list("id", flat=True))
+    roles = visible_roles(admin)
 
-    assert allowed_role.id in ids
-    assert blocked_role.id not in ids
+    assert not roles.filter(id=own_role.id).exists()
+    assert {ADMINISTRATOR, PRODUCER} <= set(roles.values_list("code", flat=True))
+
+
+def test_superuser_sees_the_custom_roles_of_every_producer():
+    superuser = UserFactory(is_superuser=True)
+    role = RoleFactory(producer=ProducerFactory())
+
+    assert visible_roles(superuser).filter(id=role.id).exists()
 
 
 # --- acts_for_producer -----------------------------------------------------------------------
@@ -130,6 +117,4 @@ def test_acts_for_producer_matrix():
     assert acts_for_producer(owner, producer.id) is True
     assert acts_for_producer(employee_of_another, producer.id) is False
     assert acts_for_producer(admin, producer.id) is False
-    enable_association_access(producer)
-    assert acts_for_producer(admin, producer.id) is True
     assert acts_for_producer(superuser, producer.id) is True

@@ -12,7 +12,6 @@ from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_sys
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import csrf_client, login_by_email, open_session
 from apps.accounts.tests.role_helpers import (
-    enable_association_access,
     grant_role,
     make_administrator,
     make_delegate,
@@ -101,18 +100,23 @@ def test_nobody_deletes_their_own_account():
     assert exists(owner)
 
 
-def test_the_administrator_needs_the_switch_to_delete_an_employee():
-    producer = ProducerFactory()
+def test_the_administrator_does_not_reach_an_employee_to_delete_it():
     admin = make_administrator()
-    employee = make_employee(producer)
+    employee = make_employee(ProducerFactory())
 
-    blocked = delete_as(admin, employee)
-    assert blocked.status_code == 404
+    response = delete_as(admin, employee)
+
+    assert response.status_code == 404
     assert exists(employee)
 
-    enable_association_access(producer)
-    allowed = delete_as(admin, employee)
-    assert allowed.status_code == 204
+
+def test_the_superuser_deletes_an_employee_of_any_producer():
+    superuser = UserFactory(is_superuser=True)
+    employee = make_employee(ProducerFactory())
+
+    response = delete_as(superuser, employee)
+
+    assert response.status_code == 204
     assert not exists(employee)
 
 

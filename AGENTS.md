@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, middleware `no-store`, vistas 404/500 en JSON |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueos de finca y parcela (`locks.py`), guardado con restricción única (`db.py`), middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -313,6 +313,16 @@ nada. Ruff y Black usan `line-length = 99`.
   validador, un helper). Una responsabilidad por archivo.
 - **Concurrencia:** restricción única en la base de datos y bloqueo optimista con `version`;
   toda operación que asigna un recurso escaso corre en `transaction.atomic`.
+  - **Una operación sobre una parcela la bloquea con `lock_plot_of_producer`**
+    (`apps/common/locks.py`): la finca primero y después la parcela, siempre en ese orden, porque
+    dos operaciones que toman los mismos bloqueos en orden distinto pueden esperarse una a la
+    otra. Una app nueva que trabaje sobre una parcela (cultivos, cosecha) la usa en vez de
+    escribir la suya.
+  - **Guardar un registro con una restricción única** (un nombre o un código repetido) se hace
+    con `save_translating_unique` (`apps/common/db.py`): punto de guardado propio, el choque se
+    traduce al error de negocio y cualquier otro se relanza. En las altas que se reintentan sin
+    conexión, `find_existing` decide primero si el `id` ya existía, porque un reenvío no es un
+    nombre repetido.
 - **Fechas:** "hoy" es `django.utils.timezone.localdate()` (zona `America/Bogota`).
 - **Datos personales:** ningún log, mensaje de error ni comentario los incluye. El mensaje de
   una excepción puede traer un correo o un documento (un `IntegrityError` con el valor

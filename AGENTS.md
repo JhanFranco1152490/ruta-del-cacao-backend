@@ -226,6 +226,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   una variedad que ninguna ficha usa (registrada por error); el historial sobrevive y registra el
   borrado. No llevan `version`: dos ediciones simultáneas del catálogo no se contemplan, porque
   la asociación va a tener una sola cuenta Administrador.
+- **Historial de las fichas** (`PlotCharacterizationAuditEvent`): de solo lectura y solo para
+  superusuarios. El admin no filtra por productor, así que con `plots.view_plot` un empleado
+  vería las fichas de todos, y la asociación no lee fichas.
 
 ## Variables de entorno
 

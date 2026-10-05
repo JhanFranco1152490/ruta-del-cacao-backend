@@ -55,7 +55,6 @@ class User(AbstractUser):
             ("users_update", "Puede actualizar cuentas"),
             ("users_change_status", "Puede activar o desactivar cuentas"),
             ("users_delete", "Puede eliminar cuentas creadas por error"),
-            ("association_access_manage", "Puede administrar el acceso de la asociación"),
         ]
         ordering = ["last_name", "first_name", "id"]
 
@@ -153,25 +152,6 @@ class Role(models.Model):
         return frozenset(self.permission_names)
 
 
-class AssociationAccess(models.Model):
-    """Interruptor por productor: si está encendido, el Administrador opera en su espacio.
-
-    La ausencia de fila equivale a apagado; se crea la primera vez que alguien lo enciende.
-    """
-
-    producer = models.OneToOneField(
-        "producers.Producer",
-        on_delete=models.PROTECT,
-        primary_key=True,
-        related_name="association_access",
-    )
-    enabled = models.BooleanField(default=False)
-    changed_at = models.DateTimeField(null=True, blank=True)
-    changed_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
-    )
-
-
 class AuthenticationEvent(models.Model):
     class EventType(models.TextChoices):
         LOGIN_SUCCEEDED = "login_succeeded", "Inicio de sesión exitoso"
@@ -214,14 +194,6 @@ class AccountManagementEvent(models.Model):
         ROLE_CREATED = "role_created", "Rol creado"
         ROLE_UPDATED = "role_updated", "Rol actualizado"
         ROLE_DELETED = "role_deleted", "Rol borrado"
-        ASSOCIATION_ACCESS_ENABLED = (
-            "association_access_enabled",
-            "Acceso de la asociación habilitado",
-        )
-        ASSOCIATION_ACCESS_DISABLED = (
-            "association_access_disabled",
-            "Acceso de la asociación deshabilitado",
-        )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event_type = models.CharField(max_length=32, choices=EventType.choices)

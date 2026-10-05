@@ -102,7 +102,7 @@ def create_role(actor, data: dict, request_id) -> Role:
             raise ValidationError({"producer_id": ["La cuenta no pertenece a ningún productor."]})
 
     # También cierra el caso de un `producer_id` inexistente: sin un productor real detrás,
-    # nunca puede haber un `AssociationAccess` habilitado para él.
+    # `acts_for_producer` es falso para todos menos el superusuario.
     if not acts_for_producer(actor, producer_id):
         raise ExceedsOwnPermissions("producer_id")
 

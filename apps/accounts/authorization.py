@@ -84,8 +84,8 @@ def ensure_can_manage_account(actor, target) -> None:
     """Regla "administrar": solo cuentas del mismo productor cuyos permisos ya tiene.
 
     El Administrador siempre alcanza la cuenta Productor y las de otros Administradores
-    (`visible_users` ya las trata como siempre visibles), tenga o no sus permisos; para las
-    demás cuentas depende del interruptor de la asociación (`acts_for_producer`).
+    (`visible_users` ya las trata como siempre visibles), tenga o no sus permisos. Las de un
+    empleado no las alcanza: `acts_for_producer` es falso para él.
     """
     if actor.is_superuser:
         return
@@ -95,6 +95,11 @@ def ensure_can_manage_account(actor, target) -> None:
         if not acts_for_producer(actor, target.producer_id):
             raise ExceedsOwnPermissions()
         return
+    # La cuenta Productor es del productor y de la asociación: ni un empleado con todos sus
+    # permisos la administra. Es una regla y no un permiso que solo ella tenga, porque cada
+    # permiso del rol Productor se puede delegar.
+    if target.groups.filter(role__code=PRODUCER).exists():
+        raise ExceedsOwnPermissions()
     if actor.producer_id is None or actor.producer_id != target.producer_id:
         raise ExceedsOwnPermissions()
     if not effective_permissions(target) <= effective_permissions(actor):

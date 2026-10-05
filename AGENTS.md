@@ -122,9 +122,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `apps/common/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
   eliminan), como ya hacen `farms` y `accounts`: así `producers` no importa de ninguna. Deja un
   `ProducerAuditEvent` sin relación con el productor, que sobrevive.
-- **La altitud de una finca debe caber en el terreno de su municipio**, con 100 m de margen
-  (`apps/common/municipality_altitude.py`, calculado sobre un modelo de elevación de 30 m; el
-  frontend usa la misma tabla). Un vértice de parcela tampoco puede quedar a más de
+- **La altitud de una finca debe caber en el terreno de su municipio**, con 100 m de margen y sin
+  bajar de 0 (`apps/common/municipality_altitude.py`, calculado sobre un modelo de elevación de
+  30 m; el frontend usa la misma tabla). Solo se exige al crear y cuando cambian la altitud o el
+  municipio: una finca guardada antes de la regla puede seguir desactivándose o corrigiendo sus
+  otros datos. Un vértice de parcela tampoco puede quedar a más de
   `2 × √(área de la finca ÷ π) + 300 m` del punto de la finca (`422 plot_too_far_from_farm`).
 - **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
   tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
@@ -180,6 +182,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (`apps/common/csrf.py`), desde `CookieJWTAuthentication` y `CsrfProtectedMixin`.
 - **Permisos por acción:** la vista declara `action_permissions = {"list": "app.codename", ...}`
   y `ActionPermission` los exige; una acción sin permiso declarado se niega.
+- **Cada rol trae sus permisos con su nombre** (`permission_details`: `code` y `name`), además de
+  la lista de códigos (`permissions`). `/api/permissions` solo ofrece los delegables, que son los
+  que puede llevar un rol propio, así que no sirve para nombrar los de un rol del sistema.
 - **Todo permiso nuevo se declara en `apps/accounts/registry.py` y es delegable por defecto.**
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
   productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca

@@ -154,7 +154,7 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
             target_producer_id = producer_id
         else:
             _forbid(data, "producer_id")
-            target_producer_id = actor.producer_id
+            target_producer_id = actor.effective_producer_id
             if target_producer_id is None:
                 raise ValidationError(
                     {"producer_id": ["Tu cuenta no pertenece a ningún productor."]}

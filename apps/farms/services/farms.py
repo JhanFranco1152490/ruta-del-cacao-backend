@@ -94,7 +94,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
     contenido devuelve la finca ya creada (`creada=False`), de modo que reintentar un envío
     cortado nunca duplica.
     """
-    if actor.producer_id is None:
+    if actor.effective_producer_id is None:
         raise ProducerRequired()
     farm_id = data.get("id")
     if farm_id is not None:
@@ -102,7 +102,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
         if existing is not None:
             return _resent_farm(existing, actor, data), False
 
-    farm = Farm(producer_id=actor.producer_id, **_without_empty_id(data))
+    farm = Farm(producer_id=actor.effective_producer_id, **_without_empty_id(data))
     _validate(farm, check_operating_area=True, check_altitude=True)
     # Dos sincronizaciones simultáneas del mismo registro: la otra ganó la carrera.
     existing = save_translating_unique(
@@ -123,7 +123,9 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
 @transaction.atomic
 def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     try:
-        farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
+        farm = Farm.objects.select_for_update().get(
+            pk=farm_id, producer_id=actor.effective_producer_id
+        )
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
     # Con la finca bloqueada, ninguna parcela se registra ni se agranda hasta que esto termine.
@@ -172,7 +174,9 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
     """Elimina una finca creada por error. Solo si no tiene registros del negocio; la que los
     tiene se desactiva. Su auditoría se conserva y el borrado queda registrado en ella."""
     try:
-        farm = Farm.objects.select_for_update().get(pk=farm_id, producer_id=actor.producer_id)
+        farm = Farm.objects.select_for_update().get(
+            pk=farm_id, producer_id=actor.effective_producer_id
+        )
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
     check_expected_version(farm, expected_version, stale=lambda: _stale_with_allocated_area(farm))
@@ -203,7 +207,7 @@ def has_business_records(farm: Farm) -> bool:
 
 
 def _resent_farm(existing: Farm, actor, data: dict) -> Farm:
-    if existing.producer_id != actor.producer_id:
+    if existing.producer_id != actor.effective_producer_id:
         raise FarmIdConflict()
     _set_allocated_area(existing)
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo

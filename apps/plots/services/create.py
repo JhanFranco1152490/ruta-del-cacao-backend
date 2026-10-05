@@ -61,7 +61,7 @@ def _existing(plot_id) -> Plot | None:
 
 
 def _resent_plot(existing: Plot, actor, data: dict) -> Plot:
-    if existing.farm.producer_id != actor.producer_id:
+    if existing.farm.producer_id != actor.effective_producer_id:
         raise PlotIdConflict()
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
     # después de una creación cuya respuesta se perdió: el conflicto lleva la parcela del

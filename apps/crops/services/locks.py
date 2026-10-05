@@ -17,7 +17,7 @@ def lock_plot(actor, plot_id):
         Plot,
         plot_id,
         root="farm",
-        scope={"farm__producer_id": actor.producer_id},
+        scope={"farm__producer_id": actor.effective_producer_id},
         not_found=PlotNotFound,
     )
     plot.farm = farm

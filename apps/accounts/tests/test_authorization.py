@@ -32,7 +32,6 @@ from apps.accounts.system_roles import (
 )
 from apps.accounts.tests.factories import RoleFactory, UserFactory
 from apps.accounts.tests.role_helpers import (
-    enable_association_access,
     make_administrator,
     make_delegate,
     make_producer_owner,
@@ -207,7 +206,7 @@ def test_ensure_can_assign_roles_employee_kind_allows_predefined_and_own_custom_
     )
 
 
-def test_ensure_can_assign_roles_administrator_needs_association_access_for_employees():
+def test_ensure_can_assign_roles_administrator_cannot_assign_roles_for_employees():
     admin = make_administrator()
     producer = ProducerFactory()
     role = get_system_role(FOREMAN)
@@ -216,9 +215,17 @@ def test_ensure_can_assign_roles_administrator_needs_association_access_for_empl
         ensure_can_assign_roles(
             admin, [role], target_producer_id=producer.id, account_kind=ACCOUNT_KIND_EMPLOYEE
         )
-    enable_association_access(producer)
+
+
+def test_superuser_assigns_roles_for_the_employees_of_any_producer():
+    superuser = UserFactory(is_superuser=True)
+    producer = ProducerFactory()
+
     ensure_can_assign_roles(
-        admin, [role], target_producer_id=producer.id, account_kind=ACCOUNT_KIND_EMPLOYEE
+        superuser,
+        [get_system_role(FOREMAN)],
+        target_producer_id=producer.id,
+        account_kind=ACCOUNT_KIND_EMPLOYEE,
     )
 
 
@@ -239,6 +246,15 @@ def test_a_delegate_cannot_reach_the_producer_account():
             "accounts.roles_manage",
         ],
     )
+
+    with pytest.raises(ExceedsOwnPermissions):
+        ensure_can_manage_account(delegate, owner)
+
+
+def test_a_delegate_with_every_permission_of_the_producer_still_cannot_reach_their_account():
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    delegate = make_delegate(producer, sorted(get_system_role(PRODUCER).permission_codes))
 
     with pytest.raises(ExceedsOwnPermissions):
         ensure_can_manage_account(delegate, owner)
@@ -285,15 +301,13 @@ def test_administrator_always_reaches_another_administrator_account():
     ensure_can_manage_account(admin, other_admin)
 
 
-def test_administrator_needs_association_access_to_manage_an_employee():
+def test_administrator_cannot_manage_an_employee():
     producer = ProducerFactory()
     employee = UserFactory(producer=producer)
     admin = make_administrator()
 
     with pytest.raises(ExceedsOwnPermissions):
         ensure_can_manage_account(admin, employee)
-    enable_association_access(producer)
-    ensure_can_manage_account(admin, employee)
 
 
 def test_superuser_reaches_anyone():
@@ -332,15 +346,19 @@ def test_a_producer_cannot_manage_another_producers_role():
         ensure_can_manage_role(owner, foreign_role)
 
 
-def test_administrator_needs_association_access_to_manage_a_role():
+def test_administrator_cannot_manage_a_role():
     producer = ProducerFactory()
     role = RoleFactory(producer=producer)
     admin = make_administrator()
 
     with pytest.raises(ExceedsOwnPermissions):
         ensure_can_manage_role(admin, role)
-    enable_association_access(producer)
-    ensure_can_manage_role(admin, role)
+
+
+def test_superuser_manages_the_custom_role_of_any_producer():
+    role = RoleFactory(producer=ProducerFactory())
+
+    ensure_can_manage_role(UserFactory(is_superuser=True), role)
 
 
 # --- ensure_not_self ---------------------------------------------------------------------------

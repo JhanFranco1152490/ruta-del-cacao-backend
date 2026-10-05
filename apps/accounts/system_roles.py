@@ -10,8 +10,8 @@ SALES_MANAGER = "sales_manager"
 
 # Los permisos de administración (`users_*`, `roles_*`) son delegables (ver `registry.py`):
 # un productor puede querer un administrador de confianza que haga la mayor parte de su
-# trabajo. `association_access_manage` no es delegable y solo lo tiene el rol Productor: es la
-# salvaguarda que protege esa cuenta de cualquier empleado, por más permisos que tenga.
+# trabajo. Un empleado puede llegar a tener todos los permisos del Productor, y aun así no
+# alcanza su cuenta: lo impide `ensure_can_manage_account`, no un permiso.
 SYSTEM_ROLES = {
     ADMINISTRATOR: {
         "kind": Role.Kind.FIXED,
@@ -47,7 +47,6 @@ SYSTEM_ROLES = {
             "accounts.users_delete",
             "accounts.roles_view",
             "accounts.roles_manage",
-            "accounts.association_access_manage",
             "farms.view_farm",
             "farms.add_farm",
             "farms.change_farm",

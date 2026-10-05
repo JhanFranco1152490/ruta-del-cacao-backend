@@ -3,12 +3,7 @@ from drf_spectacular.generators import SchemaGenerator
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.tests.factories import UserFactory
-from apps.accounts.tests.role_helpers import (
-    enable_association_access,
-    make_administrator,
-    make_delegate,
-    make_producer_owner,
-)
+from apps.accounts.tests.role_helpers import make_administrator, make_delegate, make_producer_owner
 from apps.common.csrf import CSRF_FAILED_DETAIL
 from apps.farms.models import Farm, FarmAuditEvent
 from apps.farms.tests.factories import FarmFactory
@@ -114,8 +109,7 @@ def test_an_employee_deletes_when_the_producer_delegated_it(auth_client, produce
 
 
 def test_the_association_cannot_delete_farms(auth_client, producer):
-    # La asociación solo lee las fincas, incluso si el productor le abrió su espacio.
-    enable_association_access(producer)
+    # La asociación solo lee las fincas.
     farm = FarmFactory(producer=producer)
 
     response = delete(auth_client(make_administrator()), farm)

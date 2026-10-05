@@ -3,12 +3,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, get_system_role
 from apps.accounts.tests.factories import UserFactory, make_pending_user
-from apps.accounts.tests.role_helpers import (
-    enable_association_access,
-    grant_role,
-    make_administrator,
-    make_producer_owner,
-)
+from apps.accounts.tests.role_helpers import grant_role, make_administrator, make_producer_owner
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -55,7 +50,7 @@ def test_a_producer_only_sees_its_own_accounts(auth_client):
     assert str(other_owner.id) not in ids
 
 
-def test_administrator_needs_association_access_to_see_employees(auth_client):
+def test_administrator_sees_the_producer_account_but_not_its_employees(auth_client):
     admin = make_administrator()
     producer = ProducerFactory()
     owner = make_producer_owner(producer)
@@ -64,8 +59,12 @@ def test_administrator_needs_association_access_to_see_employees(auth_client):
     assert auth_client(admin).get(user_url(employee)).status_code == 404
     assert auth_client(admin).get(user_url(owner)).status_code == 200
 
-    enable_association_access(producer)
-    assert auth_client(admin).get(user_url(employee)).status_code == 200
+
+def test_superuser_sees_the_employees_of_any_producer(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    employee = UserFactory(producer=ProducerFactory())
+
+    assert auth_client(superuser).get(user_url(employee)).status_code == 200
 
 
 def test_superuser_never_appears(auth_client):
@@ -147,7 +146,6 @@ def test_filter_by_producer_only_for_administrator(auth_client):
     producer = ProducerFactory()
     owner = make_producer_owner(producer)
     admin = make_administrator()
-    enable_association_access(producer)
 
     as_admin = auth_client(admin).get(f"{USERS_URL}?producer={producer.id}")
     assert as_admin.status_code == 200
@@ -163,8 +161,6 @@ def test_filter_by_municipality(auth_client):
     owner_in_cucuta = make_producer_owner(cucuta)
     owner_in_ocana = make_producer_owner(ocana)
     admin = make_administrator()
-    enable_association_access(cucuta)
-    enable_association_access(ocana)
 
     response = auth_client(admin).get(f"{USERS_URL}?municipality=54001")
 

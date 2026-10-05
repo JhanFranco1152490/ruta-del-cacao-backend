@@ -12,12 +12,7 @@ from apps.accounts.models import AccountManagementEvent, User
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import RoleFactory, UserFactory
 from apps.accounts.tests.helpers import csrf_client, open_session
-from apps.accounts.tests.role_helpers import (
-    enable_association_access,
-    make_administrator,
-    make_delegate,
-    make_producer_owner,
-)
+from apps.accounts.tests.role_helpers import make_administrator, make_delegate, make_producer_owner
 from apps.producers.models import Producer
 from apps.producers.tests.factories import ProducerFactory
 
@@ -85,8 +80,6 @@ def test_an_employee_created_by_a_non_administrator_cannot_send_producer_id(auth
 
 def test_administrator_must_send_producer_id_for_an_employee(auth_client):
     admin = make_administrator()
-    producer = ProducerFactory()
-    enable_association_access(producer)
     foreman = get_system_role(FOREMAN)
 
     response = auth_client(admin).post(
@@ -106,13 +99,12 @@ def test_administrator_must_send_producer_id_for_an_employee(auth_client):
     assert "producer_id" in response.data["fields"]
 
 
-def test_administrator_creates_an_employee_when_association_access_is_enabled(auth_client):
-    admin = make_administrator()
+def test_the_superuser_creates_an_employee_for_any_producer(auth_client):
+    superuser = UserFactory(is_superuser=True)
     producer = ProducerFactory()
-    enable_association_access(producer)
     foreman = get_system_role(FOREMAN)
 
-    response = auth_client(admin).post(
+    response = auth_client(superuser).post(
         USERS_URL,
         {
             "email": "x@example.com",
@@ -127,9 +119,10 @@ def test_administrator_creates_an_employee_when_association_access_is_enabled(au
     )
 
     assert response.status_code == 201
+    assert str(User.objects.get(pk=response.data["id"]).producer_id) == str(producer.id)
 
 
-def test_administrator_needs_association_access_to_create_an_employee(auth_client):
+def test_administrator_cannot_create_an_employee(auth_client):
     admin = make_administrator()
     producer = ProducerFactory()
     foreman = get_system_role(FOREMAN)

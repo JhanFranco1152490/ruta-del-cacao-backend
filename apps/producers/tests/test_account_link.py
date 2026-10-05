@@ -4,11 +4,7 @@ from django.core import mail
 from apps.accounts.models import User
 from apps.accounts.system_roles import PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
-from apps.accounts.tests.role_helpers import (
-    enable_association_access,
-    grant_role,
-    make_producer_owner,
-)
+from apps.accounts.tests.role_helpers import grant_role, make_administrator, make_producer_owner
 from apps.producers.models import Producer
 from apps.producers.tests.factories import ProducerFactory
 
@@ -29,7 +25,7 @@ def test_detail_without_account_has_a_null_account(client_with):
 
     assert response.status_code == 200
     assert response.data["account"] is None
-    assert response.data["association_access"] is False
+    assert "association_access" not in response.data
 
 
 def test_detail_with_account_reflects_it(client_with):
@@ -56,19 +52,6 @@ def test_detail_does_not_confuse_an_employee_with_the_producer_account(client_wi
     assert response.data["account"] is None
 
 
-def test_detail_reflects_the_association_access_switch(client_with):
-    producer = ProducerFactory()
-    make_producer_owner(producer)
-
-    off = client_with("producers.view").get(producer_url(producer))
-    assert off.data["association_access"] is False
-
-    enable_association_access(producer)
-
-    on = client_with("producers.view").get(producer_url(producer))
-    assert on.data["association_access"] is True
-
-
 def test_list_does_not_include_the_new_fields(client_with):
     make_producer_owner(ProducerFactory())
 
@@ -79,12 +62,17 @@ def test_list_does_not_include_the_new_fields(client_with):
     assert "association_access" not in result
 
 
+def test_the_old_association_access_endpoint_no_longer_exists(auth_client):
+    response = auth_client(make_administrator()).get("/api/association-access")
+
+    assert response.status_code == 404
+
+
 def test_detail_queries_do_not_grow_with_the_number_of_accounts(
     client_with, django_assert_max_num_queries
 ):
     producer = ProducerFactory()
     make_producer_owner(producer)
-    enable_association_access(producer)
     for _ in range(15):
         UserFactory(producer=ProducerFactory())
 

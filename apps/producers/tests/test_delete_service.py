@@ -5,9 +5,9 @@ import pytest
 from django.db import connection
 from django.utils import timezone
 
-from apps.accounts.models import AssociationAccess, User
+from apps.accounts.models import User
 from apps.accounts.tests.factories import UserFactory
-from apps.accounts.tests.role_helpers import enable_association_access, make_administrator
+from apps.accounts.tests.role_helpers import make_administrator
 from apps.farms.models import Farm, FarmAuditEvent
 from apps.farms.tests.factories import FarmFactory
 from apps.producers.exceptions import ProducerHasRecords, ProducerNotFound, StaleVersion
@@ -90,17 +90,14 @@ def test_the_owner_who_already_signed_in_blocks_the_deletion(actor):
     assert User.objects.filter(pk=owner.pk).exists()
 
 
-@pytest.mark.parametrize("enabled", [True, False])
-def test_the_association_access_switch_does_not_change_the_result(actor, enabled):
+def test_deleting_a_producer_removes_it_with_its_accounts(actor):
     producer = ProducerFactory()
-    UserFactory(producer=producer)
-    if enabled:
-        enable_association_access(producer)
+    employee = UserFactory(producer=producer)
 
     delete_producer(actor, producer.pk, producer.version)
 
     assert not Producer.objects.filter(pk=producer.pk).exists()
-    assert not AssociationAccess.objects.filter(producer_id=producer.pk).exists()
+    assert not User.objects.filter(pk=employee.pk).exists()
 
 
 def test_a_stale_version_deletes_nothing(actor):

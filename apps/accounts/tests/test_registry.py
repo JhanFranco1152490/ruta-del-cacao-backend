@@ -1,5 +1,6 @@
 from apps.accounts import registry
-from apps.accounts.registry import with_dependencies
+from apps.accounts.registry import is_delegable, with_dependencies
+from apps.accounts.system_roles import PRODUCER, SYSTEM_ROLES
 
 
 def test_with_dependencies_adds_the_view_permission_of_an_action():
@@ -44,3 +45,9 @@ def test_users_delete_is_delegable_and_needs_the_view_permission():
     assert registry.is_delegable("accounts.users_delete")
     assert registry.PERMISSION_DEPENDENCIES["accounts.users_delete"] == "accounts.users_view"
     assert registry.area_of("accounts.users_delete") == "users"
+
+
+def test_every_permission_of_the_producer_role_can_be_delegated():
+    # Por eso la cuenta Productor se protege con una regla explícita (`ensure_can_manage_account`)
+    # y no con un permiso que solo ella tenga: un empleado puede llegar a tener todos los suyos.
+    assert all(is_delegable(code) for code in SYSTEM_ROLES[PRODUCER]["permissions"])

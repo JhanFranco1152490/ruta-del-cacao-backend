@@ -31,19 +31,13 @@ def next_member_code() -> str:
 
 def get_producer(producer_id) -> Producer:
     try:
-        return (
-            Producer.objects.select_related("association_access")
-            .prefetch_related(
-                Prefetch(
-                    "accounts",
-                    queryset=_account_model().objects.filter(
-                        groups__role__code=PRODUCER_ROLE_CODE
-                    ),
-                    to_attr="_producer_account",
-                )
+        return Producer.objects.prefetch_related(
+            Prefetch(
+                "accounts",
+                queryset=_account_model().objects.filter(groups__role__code=PRODUCER_ROLE_CODE),
+                to_attr="_producer_account",
             )
-            .get(pk=producer_id)
-        )
+        ).get(pk=producer_id)
     except Producer.DoesNotExist:
         raise ProducerNotFound() from None
 

@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "apps.farms",
     "apps.plots",
     "apps.crops",
+    "apps.demo_data",
 ]
 
 MIDDLEWARE = [

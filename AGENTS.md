@@ -52,6 +52,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
+| `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
 
@@ -64,7 +65,9 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 - **models**: datos, restricciones y validadores.
 
 Lo que usa una sola app vive en esa app; lo transversal, o lo que ya necesita una segunda app,
-sube a `apps/common`. Ninguna app importa de otra y `common` no importa de ninguna. Un módulo
+sube a `apps/common`. Ninguna app importa de otra y `common` no importa de ninguna. La
+única excepción es `apps/demo_data`, que arma datos que cruzan todas (como `config/` junta sus
+rutas); ninguna app importa de ella. Un módulo
 que pasa de ~250 líneas o mezcla temas se convierte en paquete (`services/__init__.py` + un
 archivo por tema) sin cambiar quién lo importa.
 
@@ -255,6 +258,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   la asociación y le envía la activación; se niega si ya existe una. Uso:
   `python manage.py create_association_admin --email a@b.com --document-type CC
   --identity-document 1234567 --first-name Ana --last-name Gómez`.
+- **`seed_demo_data`** (management command) carga productores, fincas, parcelas y fichas
+  inventados y deja dos cuentas con contraseña pública (`administrador@example.com` y
+  `productor@example.com`, la misma que muestra la pantalla de inicio de sesión del frontend).
+  Es idempotente: no toca un productor que ya existe y restablece las dos cuentas. No envía
+  correos. Nunca se corre en un despliegue con datos reales.
 - Todo cambio desde el admin pasa por `services` y sube `version`: la ficha lleva la versión con
   la que se abrió y, si otra persona la cambió antes, no se guarda.
 - **Variedades de cacao** (`apps/crops/admin.py`): con `crops.manage_cacaovariety`. Alta, edición
@@ -303,6 +311,32 @@ una cuenta activa registrada y revisa la bandeja (y spam) del correo real. El en
 uso — la forma exacta de la petición y la respuesta de cada endpoint están en el esquema
 OpenAPI (`/api/docs`), no se repite aquí para no desalinearse de él. No guardes credenciales
 reales de correo en archivos versionados.
+
+#### Si el correo llega a spam
+
+Los correos de activación y de recuperación **pueden caer en la carpeta de spam**, sobre todo en
+buzones institucionales (Microsoft, Google), que son estrictos con un dominio recién verificado y
+con poco historial. El código ya hace lo suyo: remitente con nombre visible (`Ruta del Cacao
+<dirección>`), versión de texto y de HTML, y el enlace escrito completo por si el botón se
+bloquea. Lo que falta es del lado del dominio, y se revisa en el panel del proveedor:
+
+- **`DEFAULT_FROM_EMAIL` debe ser una dirección del dominio verificado** en Resend; con otra, el
+  proveedor rechaza el envío o el correo sale con un remitente que no coincide con su firma.
+- **SPF, DKIM y DMARC en el DNS del dominio.** SPF y DKIM los entrega Resend al verificar el
+  dominio (ambos deben figurar como verificados); DMARC es un registro TXT en `_dmarc.<dominio>`,
+  por ejemplo `v=DMARC1; p=none; rua=mailto:alguien@<dominio>`, y se endurece cuando los reportes
+  muestren que todo pasa.
+- **Sin rastreo de aperturas ni de clics** en la configuración del dominio: reescribe el enlace
+  a otro dominio, y un enlace de activación que apunta a un tercero es justo lo que los filtros
+  sospechan.
+- **`FRONTEND_URL` en el mismo dominio** que el remitente (o un subdominio suyo): el enlace del
+  correo y la dirección de envío alineados puntúan mejor.
+- Para medir, enviarse una activación a una dirección de [mail-tester.com](https://www.mail-tester.com)
+  y leer su reporte (SPF/DKIM/DMARC y contenido).
+
+Mientras no haya historial de envío, quien reciba el correo debe **revisar spam** y marcarlo
+como "no es spam"; la aplicación se lo recuerda al enviar. Las cuentas de demostración no
+dependen del correo.
 
 El `Procfile` corre `migrate`, `flushexpiredtokens` y `collectstatic` antes de `gunicorn`.
 

@@ -16,6 +16,7 @@ from apps.accounts.tests.role_helpers import (
     make_producer_owner,
 )
 from apps.accounts.throttles import ActivationResendThrottle
+from apps.accounts.users.activation import activation_token_generator
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -142,6 +143,27 @@ def test_edit_rejects_unknown_field(auth_client):
 
     assert response.status_code == 400
     assert "is_active" in response.data["fields"]
+
+
+def test_changing_the_email_of_a_pending_account_kills_the_old_activation_link(auth_client):
+    # Una cuenta con el correo mal escrito: quien tenga el enlace viejo (el dueño de ese otro
+    # correo) no debe poder activarla y quedarse con ella.
+    producer = ProducerFactory()
+    owner = make_producer_owner(producer)
+    employee = make_pending_user(producer=producer, email="mal-escrito@example.com")
+    old_link = activation_token_generator.make_token(employee)
+    assert activation_token_generator.check_token(employee, old_link)
+
+    response = auth_client(owner).patch(
+        user_url(employee), {"email": "correcto@example.com"}, format="json"
+    )
+
+    assert response.status_code == 200
+    employee.refresh_from_db()
+    assert not activation_token_generator.check_token(employee, old_link)
+    assert activation_token_generator.check_token(
+        employee, activation_token_generator.make_token(employee)
+    )
 
 
 def test_edit_rejects_a_duplicate_email(auth_client):

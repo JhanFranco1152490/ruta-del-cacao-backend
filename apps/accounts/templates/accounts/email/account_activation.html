@@ -1,5 +1,10 @@
 <!doctype html>
 <html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Activa tu cuenta de Ruta del Cacao</title>
+  </head>
   <body style="font-family: Arial, sans-serif; color: #1f2a1f;">
     <p>Hola,</p>
     <p>
@@ -7,6 +12,10 @@
       sirve una vez.
     </p>
     <p><a href="{{ activation_url }}">Elegir mi contraseña</a></p>
+    <p>
+      Si el botón no funciona, copia esta dirección en tu navegador:<br />
+      <a href="{{ activation_url }}">{{ activation_url }}</a>
+    </p>
     <p>Si no esperabas este correo, puedes ignorarlo: la cuenta sigue sin activar.</p>
   </body>
 </html>

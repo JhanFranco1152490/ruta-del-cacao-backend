@@ -1,12 +1,13 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
-from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
+from apps.common.ordering import ProducerOrderingFilter
 from apps.common.permissions import ActionPermission, HasPermission
 from apps.common.schema import error_responses
 
@@ -51,13 +52,13 @@ class RoleViewSet(GenericViewSet):
         "partial_update": "accounts.roles_manage",
         "destroy": "accounts.roles_manage",
     }
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, ProducerOrderingFilter]
     filterset_class = RoleFilter
     # `unaccent` compara sin tildes, igual que la búsqueda de cuentas y de productores.
     search_fields = ["name__unaccent"]
     # Un valor que no está aquí se ignora en vez de dar 400 (ver el mismo comentario en
     # `user_views.py`).
-    ordering_fields = ["name", "kind"]
+    ordering_fields = ["name", "kind", "producer"]
     lookup_value_converter = "uuid"
 
     def list(self, request):

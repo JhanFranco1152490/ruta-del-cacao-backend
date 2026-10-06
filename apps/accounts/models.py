@@ -35,7 +35,6 @@ class User(AbstractUser):
         blank=True,
         related_name="accounts",
     )
-
     objects = UserManager()
 
     USERNAME_FIELD = "email"

@@ -78,6 +78,24 @@ python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yml
 
 Las pruebas necesitan el PostgreSQL del `.env` (crean y borran su propia base `test_*`).
 
+## Entornos
+
+| Entorno | Rama | API | Aplicación que la usa |
+| --- | --- | --- | --- |
+| Producción | `main` | https://api-rutadelcacao.escapate.tours/ | https://rutadelcacao.escapate.tours/ |
+| Staging | `dev` | https://api-staging-rutadelcacao.escapate.tours/ | https://staging-rutadelcacao.escapate.tours/ |
+
+Cada API sirve a la aplicación de su mismo entorno, y por eso en cada una:
+
+- `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` y `CSRF_TRUSTED_ORIGINS` son la dirección de **esa**
+  aplicación (sin barra final en los dos últimos); `FRONTEND_URL` arma los enlaces de los correos
+  de activación y de recuperación.
+- `ALLOWED_HOSTS` incluye el dominio de la API.
+- La sesión viaja en cookies `SameSite=Lax`, que exigen que la aplicación y la API estén en el
+  mismo sitio: ambas viven bajo `escapate.tours`.
+- Las dos son entornos distintos, con su propia base de datos: la semilla de demostración se corre
+  en cada uno por separado.
+
 ## Despliegue
 
 El `Procfile` corre `migrate`, `flushexpiredtokens` y `collectstatic` antes de levantar

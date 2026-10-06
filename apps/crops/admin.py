@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib import admin
 
+from apps.common.admin import ReadOnlyAdminMixin
+
 from .exceptions import DuplicateVarietyName
 from .models import CacaoVariety, PlotCharacterizationAuditEvent
 from .services import create_variety, delete_variety, name_taken, update_variety
@@ -69,7 +71,7 @@ class CacaoVarietyAdmin(admin.ModelAdmin):
 
 
 @admin.register(PlotCharacterizationAuditEvent)
-class PlotCharacterizationAuditEventAdmin(admin.ModelAdmin):
+class PlotCharacterizationAuditEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     """El historial de las fichas con los valores de cada versión, de solo lectura."""
 
     list_display = ("plot", "version", "action", "actor", "occurred_at")
@@ -90,12 +92,3 @@ class PlotCharacterizationAuditEventAdmin(admin.ModelAdmin):
     # no lee fichas.
     def has_view_permission(self, request, obj=None):
         return request.user.is_superuser
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False

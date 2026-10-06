@@ -3,6 +3,8 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
+from apps.common.admin import ReadOnlyAdminMixin
+
 from .access import roles_of
 from .models import AccountManagementEvent, AuthenticationEvent, Role, User
 
@@ -73,39 +75,21 @@ class CustomUserAdmin(UserAdmin):
 
 
 @admin.register(AuthenticationEvent)
-class AuthenticationEventAdmin(admin.ModelAdmin):
+class AuthenticationEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("event_type", "outcome", "user", "occurred_at")
     list_filter = ("event_type", "outcome")
     readonly_fields = ("event_type", "outcome", "user", "request_id", "occurred_at")
 
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
 
 @admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
+class RoleAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("name", "kind", "code", "producer")
     list_filter = ("kind",)
     search_fields = ("name", "code")
 
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
 
 @admin.register(AccountManagementEvent)
-class AccountManagementEventAdmin(admin.ModelAdmin):
+class AccountManagementEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("event_type", "actor", "target_user", "occurred_at")
     list_filter = ("event_type",)
     readonly_fields = (
@@ -116,12 +100,3 @@ class AccountManagementEventAdmin(admin.ModelAdmin):
         "request_id",
         "occurred_at",
     )
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False

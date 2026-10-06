@@ -1,7 +1,11 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireVersionedChangeMixin,
+)
 from apps.common.territorial import get_department, get_municipality
 
 from .exceptions import LocationRequired
@@ -115,19 +119,10 @@ class FarmCreateSerializer(FarmWriteSerializer):
     captured_at = serializers.DateTimeField(required=False, allow_null=True)
 
 
-class FarmUpdateSerializer(FarmWriteSerializer):
+class FarmUpdateSerializer(RequireVersionedChangeMixin, FarmWriteSerializer):
     details = serializers.CharField(required=False, allow_blank=True)
     is_active = serializers.BooleanField(required=False)
     expected_version = serializers.IntegerField(min_value=1, write_only=True)
-
-    def validate(self, attrs):
-        # Con partial=True ningún campo es obligatorio, ni siquiera la versión; y la ubicación
-        # puede quedar como está, así que no se exige que llegue.
-        if "expected_version" not in attrs:
-            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
-        if len(attrs) == 1:
-            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
-        return attrs
 
 
 class FarmDeleteSerializer(serializers.Serializer):

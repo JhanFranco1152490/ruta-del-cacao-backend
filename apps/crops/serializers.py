@@ -1,7 +1,11 @@
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireSomeFieldMixin,
+)
 
 from .choices import ManagementSystem, Propagation, ShadeType, Stage
 from .fields import PlantingMonthField
@@ -50,16 +54,13 @@ class CacaoVarietyCreateSerializer(RejectUnknownFieldsMixin, serializers.Seriali
     description = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
-class CacaoVarietyUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+class CacaoVarietyUpdateSerializer(
+    RequireSomeFieldMixin, RejectUnknownFieldsMixin, serializers.Serializer
+):
     name = serializers.CharField(max_length=60, required=False)
     common_names = common_names_field(required=False)
     description = serializers.CharField(max_length=200, required=False, allow_blank=True)
     is_active = serializers.BooleanField(required=False)
-
-    def validate(self, attrs):
-        if not attrs:
-            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
-        return attrs
 
 
 # --- Caracterización de parcelas ----------------------------------------------------------------

@@ -129,13 +129,36 @@ def _save_or_raise_duplicate(user: User) -> None:
         raise
 
 
-def create_account(actor, data: dict, request_id) -> CreatedAccount:
-    role_ids = data["role_ids"]
+def _save_new_account(user: User) -> None:
+    """Deja la cuenta sin contraseña (se activa por correo) y la guarda ya validada."""
+    user.set_unusable_password()
+    # full_clean() normaliza correo y documento y corre los validadores del modelo (formato de
+    # documento, teléfono): un DjangoValidationError sin campo propio ya lo traduce el manejador
+    # global de errores a `validation_error`.
+    user.full_clean(validate_unique=False, validate_constraints=False)
+    _save_or_raise_duplicate(user)
+
+
+def _resolve_roles(actor, role_ids) -> list:
     roles = list(visible_roles(actor).filter(pk__in=role_ids))
     if len(roles) != len(set(role_ids)):
-        # Un id que no está al alcance de quien crea se trata como si no existiera.
+        # Un id que no está al alcance de quien actúa se trata como si no existiera.
         raise ValidationError({"role_ids": ["Alguno de los roles no existe."]})
     ensure_valid_role_set(roles)
+    return roles
+
+
+def _managed_account(actor, user_id, *, allow_self: bool = False) -> User:
+    """La cuenta que `actor` puede administrar; sin `allow_self`, tampoco la suya."""
+    user = get_account(actor, user_id)
+    if not allow_self:
+        ensure_not_self(actor, user)
+    ensure_can_manage_account(actor, user)
+    return user
+
+
+def create_account(actor, data: dict, request_id) -> CreatedAccount:
+    roles = _resolve_roles(actor, data["role_ids"])
 
     account_kind = _resolve_account_kind({role.code for role in roles})
     producer_id = data.get("producer_id")
@@ -189,12 +212,7 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
                 phone=data.get("phone"),
                 producer_id=target_producer_id,
             )
-        user.set_unusable_password()
-        # full_clean() normaliza correo y documento y corre los validadores del modelo
-        # (formato de documento, teléfono): un DjangoValidationError sin campo propio ya lo
-        # traduce el manejador global de errores a `validation_error`.
-        user.full_clean(validate_unique=False, validate_constraints=False)
-        _save_or_raise_duplicate(user)
+        _save_new_account(user)
         user.groups.set(role.group for role in roles)
         record_account_event(
             AccountManagementEvent.EventType.ACCOUNT_CREATED,
@@ -208,9 +226,7 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
 
 
 def update_account(actor, user_id, data: dict, request_id) -> User:
-    user = get_account(actor, user_id)
-    ensure_not_self(actor, user)
-    ensure_can_manage_account(actor, user)
+    user = _managed_account(actor, user_id)
 
     if user.groups.filter(role__code=PRODUCER).exists():
         _forbid(data, *PERSONAL_FIELDS, message="Lo gobierna el expediente del productor.")
@@ -233,17 +249,12 @@ def update_account(actor, user_id, data: dict, request_id) -> User:
 
 
 def set_account_roles(actor, user_id, role_ids, request_id) -> User:
-    user = get_account(actor, user_id)
-    ensure_not_self(actor, user)
-    ensure_can_manage_account(actor, user)
+    user = _managed_account(actor, user_id)
 
     if user.groups.filter(role__code__in=(ADMINISTRATOR, PRODUCER)).exists():
         raise ValidationError({"role_ids": ["Esta cuenta no cambia de rol por aquí."]})
 
-    roles = list(visible_roles(actor).filter(pk__in=role_ids))
-    if len(roles) != len(set(role_ids)):
-        raise ValidationError({"role_ids": ["Alguno de los roles no existe."]})
-    ensure_valid_role_set(roles)
+    roles = _resolve_roles(actor, role_ids)
     ensure_can_assign_roles(
         actor, roles, target_producer_id=user.producer_id, account_kind=ACCOUNT_KIND_EMPLOYEE
     )
@@ -260,9 +271,7 @@ def set_account_roles(actor, user_id, role_ids, request_id) -> User:
 
 
 def set_account_status(actor, user_id, status: str, request_id) -> User:
-    user = get_account(actor, user_id)
-    ensure_not_self(actor, user)
-    ensure_can_manage_account(actor, user)
+    user = _managed_account(actor, user_id)
 
     is_active = status == "active"
     if user.is_active == is_active:
@@ -296,9 +305,7 @@ def set_account_status(actor, user_id, status: str, request_id) -> User:
 def delete_account(actor, user_id, request_id) -> None:
     """Elimina una cuenta creada por error: una que nunca inició sesión. La que ya entró se
     desactiva. Sus historiales se conservan con el actor en nulo y el evento guarda solo el id."""
-    user = get_account(actor, user_id)
-    ensure_not_self(actor, user)
-    ensure_can_manage_account(actor, user)
+    user = _managed_account(actor, user_id)
 
     with transaction.atomic():
         # Mismo orden de bloqueo que `set_account_status`: primero el del conjunto de
@@ -327,8 +334,7 @@ def delete_account(actor, user_id, request_id) -> None:
 
 
 def resend_activation(actor, user_id) -> bool:
-    user = get_account(actor, user_id)
-    ensure_can_manage_account(actor, user)
+    user = _managed_account(actor, user_id, allow_self=True)
     if user.has_usable_password():
         raise NotActivationPending()
     return send_activation(user)
@@ -350,9 +356,7 @@ def create_producer_account_automatically(producer) -> None:
         return
     role = get_system_role(PRODUCER)
     user = _build_producer_account(producer, email=producer.email)
-    user.set_unusable_password()
-    user.full_clean(validate_unique=False, validate_constraints=False)
-    _save_or_raise_duplicate(user)
+    _save_new_account(user)
     user.groups.set([role.group])
     record_account_event(
         AccountManagementEvent.EventType.ACCOUNT_CREATED,
@@ -379,10 +383,8 @@ def create_first_administrator(data: dict) -> User:
         first_name=data["first_name"],
         last_name=data["last_name"],
     )
-    user.set_unusable_password()
-    user.full_clean(validate_unique=False, validate_constraints=False)
     with transaction.atomic():
-        _save_or_raise_duplicate(user)
+        _save_new_account(user)
         user.groups.set([role.group])
         record_account_event(
             AccountManagementEvent.EventType.ACCOUNT_CREATED,

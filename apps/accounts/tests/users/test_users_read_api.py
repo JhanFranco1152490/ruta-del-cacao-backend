@@ -256,3 +256,47 @@ def test_administrator_account_has_a_null_producer(auth_client):
     response = auth_client(admin).get(user_url(admin))
 
     assert response.data["producer"] is None
+
+
+# Los apellidos están puestos para que el orden por defecto (apellido) sea distinto del esperado:
+# si `ordering=producer` se ignorara, estas pruebas fallarían.
+def named(user, last_name):
+    user.last_name = last_name
+    user.save(update_fields=["last_name"])
+    return user
+
+
+def test_users_can_be_ordered_by_producer_with_those_without_one_first(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    admin = named(make_administrator(), "Mmm")
+    owner_one = named(make_producer_owner(ProducerFactory(member_code="PROD-000001")), "Zeta")
+    owner_two = named(make_producer_owner(ProducerFactory(member_code="PROD-000002")), "Alfa")
+
+    response = auth_client(superuser).get(f"{USERS_URL}?ordering=producer")
+
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [str(admin.id), str(owner_one.id), str(owner_two.id)]
+
+
+def test_descending_producer_order_puts_those_without_one_last(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    admin = named(make_administrator(), "Alfa")
+    owner = named(make_producer_owner(ProducerFactory()), "Zeta")
+
+    response = auth_client(superuser).get(f"{USERS_URL}?ordering=-producer")
+
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [str(owner.id), str(admin.id)]
+
+
+def test_producer_order_combines_with_another_field(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    first = ProducerFactory(member_code="PROD-000001")
+    owner = named(make_producer_owner(first), "Zapata")
+    employee = named(UserFactory(producer=first), "Arias")
+    other = named(make_producer_owner(ProducerFactory(member_code="PROD-000002")), "Alfa")
+
+    response = auth_client(superuser).get(f"{USERS_URL}?ordering=producer,last_name")
+
+    ids = [item["id"] for item in response.data["results"]]
+    assert ids == [str(employee.id), str(owner.id), str(other.id)]

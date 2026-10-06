@@ -240,6 +240,8 @@ def test_account_representation_shape(auth_client):
     body = response.data
     assert body["producer"]["id"] == str(producer.id)
     assert body["producer"]["member_code"] == producer.member_code
+    assert body["producer"]["first_name"] == producer.first_name
+    assert body["producer"]["last_name"] == producer.last_name
     assert body["producer"]["status"] == "active"
     assert body["producer"]["municipality_code"] == producer.municipality_code
     assert {role["code"] for role in body["roles"]} == {FOREMAN}

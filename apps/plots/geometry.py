@@ -32,6 +32,10 @@ SQUARE_METRES_PER_HECTARE = 10_000
 OVERLAP_TOLERANCE_M2 = 1.0
 # Diferencia máxima entre el área declarada y la del dibujo, relativa a la del dibujo.
 AREA_TOLERANCE = Decimal("0.05")
+# El área declarada se escribe con dos decimales, así que redondear la del dibujo la mueve hasta
+# media centésima de hectárea. En una parcela de menos de 0,1 ha eso pasa del 5 %, y rechazaría
+# el área que la propia herramienta propone: la diferencia permitida nunca baja de este piso.
+AREA_ROUNDING_ALLOWANCE = Decimal("0.005")
 ADJUSTED_SOURCE = "adjusted"
 # Un vértice no puede quedar lejos del punto de la finca (la casa o la entrada): el límite es el
 # doble del radio de una finca circular de esa área, porque el punto puede estar en un extremo,
@@ -105,7 +109,7 @@ def max_distance_from_farm_m(farm_area_hectares: Decimal) -> int:
 
 
 def declared_area_matches(declared: Decimal, measured: Decimal) -> bool:
-    return abs(declared - measured) <= AREA_TOLERANCE * measured
+    return abs(declared - measured) <= max(AREA_TOLERANCE * measured, AREA_ROUNDING_ALLOWANCE)
 
 
 def vertices_too_far_from(

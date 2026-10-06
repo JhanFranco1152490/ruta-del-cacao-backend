@@ -131,6 +131,25 @@ class TestAreas:
         assert declared_area_matches(Decimal("1.05"), Decimal("1.0000")) is True
         assert declared_area_matches(Decimal("0.95"), Decimal("1.0000")) is True
 
+    @pytest.mark.parametrize(
+        ("declared", "measured"),
+        [("0.07", "0.0749"), ("0.07", "0.0650"), ("0.01", "0.0149"), ("0.05", "0.0451")],
+    )
+    def test_a_small_plot_always_accepts_its_own_area_rounded_to_two_decimals(
+        self, declared, measured
+    ):
+        # El área declarada se escribe con dos decimales: redondear el área del dibujo puede
+        # moverla hasta 0,005 ha, más del 5 % cuando la parcela mide menos de 0,1 ha.
+        assert declared_area_matches(Decimal(declared), Decimal(measured)) is True
+
+    def test_a_small_plot_still_rejects_a_declared_area_that_is_clearly_different(self):
+        assert declared_area_matches(Decimal("0.07"), Decimal("0.0400")) is False
+        assert declared_area_matches(Decimal("0.02"), Decimal("0.0700")) is False
+
+    def test_the_rounding_allowance_is_half_a_hundredth_of_a_hectare(self):
+        assert declared_area_matches(Decimal("0.0750"), Decimal("0.0700")) is True
+        assert declared_area_matches(Decimal("0.0751"), Decimal("0.0700")) is False
+
 
 class TestOverlaps:
     def test_plots_sharing_a_side_do_not_overlap(self):

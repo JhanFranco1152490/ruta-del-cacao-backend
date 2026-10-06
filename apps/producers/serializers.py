@@ -1,7 +1,11 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireVersionedChangeMixin,
+)
 
 from .models import PRODUCER_ROLE_CODE, Producer
 
@@ -86,7 +90,7 @@ class ProducerDetailSerializer(ProducerSerializer):
     email = serializers.EmailField(allow_null=True)
 
 
-class ProducerUpdateSerializer(ProducerSerializer):
+class ProducerUpdateSerializer(RequireVersionedChangeMixin, ProducerSerializer):
     # A diferencia de la creación, editar sí admite dejarlo vacío (la cuenta ya creada no
     # depende de que el expediente conserve un correo).
     email = serializers.EmailField(required=False, allow_null=True)
@@ -94,14 +98,6 @@ class ProducerUpdateSerializer(ProducerSerializer):
 
     class Meta(ProducerSerializer.Meta):
         fields = [*ProducerSerializer.Meta.fields, "expected_version"]
-
-    def validate(self, attrs):
-        # Con partial=True ningún campo es obligatorio, ni siquiera la versión.
-        if "expected_version" not in attrs:
-            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
-        if len(attrs) == 1:
-            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
-        return attrs
 
 
 class ProducerListSerializer(serializers.ModelSerializer):

@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.common.serializers import RejectUnknownFieldsMixin
+from apps.common.serializers import RejectUnknownFieldsMixin, RequireSomeFieldMixin
 
 from ..models import Role
 
@@ -75,15 +75,12 @@ class RoleCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     producer_id = serializers.UUIDField(required=False)
 
 
-class RoleUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+class RoleUpdateSerializer(
+    RequireSomeFieldMixin, RejectUnknownFieldsMixin, serializers.Serializer
+):
     name = serializers.CharField(max_length=100, required=False)
     description = serializers.CharField(max_length=255, required=False, allow_blank=True)
     permission_codes = serializers.ListField(child=serializers.CharField(), required=False)
-
-    def validate(self, attrs):
-        if not attrs:
-            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
-        return attrs
 
 
 class PermissionSerializer(serializers.Serializer):

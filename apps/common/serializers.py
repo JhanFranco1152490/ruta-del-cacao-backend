@@ -16,6 +16,29 @@ class RejectUnknownFieldsMixin:
         return super().to_internal_value(data)
 
 
+class RequireSomeFieldMixin:
+    # Un PATCH sin ningún campo no cambia nada: se rechaza en vez de responder éxito.
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
+        return attrs
+
+
+class RequireVersionedChangeMixin:
+    # Un PATCH versionado necesita `expected_version` (el bloqueo optimista) y al menos un campo
+    # más que cambiar. Con `partial=True` ningún campo es obligatorio, ni siquiera la versión,
+    # así que se exige aquí. No encadena a la validación del serializer de creación (p. ej. la
+    # ubicación obligatoria de una finca): en un PATCH lo que no llega se queda como está.
+
+    def validate(self, attrs):
+        if "expected_version" not in attrs:
+            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
+        if len(attrs) == 1:
+            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
+        return attrs
+
+
 class DepartmentSerializer(serializers.Serializer):
     code = serializers.CharField()
     name = serializers.CharField()

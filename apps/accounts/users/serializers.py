@@ -2,7 +2,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.common.choices import DocumentType
-from apps.common.serializers import RejectUnknownFieldsMixin
+from apps.common.serializers import RejectUnknownFieldsMixin, RequireSomeFieldMixin
 
 from ..access import roles_of
 from ..models import User
@@ -98,18 +98,15 @@ class AccountCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
         return value or None
 
 
-class AccountUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+class AccountUpdateSerializer(
+    RequireSomeFieldMixin, RejectUnknownFieldsMixin, serializers.Serializer
+):
     email = serializers.EmailField(max_length=254, required=False)
     document_type = serializers.ChoiceField(choices=DocumentType.choices, required=False)
     identity_document = serializers.CharField(max_length=50, required=False, trim_whitespace=True)
     first_name = serializers.CharField(max_length=150, required=False)
     last_name = serializers.CharField(max_length=150, required=False)
     phone = serializers.CharField(max_length=25, required=False, allow_blank=True, allow_null=True)
-
-    def validate(self, attrs):
-        if not attrs:
-            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
-        return attrs
 
     def validate_email(self, value):
         return value.strip().lower()

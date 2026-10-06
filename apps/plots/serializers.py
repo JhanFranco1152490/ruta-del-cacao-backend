@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireVersionedChangeMixin,
+)
 
 from .geometry import ADJUSTED_SOURCE
 from .models import Plot
@@ -82,19 +86,11 @@ class PlotCreateSerializer(PlotWriteSerializer):
     captured_at = serializers.DateTimeField(required=False, allow_null=True)
 
 
-class PlotUpdateSerializer(PlotWriteSerializer):
+class PlotUpdateSerializer(RequireVersionedChangeMixin, PlotWriteSerializer):
     code = serializers.CharField(max_length=50, required=False)
     area_hectares = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     is_active = serializers.BooleanField(required=False)
     expected_version = serializers.IntegerField(min_value=1, write_only=True)
-
-    def validate(self, attrs):
-        # Con partial=True ningún campo es obligatorio, ni siquiera la versión.
-        if "expected_version" not in attrs:
-            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
-        if len(attrs) == 1:
-            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
-        return attrs
 
 
 class PlotDeleteQuerySerializer(serializers.Serializer):

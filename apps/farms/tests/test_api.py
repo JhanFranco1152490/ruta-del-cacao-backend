@@ -134,6 +134,12 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
     assert body == {
         "id": str(client_id),
         "name": "La Esperanza",
+        "producer": {
+            "id": str(owner.producer_id),
+            "member_code": owner.producer.member_code,
+            "first_name": owner.producer.first_name,
+            "last_name": owner.producer.last_name,
+        },
         "department": {"id": "54", "name": "Norte de Santander"},
         "municipality": {"id": "54001", "name": "Cúcuta"},
         "details": "Vereda El Pórtico, km 4",

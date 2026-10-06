@@ -1,4 +1,5 @@
 from apps.common.locks import lock_aggregate_root
+from apps.common.ownership import owner_filter
 
 from ..exceptions import PlotNotFound
 from ..models import PlotCharacterization
@@ -17,7 +18,7 @@ def lock_plot(actor, plot_id):
         Plot,
         plot_id,
         root="farm",
-        scope={"farm__producer_id": actor.effective_producer_id},
+        scope=owner_filter(actor, "farm__producer_id"),
         not_found=PlotNotFound,
     )
     plot.farm = farm

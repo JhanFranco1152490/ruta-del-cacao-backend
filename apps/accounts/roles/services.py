@@ -97,7 +97,7 @@ def create_role(actor, data: dict, request_id) -> Role:
     else:
         if producer_id is not None:
             raise ValidationError({"producer_id": ["Campo no permitido."]})
-        producer_id = actor.effective_producer_id
+        producer_id = actor.producer_id
         if producer_id is None:
             raise ValidationError({"producer_id": ["La cuenta no pertenece a ningún productor."]})
 

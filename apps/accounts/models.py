@@ -35,10 +35,6 @@ class User(AbstractUser):
         blank=True,
         related_name="accounts",
     )
-    # Productor bajo el que opera un superusuario en esta petición. No es un campo: lo fija la
-    # autenticación de cada petición y nunca se guarda.
-    acting_producer_id = None
-
     objects = UserManager()
 
     USERNAME_FIELD = "email"
@@ -60,13 +56,6 @@ class User(AbstractUser):
             ("users_delete", "Puede eliminar cuentas creadas por error"),
         ]
         ordering = ["last_name", "first_name", "id"]
-
-    @property
-    def effective_producer_id(self):
-        """El productor bajo el que se actúa: el elegido por un superusuario, o el propio."""
-        if self.is_superuser and self.acting_producer_id is not None:
-            return self.acting_producer_id
-        return self.producer_id
 
     def clean(self):
         super().clean()

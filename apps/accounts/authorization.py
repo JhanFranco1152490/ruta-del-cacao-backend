@@ -100,7 +100,7 @@ def ensure_can_manage_account(actor, target) -> None:
     # permiso del rol Productor se puede delegar.
     if target.groups.filter(role__code=PRODUCER).exists():
         raise ExceedsOwnPermissions()
-    if actor.effective_producer_id is None or actor.effective_producer_id != target.producer_id:
+    if actor.producer_id is None or actor.producer_id != target.producer_id:
         raise ExceedsOwnPermissions()
     if not effective_permissions(target) <= effective_permissions(actor):
         raise ExceedsOwnPermissions()
@@ -116,7 +116,7 @@ def ensure_can_manage_role(actor, role) -> None:
         if not acts_for_producer(actor, role.producer_id):
             raise ExceedsOwnPermissions()
         return
-    if actor.effective_producer_id != role.producer_id:
+    if actor.producer_id != role.producer_id:
         raise ExceedsOwnPermissions()
     if not role.permission_codes <= effective_permissions(actor):
         raise ExceedsOwnPermissions()

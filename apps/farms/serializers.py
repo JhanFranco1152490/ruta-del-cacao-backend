@@ -23,6 +23,13 @@ class LocationSerializer(serializers.Serializer):
     longitude = serializers.DecimalField(max_digits=10, decimal_places=7)
 
 
+class FarmProducerSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    member_code = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+
+
 class FarmSerializer(serializers.ModelSerializer):
     department = serializers.SerializerMethodField()
     municipality = serializers.SerializerMethodField()
@@ -31,12 +38,16 @@ class FarmSerializer(serializers.ModelSerializer):
     allocated_area_hectares = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
+    # De quién es la finca: la lista y el detalle lo muestran. Solo lectura: una finca no cambia
+    # de dueño.
+    producer = FarmProducerSerializer(read_only=True)
 
     class Meta:
         model = Farm
         fields = [
             "id",
             "name",
+            "producer",
             "department",
             "municipality",
             "details",
@@ -97,6 +108,9 @@ class FarmWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 class FarmCreateSerializer(FarmWriteSerializer):
     # Lo genera el dispositivo cuando registra sin conexión; si no llega, lo genera el servidor.
     id = serializers.UUIDField(required=False)
+    # Solo lo manda la cuenta técnica, que no tiene un productor propio: el de la finca nueva. Para
+    # cualquier otra cuenta es el de la sesión y mandarlo es un error (ver `create_farm`).
+    producer_id = serializers.UUIDField(required=False)
     # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
     captured_at = serializers.DateTimeField(required=False, allow_null=True)
 
@@ -134,16 +148,9 @@ class FarmMunicipalityCountSerializer(serializers.Serializer):
     farm_count = serializers.IntegerField()
 
 
-class FarmMapProducerSerializer(serializers.Serializer):
-    id = serializers.UUIDField()
-    member_code = serializers.CharField()
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
-
-
 class FarmMapPointSerializer(serializers.ModelSerializer):
     location = serializers.SerializerMethodField()
-    producer = FarmMapProducerSerializer()
+    producer = FarmProducerSerializer()
 
     class Meta:
         model = Farm

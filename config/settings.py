@@ -14,7 +14,6 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
-from corsheaders.defaults import default_headers
 from decouple import Csv, config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -257,8 +256,6 @@ CSRF_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
 
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
-# El encabezado con el que la cuenta técnica elige el productor bajo el que opera.
-CORS_ALLOW_HEADERS = (*default_headers, "x-acting-producer")
 
 
 # Internationalization

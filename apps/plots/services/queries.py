@@ -1,6 +1,7 @@
 from django.db.models import QuerySet
 
 from apps.common.locks import lock_aggregate_root
+from apps.common.ownership import owner_filter
 
 from ..exceptions import PlotNotFound
 from ..models import Plot
@@ -12,7 +13,7 @@ def list_plots(
     """Las parcelas de las fincas del productor de la sesión. Una finca ajena en `farm_id` no
     da error: simplemente no tiene parcelas que mostrar."""
     plots = (
-        Plot.objects.filter(farm__producer_id=actor.effective_producer_id)
+        Plot.objects.filter(**owner_filter(actor, "farm__producer_id"))
         .select_related("farm")
         .order_by("code_normalized", "id")
     )
@@ -29,7 +30,7 @@ def list_plots(
 def get_plot(actor, plot_id) -> Plot:
     try:
         return Plot.objects.select_related("farm").get(
-            pk=plot_id, farm__producer_id=actor.effective_producer_id
+            pk=plot_id, **owner_filter(actor, "farm__producer_id")
         )
     except Plot.DoesNotExist:
         raise PlotNotFound() from None
@@ -44,7 +45,7 @@ def lock_plot(actor, plot_id) -> Plot:
         Plot,
         plot_id,
         root="farm",
-        scope={"farm__producer_id": actor.effective_producer_id},
+        scope=owner_filter(actor, "farm__producer_id"),
         not_found=PlotNotFound,
     )
     plot.farm = farm

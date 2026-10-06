@@ -20,8 +20,8 @@ def visible_users(actor) -> QuerySet[User]:
         # Las cuentas de Administrador y Productor son siempre visibles; las de empleado no: la
         # asociación no opera en el espacio de un productor.
         return base.filter(groups__role__code__in=[ADMINISTRATOR, PRODUCER]).distinct()
-    if actor.effective_producer_id is not None:
-        return base.filter(producer_id=actor.effective_producer_id)
+    if actor.producer_id is not None:
+        return base.filter(producer_id=actor.producer_id)
     # Ni superusuario, ni Administrador, ni ligada a un productor: no hay alcance que darle.
     return base.none()
 
@@ -38,8 +38,8 @@ def visible_roles(actor) -> QuerySet[Role]:
         return base
     if is_association_admin(actor):
         return base.filter(SYSTEM_ROLE_KINDS)
-    if actor.effective_producer_id is not None:
-        return base.filter(SYSTEM_ROLE_KINDS | Q(producer_id=actor.effective_producer_id))
+    if actor.producer_id is not None:
+        return base.filter(SYSTEM_ROLE_KINDS | Q(producer_id=actor.producer_id))
     return base.none()
 
 
@@ -51,4 +51,4 @@ def acts_for_producer(actor, producer_id) -> bool:
     """
     if actor.is_superuser:
         return True
-    return producer_id is not None and actor.effective_producer_id == producer_id
+    return producer_id is not None and actor.producer_id == producer_id

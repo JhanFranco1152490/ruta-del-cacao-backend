@@ -20,7 +20,7 @@ from apps.accounts.tests.helpers import (
     request_reset_link,
     reset_password,
 )
-from apps.accounts.tests.role_helpers import grant_role
+from apps.accounts.tests.role_helpers import grant_role, make_producer_owner
 from apps.accounts.throttles import LoginRateThrottle
 from apps.producers.tests.factories import ProducerFactory
 
@@ -321,3 +321,11 @@ def test_browser_flow_with_cors_and_csrf():
 
         assert response.status_code == 200
         assert client.get("/api/auth/me").status_code == 200
+
+
+def test_the_session_says_whether_the_account_is_a_superuser(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    owner = make_producer_owner(ProducerFactory())
+
+    assert auth_client(superuser).get("/api/auth/me").data["user"]["is_superuser"] is True
+    assert auth_client(owner).get("/api/auth/me").data["user"]["is_superuser"] is False

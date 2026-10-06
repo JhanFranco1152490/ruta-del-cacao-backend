@@ -210,6 +210,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   vista en `PERMISSION_DEPENDENCIES` (crear o editar sin poder consultar no sirve). Un código
   que no está en el registro queda no delegable, pero eso es una red contra el olvido, no la
   forma de decidirlo.
+- **El productor lo dice el recurso.** Un servicio que busque algo que ya existe (una finca, una
+  parcela, una ficha) usa `owner_filter(actor, campo)` y `owns(actor, productor)`
+  (`apps/common/ownership.py`), nunca `actor.producer_id` como filtro: el productor y su gente
+  alcanzan lo suyo, y la cuenta técnica (superusuario, sin productor propio) alcanza lo de cualquiera.
+  Una prueba (`apps/common/tests/test_ownership_guard.py`) falla si un servicio de fincas, parcelas o
+  fichas filtra directo por el productor del actor. Lo que se crea y no cuelga de nada que ya exista
+  lleva el productor en el cuerpo: `POST /api/farms` acepta `producer_id` **solo** de la cuenta
+  técnica (y debe existir y estar activo); de cualquier otra cuenta es un `400`. La auditoría registra
+  siempre a quien actuó.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché

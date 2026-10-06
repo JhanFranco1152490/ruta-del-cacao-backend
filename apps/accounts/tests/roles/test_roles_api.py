@@ -710,3 +710,15 @@ def test_the_list_takes_the_same_queries_with_one_or_many_roles(auth_client):
 
     assert len(response.data["results"]) > 5
     assert len(many) == len(one)
+
+
+def test_roles_can_be_ordered_by_producer_with_the_system_roles_first(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    later = RoleFactory(producer=ProducerFactory(member_code="PROD-000002"), name="Beta")
+    earlier = RoleFactory(producer=ProducerFactory(member_code="PROD-000001"), name="Alfa")
+
+    response = auth_client(superuser).get(f"{ROLES_URL}?ordering=producer&page_size=100")
+
+    results = response.data["results"]
+    assert all(item["producer"] is None for item in results[:-2])
+    assert [item["id"] for item in results[-2:]] == [str(earlier.id), str(later.id)]

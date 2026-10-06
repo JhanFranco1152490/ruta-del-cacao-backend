@@ -10,6 +10,8 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
+from apps.common.ownership import owner_filter
+
 from ..exceptions import (
     FarmInactive,
     FarmNotFound,
@@ -34,9 +36,7 @@ Farm = Plot._meta.get_field("farm").related_model
 
 def lock_farm(actor, farm_id):
     """La finca del productor de la sesión, bloqueada hasta el final de la transacción."""
-    farm = (
-        Farm.objects.select_for_update().filter(pk=farm_id, producer_id=actor.producer_id).first()
-    )
+    farm = Farm.objects.select_for_update().filter(pk=farm_id, **owner_filter(actor)).first()
     if farm is None:
         raise FarmNotFound()
     return farm

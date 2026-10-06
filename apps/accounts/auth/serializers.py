@@ -95,10 +95,22 @@ class ActivationConfirmSerializer(NewPasswordSerializer):
 class SessionUserSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    # Solo para que la interfaz sepa si ofrecer el selector de productor: el servidor decide
+    # por su cuenta qué puede hacer cada petición, y esta respuesta nunca se lee como entrada.
+    is_superuser = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "roles", "permissions", "producer_id"]
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "roles",
+            "permissions",
+            "producer_id",
+            "is_superuser",
+        ]
 
     @extend_schema_field(AccountRoleSerializer(many=True))
     def get_roles(self, user) -> list[dict]:

@@ -93,8 +93,8 @@ Cada API sirve a la aplicación de su mismo entorno, y por eso en cada una:
 - `ALLOWED_HOSTS` incluye el dominio de la API.
 - La sesión viaja en cookies `SameSite=Lax`, que exigen que la aplicación y la API estén en el
   mismo sitio: ambas viven bajo `escapate.tours`.
-- Las dos son entornos distintos, con su propia base de datos: la semilla de demostración se corre
-  en cada uno por separado.
+- La semilla de demostración se corre en cada entorno donde se quiera tener esos datos; no se
+  comparte entre ellos.
 
 ## Despliegue
 

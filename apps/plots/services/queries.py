@@ -8,17 +8,23 @@ from ..models import Plot
 
 
 def list_plots(
-    actor, farm_id=None, is_active: bool | None = None, search: str | None = None
+    actor,
+    farm_id=None,
+    producer_id=None,
+    is_active: bool | None = None,
+    search: str | None = None,
 ) -> QuerySet[Plot]:
-    """Las parcelas de las fincas del productor de la sesión. Una finca ajena en `farm_id` no
-    da error: simplemente no tiene parcelas que mostrar."""
+    """Las parcelas de las fincas del productor de la sesión. Una finca o un productor ajenos
+    no dan error: simplemente no tienen parcelas que mostrar."""
     plots = (
         Plot.objects.filter(**owner_filter(actor, "farm__producer_id"))
-        .select_related("farm")
+        .select_related("farm__producer")
         .order_by("code_normalized", "id")
     )
     if farm_id is not None:
         plots = plots.filter(farm_id=farm_id)
+    if producer_id is not None:
+        plots = plots.filter(farm__producer_id=producer_id)
     if is_active is not None:
         plots = plots.filter(is_active=is_active)
     term = (search or "").strip()
@@ -29,7 +35,7 @@ def list_plots(
 
 def get_plot(actor, plot_id) -> Plot:
     try:
-        return Plot.objects.select_related("farm").get(
+        return Plot.objects.select_related("farm__producer").get(
             pk=plot_id, **owner_filter(actor, "farm__producer_id")
         )
     except Plot.DoesNotExist:

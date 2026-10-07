@@ -58,7 +58,7 @@ def create_plot(actor, data: dict) -> tuple[Plot, bool]:
 
 
 def _existing(plot_id) -> Plot | None:
-    return Plot.objects.select_related("farm").filter(pk=plot_id).first()
+    return Plot.objects.select_related("farm__producer").filter(pk=plot_id).first()
 
 
 def _resent_plot(existing: Plot, actor, data: dict) -> Plot:

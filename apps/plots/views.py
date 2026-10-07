@@ -29,6 +29,9 @@ from .services import create_plot, delete_plot, get_plot, list_plots, update_plo
     list=extend_schema(
         parameters=[
             OpenApiParameter("farm", str, description="Solo las parcelas de esta finca."),
+            OpenApiParameter(
+                "producer", str, description="Solo las parcelas de las fincas de este productor."
+            ),
             OpenApiParameter("is_active", bool, description="Solo activas o solo inactivas."),
             OpenApiParameter("search", str, description="Busca en el código, sin tildes."),
         ],
@@ -114,6 +117,7 @@ class PlotViewSet(GenericViewSet):
         return list_plots(
             self.request.user,
             farm_id=filters.get("farm"),
+            producer_id=filters.get("producer"),
             is_active=filters.get("is_active"),
             search=filters.get("search"),
         )

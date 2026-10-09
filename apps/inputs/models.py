@@ -12,6 +12,10 @@ NAME_MIN_LENGTH = 2
 NAME_MAX_LENGTH = 80
 PACKAGE_SIZE_MIN = Decimal("0.001")
 PACKAGE_SIZE_MAX = Decimal("100000")
+NOTE_MAX_LENGTH = 200
+# El mayor valor que cabe en una cantidad de inventario (12 dígitos con 3 decimales) sin llegar al
+# límite de la columna: lo que se acepta en una entrada o un conteo.
+QUANTITY_MAX = Decimal("9999999.999")
 
 
 class AgriculturalInput(models.Model):
@@ -112,6 +116,19 @@ class AgriculturalInput(models.Model):
     def __str__(self):
         return self.name
 
+    def record_consumption(self, farm, quantity, occurred_on, note, actor):
+        """Descuenta de las existencias de `farm` lo que gastó una labor y devuelve el movimiento.
+
+        `quantity` llega en positivo y el movimiento se guarda en negativo. No comprueba que el
+        insumo ni la finca estén activos ni que alcancen las existencias: una labor ya hecha no se
+        rechaza, y un saldo negativo dice que faltan entradas por registrar. Debe llamarse dentro
+        de la transacción del registro que gasta el insumo. Otras apps lo usan por la relación de
+        su propia clave foránea, sin importar `inputs`.
+        """
+        from .services.movements import record_consumption
+
+        return record_consumption(self, farm, quantity, occurred_on, note, actor)
+
     def clean(self):
         errors = {}
         if isinstance(self.name, str):
@@ -165,4 +182,88 @@ class AgriculturalInputAuditEvent(AuditEventBase):
     changes = models.JSONField(default=dict)
 
     class Meta(AuditEventBase.Meta):
+        default_permissions = ()
+
+
+class InputStock(models.Model):
+    """Las existencias de un insumo en una finca. Es el saldo guardado de sus movimientos: así la
+    lista no los suma en cada consulta y hay una fila que bloquear. Su cantidad siempre es la suma
+    de los `quantity` de sus movimientos, y puede ser negativa (faltan entradas por registrar)."""
+
+    input = models.ForeignKey(AgriculturalInput, on_delete=models.PROTECT, related_name="stocks")
+    farm = models.ForeignKey("farms.Farm", on_delete=models.PROTECT, related_name="input_stocks")
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0"))
+    last_count_date = models.DateField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["input", "farm"], name="inputs_stock_input_farm_unique"
+            ),
+        ]
+        default_permissions = ()
+        permissions = [
+            ("manage_inputstock", "Puede registrar entradas y conteos de inventario de insumos"),
+        ]
+
+
+class InputMovement(models.Model):
+    """Un movimiento de inventario: una entrada, un conteo o la salida de una labor. No se edita
+    ni se borra: un error se corrige con un conteo, que deja el rastro de qué pasó."""
+
+    class Kind(models.TextChoices):
+        ENTRY = "entry", "Entrada"
+        COUNT = "count", "Conteo"
+        CONSUMPTION = "consumption", "Salida por actividad"
+
+    # Lo genera el cliente al registrar, para que reenviar la misma petición no duplique.
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    input = models.ForeignKey(
+        AgriculturalInput, on_delete=models.PROTECT, related_name="movements"
+    )
+    farm = models.ForeignKey(
+        "farms.Farm", on_delete=models.PROTECT, related_name="input_movements"
+    )
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    # Con signo: es el efecto sobre las existencias. En un conteo es la diferencia que dejó.
+    quantity = models.DecimalField(max_digits=12, decimal_places=3)
+    counted_quantity = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    # La fecha del hecho, no la del registro.
+    occurred_on = models.DateField()
+    note = models.CharField(max_length=NOTE_MAX_LENGTH, blank=True, default="")
+    # El movimiento sobrevive a la cuenta que lo registró.
+    actor = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="input_movements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_on", "-created_at", "-id"]
+        indexes = [
+            models.Index(
+                fields=["input", "farm", "occurred_on", "created_at"],
+                name="inputs_mov_input_farm_date_idx",
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(kind="entry") | models.Q(quantity__gt=0),
+                name="inputs_movement_entry_positive",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(kind="consumption") | models.Q(quantity__lt=0),
+                name="inputs_movement_consumption_negative",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(kind="count", counted_quantity__isnull=False, counted_quantity__gte=0)
+                    | (~models.Q(kind="count") & models.Q(counted_quantity__isnull=True))
+                ),
+                name="inputs_movement_counted_iff_count",
+            ),
+        ]
         default_permissions = ()

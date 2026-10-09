@@ -119,8 +119,38 @@ class PlotCharacterizationListSerializer(serializers.Serializer):
     results = PlotCharacterizationSerializer(many=True)
 
 
+# El tope de una página de parcelas: quien pide por parcelas pide las de la página que muestra.
+MAX_LISTED_PLOTS = 100
+
+
+class PlotIdsField(serializers.Field):
+    """Ids de parcela separados por coma, como viajan en la dirección."""
+
+    default_error_messages = {
+        "invalid": "Envía ids de parcela válidos separados por coma.",
+        "max_length": f"Envía como máximo {MAX_LISTED_PLOTS} parcelas.",
+    }
+
+    def to_internal_value(self, data):
+        parts = [part.strip() for part in str(data).split(",")]
+        uuid_field = serializers.UUIDField()
+        try:
+            ids = [uuid_field.to_internal_value(part) for part in parts]
+        except serializers.ValidationError:
+            self.fail("invalid")
+        if len(ids) > MAX_LISTED_PLOTS:
+            self.fail("max_length")
+        return ids
+
+
 class PlotCharacterizationListQuerySerializer(serializers.Serializer):
-    farm = serializers.UUIDField()
+    farm = serializers.UUIDField(required=False)
+    plots = PlotIdsField(required=False)
+
+    def validate(self, attrs):
+        if "farm" not in attrs and "plots" not in attrs:
+            raise serializers.ValidationError({"farm": ["Envía la finca o las parcelas."]})
+        return attrs
 
 
 class PlantingInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

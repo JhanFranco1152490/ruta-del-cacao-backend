@@ -54,6 +54,15 @@ class MunicipalityListSerializer(serializers.Serializer):
     results = MunicipalitySerializer(many=True)
 
 
+# De quién es una finca, como lo muestran las fincas y las parcelas. Conserva el nombre con que
+# lo publica el esquema OpenAPI.
+class FarmProducerSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    member_code = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+
+
 class ApiErrorSerializer(serializers.Serializer):
     detail = serializers.CharField()
     code = serializers.CharField()

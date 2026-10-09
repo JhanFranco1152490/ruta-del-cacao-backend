@@ -26,3 +26,19 @@ def test_the_technical_account_lists_the_characterizations_of_any_farm(auth_clie
 
     assert response.status_code == 200
     assert len(response.data["results"]) == 1
+
+
+def test_the_technical_account_lists_the_characterizations_of_plots_of_any_producer(auth_client):
+    superuser = UserFactory(is_superuser=True)
+    first, second = PlotFactory(), PlotFactory()
+    PlotCharacterizationFactory(plot=first)
+    PlotCharacterizationFactory(plot=second)
+
+    response = auth_client(superuser).get(
+        f"/api/plot-characterizations?plots={first.pk},{second.pk}"
+    )
+
+    assert {item["plot_id"] for item in response.data["results"]} == {
+        str(first.pk),
+        str(second.pk),
+    }

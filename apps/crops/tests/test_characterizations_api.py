@@ -570,16 +570,80 @@ def test_the_list_of_another_producers_farm_is_empty(auth_client, farm, ccn51):
     assert response.data["results"] == []
 
 
-@pytest.mark.parametrize(
-    "farm_param", [None, "", "no-es-un-uuid"], ids=["missing", "blank", "bad"]
-)
+@pytest.mark.parametrize("farm_param", ["", "no-es-un-uuid"], ids=["blank", "bad"])
 def test_the_list_needs_a_valid_farm(client, farm_param):
-    params = {} if farm_param is None else {"farm": farm_param}
-
-    response = client.get(URL, params)
+    response = client.get(URL, {"farm": farm_param})
 
     assert response.status_code == 400
     assert "farm" in response.data["fields"]
+
+
+def test_the_list_needs_a_farm_or_plots(client):
+    response = client.get(URL)
+
+    assert response.status_code == 400
+    assert "farm" in response.data["fields"]
+
+
+def test_the_list_brings_the_characterizations_of_the_given_plots(client, farm, ccn51):
+    first = characterize(PlotFactory(farm=farm, code="P-01"), (ccn51, 10))
+    other_farm = FarmFactory(producer=farm.producer)
+    second = characterize(PlotFactory(farm=other_farm, code="P-02"), (ccn51, 20))
+    characterize(PlotFactory(farm=farm, code="P-03"), (ccn51, 30))
+    without = PlotFactory(farm=farm, code="P-04")
+
+    response = client.get(URL, {"plots": f"{second.pk},{first.pk},{without.pk}"})
+
+    assert response.status_code == 200
+    assert [item["plot_id"] for item in response.data["results"]] == [
+        str(first.pk),
+        str(second.pk),
+    ]
+
+
+def test_the_plots_of_another_producer_are_left_out(auth_client, farm, ccn51):
+    own = characterize(PlotFactory(farm=farm), (ccn51, 10))
+    foreign = characterize(PlotFactory(farm=FarmFactory()), (ccn51, 10))
+    client = auth_client(make_producer_owner(farm.producer))
+
+    response = client.get(URL, {"plots": f"{own.pk},{foreign.pk}"})
+
+    assert [item["plot_id"] for item in response.data["results"]] == [str(own.pk)]
+
+
+def test_farm_and_plots_are_combined(client, farm, ccn51):
+    inside = characterize(PlotFactory(farm=farm), (ccn51, 10))
+    outside = characterize(PlotFactory(farm=FarmFactory(producer=farm.producer)), (ccn51, 10))
+
+    response = client.get(URL, {"farm": str(farm.pk), "plots": f"{inside.pk},{outside.pk}"})
+
+    assert [item["plot_id"] for item in response.data["results"]] == [str(inside.pk)]
+
+
+@pytest.mark.parametrize(
+    "plots_param",
+    [
+        "",
+        "no-es-un-uuid",
+        f"{uuid.uuid4()},no-es-un-uuid",
+        ",".join(str(uuid.uuid4()) for _ in range(101)),
+    ],
+    ids=["blank", "bad", "one_bad", "too_many"],
+)
+def test_the_plots_must_be_valid_ids_up_to_a_page(client, plots_param):
+    response = client.get(URL, {"plots": plots_param})
+
+    assert response.status_code == 400
+    assert "plots" in response.data["fields"]
+
+
+def test_a_full_page_of_plots_is_accepted(client):
+    plots = ",".join(str(uuid.uuid4()) for _ in range(100))
+
+    response = client.get(URL, {"plots": plots})
+
+    assert response.status_code == 200
+    assert response.data["results"] == []
 
 
 def test_reading_requires_a_session(api_client, farm):

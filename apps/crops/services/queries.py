@@ -16,12 +16,16 @@ def with_rows(characterizations: QuerySet) -> QuerySet:
     return characterizations.prefetch_related(Prefetch("plantings", queryset=rows))
 
 
-def list_characterizations(actor, farm_id) -> QuerySet:
-    """Las fichas de las parcelas de una finca del productor de la sesión. Una finca ajena no da
-    error: simplemente no tiene fichas que mostrar."""
+def list_characterizations(actor, farm_id=None, plot_ids=None) -> QuerySet:
+    """Las fichas de las parcelas de una finca, de una lista de parcelas o de las dos a la vez,
+    del productor de la sesión. Lo ajeno no da error: simplemente no tiene fichas que mostrar."""
     characterizations = PlotCharacterization.objects.filter(
-        plot__farm_id=farm_id, **owner_filter(actor, "plot__farm__producer_id")
+        **owner_filter(actor, "plot__farm__producer_id")
     ).order_by("plot__code_normalized", "plot_id")
+    if farm_id is not None:
+        characterizations = characterizations.filter(plot__farm_id=farm_id)
+    if plot_ids is not None:
+        characterizations = characterizations.filter(plot_id__in=plot_ids)
     return with_rows(characterizations)
 
 

@@ -1,24 +1,62 @@
-from django.db.models import QuerySet
+from django.contrib.postgres.lookups import Unaccent
+from django.db.models import Count, OuterRef, Q, QuerySet
+from django.db.models.functions import Lower
 
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
+from apps.common.plot_characterization import characterized
 
 from ..exceptions import PlotNotFound
 from ..models import Plot
 
+# Con ficha (`done`) o sin ella (`pending`). Si una parcela tiene ficha lo dice la app de fichas
+# (ver `apps/common/plot_characterization.py`): esta app no conoce su modelo.
+CHARACTERIZATION_STATES = ("done", "pending")
+
+
+def _by_name(field: str):
+    # Sin tildes ni mayúsculas, como la búsqueda: "Álvarez" va antes que "Zapata" sin importar la
+    # intercalación de la base de datos. Fincas y parcelas ya guardan su nombre normalizado.
+    return Lower(Unaccent(field))
+
+
+# Los órdenes de la lista. Cada nivel desempata por su id: con nombres repetidos el orden sigue
+# siendo el mismo en cada consulta, y ninguna parcela salta de una página a otra.
+PLOT_ORDERINGS = {
+    "code": ("code_normalized", "id"),
+    # Para agrupar por productor y luego por finca: la lista se pagina por parcela, así que los
+    # grupos solo salen completos si el servidor ya las entrega en ese orden.
+    "producer,farm,code": (
+        _by_name("farm__producer__last_name"),
+        _by_name("farm__producer__first_name"),
+        "farm__producer_id",
+        "farm__name_normalized",
+        "farm_id",
+        "code_normalized",
+        "id",
+    ),
+}
+
 
 def list_plots(
-    actor, farm_id=None, is_active: bool | None = None, search: str | None = None
+    actor,
+    farm_id=None,
+    producer_id=None,
+    is_active: bool | None = None,
+    search: str | None = None,
+    ordering: str = "code",
 ) -> QuerySet[Plot]:
-    """Las parcelas de las fincas del productor de la sesión. Una finca ajena en `farm_id` no
-    da error: simplemente no tiene parcelas que mostrar."""
+    """Las parcelas de las fincas del productor de la sesión. Una finca o un productor ajenos
+    no dan error: simplemente no tienen parcelas que mostrar."""
     plots = (
         Plot.objects.filter(**owner_filter(actor, "farm__producer_id"))
-        .select_related("farm")
-        .order_by("code_normalized", "id")
+        .select_related("farm__producer")
+        .order_by(*PLOT_ORDERINGS[ordering])
     )
     if farm_id is not None:
         plots = plots.filter(farm_id=farm_id)
+    if producer_id is not None:
+        plots = plots.filter(farm__producer_id=producer_id)
     if is_active is not None:
         plots = plots.filter(is_active=is_active)
     term = (search or "").strip()
@@ -27,9 +65,27 @@ def list_plots(
     return plots
 
 
+def with_characterization(plots: QuerySet[Plot], characterization: str | None) -> QuerySet[Plot]:
+    """Solo las que tienen ficha (`done`) o las que no (`pending`); todas sin filtro."""
+    if characterization is None:
+        return plots
+    has_characterization = characterized(OuterRef("pk"))
+    return plots.filter(
+        has_characterization if characterization == "done" else ~has_characterization
+    )
+
+
+def count_characterizations(plots: QuerySet[Plot]) -> dict:
+    """Cuántas de estas parcelas tienen ficha y cuántas no, en una sola consulta."""
+    counts = plots.annotate(has_characterization=characterized(OuterRef("pk"))).aggregate(
+        total=Count("pk"), done=Count("pk", filter=Q(has_characterization=True))
+    )
+    return {"done": counts["done"], "pending": counts["total"] - counts["done"]}
+
+
 def get_plot(actor, plot_id) -> Plot:
     try:
-        return Plot.objects.select_related("farm").get(
+        return Plot.objects.select_related("farm__producer").get(
             pk=plot_id, **owner_filter(actor, "farm__producer_id")
         )
     except Plot.DoesNotExist:

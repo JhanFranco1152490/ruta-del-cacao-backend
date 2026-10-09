@@ -125,7 +125,12 @@ def test_create_returns_the_plot_in_the_contract_shape(client, farm):
     result = response.json()
     assert result == {
         "id": str(plot_id),
-        "farm": {"id": str(farm.pk), "name": "La Esperanza"},
+        "farm": {
+            "id": str(farm.pk),
+            "name": "La Esperanza",
+            "is_active": True,
+            "producer": result["farm"]["producer"],
+        },
         "code": "P1 · El Mango",
         "area_hectares": data["area_hectares"],
         "measured_area_hectares": str(measured(vertices)),
@@ -380,7 +385,49 @@ def test_filtering_by_a_farm_of_another_producer_returns_nothing(client):
     assert response.data["count"] == 0
 
 
-@pytest.mark.parametrize("params", [{"farm": "no-es-un-uuid"}, {"is_active": "quizas"}], ids=str)
+def test_the_list_says_the_producer_of_each_plot(client, farm):
+    PlotFactory(farm=farm)
+
+    listed = client.get("/api/plots").data["results"][0]
+
+    producer = farm.producer
+    assert listed["farm"] == {
+        "id": str(farm.pk),
+        "name": farm.name,
+        "is_active": True,
+        "producer": {
+            "id": str(producer.pk),
+            "member_code": producer.member_code,
+            "first_name": producer.first_name,
+            "last_name": producer.last_name,
+        },
+    }
+
+
+def test_filtering_by_the_own_producer_returns_all_its_plots(client, farm):
+    PlotFactory(farm=farm, code="P-01")
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=farm.producer), code="P-02")
+
+    response = client.get("/api/plots", {"producer": farm.producer.pk})
+
+    assert [plot["code"] for plot in response.data["results"]] == ["P-01", "P-02"]
+
+
+def test_filtering_by_another_producer_returns_nothing(client):
+    stranger = ProducerFactory()
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=stranger))
+
+    response = client.get("/api/plots", {"producer": stranger.pk})
+
+    assert response.status_code == 200
+    assert response.data["count"] == 0
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"farm": "no-es-un-uuid"}, {"producer": "no-es-un-uuid"}, {"is_active": "quizas"}],
+    ids=str,
+)
 def test_malformed_filters_are_rejected(client, params):
     response = client.get("/api/plots", params)
 

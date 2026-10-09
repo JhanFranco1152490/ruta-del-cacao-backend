@@ -11,6 +11,7 @@ from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
 from .exceptions import AreaMismatch, PlotIdConflict, PlotOverlap, StalePlotVersion
+from .pagination import PlotPagination
 from .serializers import (
     OverlapSerializer,
     PlotConflictErrorSerializer,
@@ -22,14 +23,44 @@ from .serializers import (
     PlotUpdateSerializer,
     VertexSerializer,
 )
-from .services import create_plot, delete_plot, get_plot, list_plots, update_plot
+from .services import (
+    count_characterizations,
+    create_plot,
+    delete_plot,
+    get_plot,
+    list_plots,
+    update_plot,
+    with_characterization,
+)
+from .services.queries import CHARACTERIZATION_STATES, PLOT_ORDERINGS
 
 
 @extend_schema_view(
     list=extend_schema(
         parameters=[
             OpenApiParameter("farm", str, description="Solo las parcelas de esta finca."),
+            OpenApiParameter(
+                "producer", str, description="Solo las parcelas de las fincas de este productor."
+            ),
+            OpenApiParameter(
+                "characterization",
+                str,
+                enum=list(CHARACTERIZATION_STATES),
+                description=(
+                    "Solo las parcelas con ficha (`done`) o sin ella (`pending`). No cambia "
+                    "`characterization_counts`, que cuenta con los demás filtros."
+                ),
+            ),
             OpenApiParameter("is_active", bool, description="Solo activas o solo inactivas."),
+            OpenApiParameter(
+                "ordering",
+                str,
+                enum=list(PLOT_ORDERINGS),
+                description=(
+                    "`code` (por defecto) o `producer,farm,code`: por nombre del productor, "
+                    "nombre de la finca y código, para agrupar. Cada nivel desempata por su id."
+                ),
+            ),
             OpenApiParameter("search", str, description="Busca en el código, sin tildes."),
         ],
         # 400: un filtro mal formado. 404: página fuera de rango.
@@ -103,24 +134,32 @@ class PlotViewSet(GenericViewSet):
     }
     # Los filtros los resuelve el servicio, con el alcance del productor de la sesión.
     filter_backends = []
+    pagination_class = PlotPagination
     lookup_value_converter = "uuid"
 
-    def get_queryset(self):
+    def list(self, request):
         # Se pasa un dict y no el QueryDict: con un QueryDict, DRF toma un booleano ausente
         # como `false` y filtraría las activas sin que nadie lo pidiera.
-        query = PlotListQuerySerializer(data=self.request.query_params.dict())
+        query = PlotListQuerySerializer(data=request.query_params.dict())
         query.is_valid(raise_exception=True)
         filters = query.validated_data
-        return list_plots(
-            self.request.user,
+        plots = list_plots(
+            request.user,
             farm_id=filters.get("farm"),
+            producer_id=filters.get("producer"),
             is_active=filters.get("is_active"),
             search=filters.get("search"),
+            ordering=filters.get("ordering", "code"),
         )
-
-    def list(self, request):
-        page = self.paginate_queryset(self.get_queryset())
-        return self.get_paginated_response(PlotSerializer(page, many=True).data)
+        # Los conteos van antes del filtro de caracterización: dicen cuántas de todas las que
+        # calzan con los demás filtros tienen ficha.
+        counts = count_characterizations(plots)
+        page = self.paginate_queryset(
+            with_characterization(plots, filters.get("characterization"))
+        )
+        return self.paginator.get_paginated_response(
+            PlotSerializer(page, many=True).data, characterization_counts=counts
+        )
 
     def retrieve(self, request, pk):
         return Response(PlotSerializer(get_plot(request.user, pk)).data)

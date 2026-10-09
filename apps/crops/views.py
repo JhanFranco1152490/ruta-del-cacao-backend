@@ -128,12 +128,16 @@ class CacaoVarietyViewSet(DomainValidationMixin, GenericViewSet):
 @extend_schema_view(
     list=extend_schema(
         description=(
-            "Las fichas de las parcelas de una finca del productor de la sesión, sin paginar: una "
-            "finca tiene pocas parcelas. `farm` es obligatorio. Las parcelas sin ficha no "
-            "aparecen, y una finca ajena devuelve la lista vacía."
+            "Las fichas de las parcelas de una finca, o de una lista de parcelas, del productor "
+            "de la sesión, sin paginar: una finca tiene pocas parcelas y la lista llega hasta "
+            "100. Se envía `farm`, `plots` o los dos (se combinan). Las parcelas sin ficha no "
+            "aparecen, y una finca o una parcela ajenas simplemente no traen nada."
         ),
         parameters=[
-            OpenApiParameter("farm", str, required=True, description="La finca, por su `id`."),
+            OpenApiParameter("farm", str, description="La finca, por su `id`."),
+            OpenApiParameter(
+                "plots", str, description="Ids de parcela separados por coma, hasta 100."
+            ),
         ],
         responses={200: PlotCharacterizationListSerializer, **error_responses(400, 401, 403)},
     ),
@@ -178,7 +182,11 @@ class PlotCharacterizationViewSet(DomainValidationMixin, GenericViewSet):
     def list(self, request):
         query = PlotCharacterizationListQuerySerializer(data=request.query_params.dict())
         query.is_valid(raise_exception=True)
-        characterizations = list_characterizations(request.user, query.validated_data["farm"])
+        characterizations = list_characterizations(
+            request.user,
+            farm_id=query.validated_data.get("farm"),
+            plot_ids=query.validated_data.get("plots"),
+        )
         return Response(PlotCharacterizationListSerializer({"results": characterizations}).data)
 
     def retrieve(self, request, pk):

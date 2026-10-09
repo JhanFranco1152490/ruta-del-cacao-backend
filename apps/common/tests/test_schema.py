@@ -142,6 +142,9 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/agricultural-inputs"),
     ("patch", "/api/agricultural-inputs/{id}"),
     ("delete", "/api/agricultural-inputs/{id}"),
+    ("get", "/api/input-stocks"),
+    ("get", "/api/input-movements"),
+    ("post", "/api/input-movements"),
 }
 
 

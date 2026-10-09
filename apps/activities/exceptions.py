@@ -91,6 +91,14 @@ class StaleActivityVersion(ApiError):
         self.current_activity = current_activity
 
 
+class MonitoringRequiresResult(ApiError):
+    # El monitoreo se cierra registrando lo que se encontró (unidades evaluadas y hallazgos), no
+    # solo la fecha: marcarlo hecho sin resultado dejaría el estado sanitario de la parcela vacío.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "Un monitoreo se registra con su resultado, desde el módulo de sanidad."
+    default_code = "monitoring_requires_result"
+
+
 class AssigneeNotAvailable(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El responsable debe ser una cuenta activa del productor de la parcela."

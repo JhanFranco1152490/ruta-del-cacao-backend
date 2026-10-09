@@ -196,11 +196,6 @@ def test_an_activity_of_another_producer_is_404(client):
     assert response.status_code == 404
 
 
-def test_the_list_by_period_is_not_here_yet(client):
-    # Es de la consulta del calendario, que se construye aparte.
-    assert client.get(URL).status_code == 405
-
-
 # --- Editar -------------------------------------------------------------------------------------
 
 

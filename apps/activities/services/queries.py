@@ -25,6 +25,16 @@ def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
     ).select_related("plot__farm", "assignee", "completed_by")
 
 
+def list_activities(actor, date_from, date_to, producer_id=None) -> QuerySet[AgriculturalActivity]:
+    """Las actividades programadas entre las dos fechas, ambas incluidas. Las realizadas se
+    ubican por su fecha programada, como las demás: el calendario muestra lo planeado y si se
+    cumplió. `producer_id` solo lo usa la cuenta técnica, que sin él ve las de todos."""
+    activities = visible_activities(actor).filter(scheduled_date__range=(date_from, date_to))
+    if actor.is_superuser and producer_id is not None:
+        activities = activities.filter(plot__farm__producer_id=producer_id)
+    return activities.order_by("scheduled_date", "activity_type", "id")
+
+
 def get_activity(actor, activity_id) -> AgriculturalActivity:
     activity = visible_activities(actor).filter(pk=activity_id).first()
     if activity is None:

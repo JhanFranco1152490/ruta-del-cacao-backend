@@ -14,6 +14,8 @@ from .serializers import (
     ActivityConflictErrorSerializer,
     ActivityCreateSerializer,
     ActivityDeleteQuerySerializer,
+    ActivityListQuerySerializer,
+    ActivityListSerializer,
     ActivityUpdateSerializer,
     AgriculturalActivitySerializer,
     AssigneeListSerializer,
@@ -23,11 +25,25 @@ from .serializers import (
 from .services.complete import complete_activity
 from .services.create import create_activity
 from .services.delete import delete_activity
-from .services.queries import assignee_options, get_activity
+from .services.queries import assignee_options, get_activity, list_activities
 from .services.update import update_activity
 
 
 @extend_schema_view(
+    list=extend_schema(
+        description=(
+            "Las actividades programadas en el periodo, `from` y `to` incluidos, de hasta 120 "
+            "días. Sin paginar: los filtros de parcela, estado y responsable los aplica el "
+            "dispositivo, para que funcionen igual sin conexión. `state` y `days_late` se "
+            "calculan con la fecha de hoy en Bogotá."
+        ),
+        parameters=[
+            OpenApiParameter("from", str, required=True, description="Fecha inicial (incluida)."),
+            OpenApiParameter("to", str, required=True, description="Fecha final (incluida)."),
+            OpenApiParameter("producer", str, description="Solo para la cuenta técnica."),
+        ],
+        responses={200: ActivityListSerializer, **error_responses(400, 401, 403)},
+    ),
     retrieve=extend_schema(
         responses={200: AgriculturalActivitySerializer, **error_responses(401, 403, 404)}
     ),
@@ -84,6 +100,7 @@ class AgriculturalActivityViewSet(GenericViewSet):
     serializer_class = AgriculturalActivitySerializer
     permission_classes = [IsAuthenticated, ActionPermission]
     action_permissions = {
+        "list": "activities.view_agriculturalactivity",
         "retrieve": "activities.view_agriculturalactivity",
         "create": "activities.add_agriculturalactivity",
         "partial_update": "activities.change_agriculturalactivity",
@@ -93,6 +110,15 @@ class AgriculturalActivityViewSet(GenericViewSet):
     }
     filter_backends = []
     lookup_value_converter = "uuid"
+
+    def list(self, request):
+        query = ActivityListQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        period = query.validated_data
+        activities = list_activities(
+            request.user, period["from"], period["to"], period.get("producer")
+        )
+        return Response({"results": AgriculturalActivitySerializer(activities, many=True).data})
 
     def retrieve(self, request, pk):
         return Response(AgriculturalActivitySerializer(get_activity(request.user, pk)).data)

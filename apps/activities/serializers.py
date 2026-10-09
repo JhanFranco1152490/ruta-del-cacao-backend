@@ -138,6 +138,35 @@ class CompletionSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     captured_at = serializers.DateTimeField(required=False, allow_null=True, default=None)
 
 
+MAX_PERIOD_DAYS = 120
+
+
+class ActivityListQuerySerializer(serializers.Serializer):
+    # Cubre el mes que se ve (hasta 42 días de cuadrícula) y la copia sin conexión (del mes
+    # anterior a dos meses después), sin abrir la puerta a pedir años enteros sin paginar.
+
+    def get_fields(self):
+        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+        return {
+            "from": serializers.DateField(),
+            "to": serializers.DateField(),
+            "producer": serializers.UUIDField(required=False),
+        }
+
+    def validate(self, attrs):
+        if attrs["to"] < attrs["from"]:
+            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
+        if (attrs["to"] - attrs["from"]).days + 1 > MAX_PERIOD_DAYS:
+            raise serializers.ValidationError(
+                {"to": [f"El periodo no puede pasar de {MAX_PERIOD_DAYS} días."]}
+            )
+        return attrs
+
+
+class ActivityListSerializer(serializers.Serializer):
+    results = AgriculturalActivitySerializer(many=True)
+
+
 class AssigneeQuerySerializer(serializers.Serializer):
     producer = serializers.UUIDField(required=False)
 

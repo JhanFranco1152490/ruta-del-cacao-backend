@@ -52,6 +52,12 @@ class ApiError(exceptions.APIException):
         self.extra = extra or {}
 
 
+class ProducerRequired(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "La cuenta no está vinculada a un productor."
+    default_code = "permission_denied"
+
+
 class PayloadTooLarge(ApiError):
     status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
     default_detail = "El cuerpo de la petición es demasiado grande."

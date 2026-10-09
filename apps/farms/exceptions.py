@@ -1,6 +1,6 @@
 from rest_framework import status
 
-from apps.common.exceptions import ApiError
+from apps.common.exceptions import ApiError, ProducerRequired  # noqa: F401
 
 
 class FarmNotFound(ApiError):
@@ -8,12 +8,6 @@ class FarmNotFound(ApiError):
     status_code = status.HTTP_404_NOT_FOUND
     default_detail = "La finca no existe."
     default_code = "not_found"
-
-
-class ProducerRequired(ApiError):
-    status_code = status.HTTP_403_FORBIDDEN
-    default_detail = "La cuenta no está vinculada a un productor."
-    default_code = "permission_denied"
 
 
 class StaleFarmVersion(ApiError):

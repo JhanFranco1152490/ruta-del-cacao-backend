@@ -8,7 +8,13 @@ from django.utils import timezone
 
 from apps.accounts.exceptions import LastAdministrator
 from apps.accounts.models import AccountManagementEvent, User
-from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_system_role
+from apps.accounts.system_roles import (
+    ADMINISTRATOR,
+    FOREMAN,
+    PRODUCER,
+    SYSTEM_ROLES,
+    get_system_role,
+)
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import csrf_client, login_by_email, open_session
 from apps.accounts.tests.role_helpers import (
@@ -71,13 +77,29 @@ def test_deleting_requires_the_users_delete_permission():
 
 def test_a_delegate_with_the_permission_deletes_an_employee():
     producer = ProducerFactory()
-    delegate = make_delegate(producer, ["accounts.users_view", "accounts.users_delete"])
+    # El delegado tiene también lo del Capataz/Operario: nadie administra a alguien con más
+    # permisos que él.
+    delegate = make_delegate(
+        producer,
+        ["accounts.users_view", "accounts.users_delete", *SYSTEM_ROLES[FOREMAN]["permissions"]],
+    )
     employee = make_employee(producer)
 
     response = delete_as(delegate, employee)
 
     assert response.status_code == 204
     assert not exists(employee)
+
+
+def test_a_delegate_cannot_delete_an_employee_with_more_permissions_than_it_has():
+    producer = ProducerFactory()
+    delegate = make_delegate(producer, ["accounts.users_view", "accounts.users_delete"])
+    employee = make_employee(producer)
+
+    response = delete_as(delegate, employee)
+
+    assert response.status_code == 403
+    assert exists(employee)
 
 
 def test_an_account_of_another_producer_is_not_found():

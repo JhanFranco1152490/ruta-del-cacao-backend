@@ -56,9 +56,27 @@ SYSTEM_ROLES = {
             "plots.change_plot",
             "plots.delete_plot",
             "crops.change_plotcharacterization",
+            "activities.view_agriculturalactivity",
+            "activities.add_agriculturalactivity",
+            "activities.change_agriculturalactivity",
+            "activities.complete_agriculturalactivity",
+            "activities.delete_agriculturalactivity",
         ],
     },
-    FOREMAN: {"kind": Role.Kind.PREDEFINED, "name": "Capataz/Operario", "permissions": []},
+    FOREMAN: {
+        "kind": Role.Kind.PREDEFINED,
+        "name": "Capataz/Operario",
+        "permissions": [
+            # Consulta las fincas y parcelas en las que programa sus labores; gestionarlas sigue
+            # siendo del Productor.
+            "farms.view_farm",
+            "plots.view_plot",
+            "activities.view_agriculturalactivity",
+            "activities.add_agriculturalactivity",
+            "activities.change_agriculturalactivity",
+            "activities.complete_agriculturalactivity",
+        ],
+    },
     QUALITY_MANAGER: {
         "kind": Role.Kind.PREDEFINED,
         "name": "Encargado de calidad",

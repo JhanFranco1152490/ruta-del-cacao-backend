@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "apps.farms",
     "apps.plots",
     "apps.crops",
+    "apps.activities",
     "apps.demo_data",
 ]
 

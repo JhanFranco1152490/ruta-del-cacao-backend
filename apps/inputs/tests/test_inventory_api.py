@@ -403,3 +403,23 @@ def test_the_movements_of_a_foreign_input_or_farm_answer_404(auth_client, owner,
         404,
         404,
     )
+
+
+def test_a_count_dated_before_a_movement_answers_400(auth_client, owner, item, farm):
+    entry(owner, item, farm, "100", occurred_on=TODAY)
+
+    response = auth_client(owner).post(
+        MOVEMENTS,
+        body(
+            item,
+            farm,
+            kind="count",
+            quantity=None,
+            counted_quantity="40",
+            occurred_on=(TODAY - timedelta(days=2)).isoformat(),
+        ),
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "occurred_on" in response.data["fields"]

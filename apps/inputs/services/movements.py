@@ -11,7 +11,6 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.common.locks import lock_root_row
 from apps.common.ownership import owner_filter
 
 from ..exceptions import (
@@ -48,21 +47,13 @@ def register_movement(actor, data: dict) -> tuple[InputMovement, InputStock, boo
     devuelve el movimiento ya registrado con `creado=False`, sin duplicarlo ni tocar las
     existencias. Con otro contenido, `MovementIdConflict`.
     """
-    farm_model = _farm_model()
-    item = AgriculturalInput.objects.filter(pk=data["input_id"], **owner_filter(actor)).first()
-    if item is None:
-        raise InputNotFound()
-    farm = farm_model.objects.filter(pk=data["farm_id"], **owner_filter(actor)).first()
-    if farm is None:
-        raise FarmNotFound()
+    # Se bloquea ya con el alcance de quien llama: lo que se lee es lo que nadie más puede cambiar
+    # hasta el final de la transacción, sin una lectura previa aparte.
+    farm = _lock_farm(data["farm_id"], owner_filter(actor))
+    item = _lock_input(data["input_id"], owner_filter(actor))
     if item.producer_id != farm.producer_id:
         raise ValidationError({"farm_id": ["La finca no es del productor del insumo."]})
-
     _validate(data)
-    # Con los bloqueos tomados se vuelven a leer: lo que se decide es lo que nadie más puede
-    # cambiar hasta el final de la transacción.
-    farm = _lock_farm(farm.pk)
-    item = _lock_input(item.pk)
     stock = _locked_stock(item, farm)
 
     movement_id = data.get("id")
@@ -75,6 +66,9 @@ def register_movement(actor, data: dict) -> tuple[InputMovement, InputStock, boo
         raise FarmInactive()
     if data["kind"] == Kind.ENTRY and not item.is_active:
         raise InputInactive()
+
+    if data["kind"] == Kind.COUNT:
+        _ensure_count_is_not_before_movements(item, farm, data["occurred_on"])
 
     if data["kind"] == Kind.ENTRY:
         movement = _apply(
@@ -167,18 +161,40 @@ def _apply(
     return movement
 
 
-def _lock_farm(farm_id):
-    farm = lock_root_row(_farm_model(), farm_id)
+def _lock_farm(farm_id, scope=None):
+    farm = _farm_model().objects.select_for_update().filter(pk=farm_id, **(scope or {})).first()
     if farm is None:
         raise FarmNotFound()
     return farm
 
 
-def _lock_input(input_id) -> AgriculturalInput:
-    item = AgriculturalInput.objects.select_for_update().filter(pk=input_id).first()
+def _lock_input(input_id, scope=None) -> AgriculturalInput:
+    item = AgriculturalInput.objects.select_for_update().filter(pk=input_id, **(scope or {}))
+    item = item.first()
     if item is None:
         raise InputNotFound()
     return item
+
+
+def _ensure_count_is_not_before_movements(item, farm, occurred_on) -> None:
+    """Un conteo dice cuánto hay ahora: con fecha anterior a un movimiento ya registrado dejaría
+    las existencias en lo contado y borraría el efecto de ese movimiento. Se rechaza para que la
+    persona cuente de nuevo con la fecha de hoy."""
+    latest = (
+        InputMovement.objects.filter(input=item, farm=farm)
+        .order_by("-occurred_on")
+        .values_list("occurred_on", flat=True)
+        .first()
+    )
+    if latest is not None and occurred_on < latest:
+        raise ValidationError(
+            {
+                "occurred_on": [
+                    "Hay movimientos posteriores a esa fecha. Registra el conteo con la fecha "
+                    f"de hoy o de {latest:%d/%m/%Y}."
+                ]
+            }
+        )
 
 
 def _locked_stock(item, farm) -> InputStock:

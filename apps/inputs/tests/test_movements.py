@@ -127,14 +127,47 @@ def test_a_count_without_previous_stock_counts_from_zero(member, item, farm):
     assert (movement.quantity, stock.quantity) == (Decimal("40"), Decimal("40"))
 
 
-def test_an_older_count_does_not_move_the_last_count_date_back(member, item, farm):
+def test_a_count_dated_before_a_registered_movement_is_rejected(member, item, farm):
+    register_movement(member, entry(item, farm, "100", occurred_on=TODAY))
+
+    with pytest.raises(ValidationError) as error:
+        register_movement(member, count(item, farm, "40", occurred_on=TODAY - timedelta(days=3)))
+
+    assert "occurred_on" in error.value.detail
+    assert stock_of(item, farm).quantity == Decimal("100.000")
+    assert InputMovement.objects.count() == 1
+
+
+def test_a_count_on_the_same_day_as_the_last_movement_is_accepted(member, item, farm):
+    register_movement(member, entry(item, farm, "100", occurred_on=TODAY))
+
+    _, stock, _ = register_movement(member, count(item, farm, "40", occurred_on=TODAY))
+
+    assert (stock.quantity, stock.last_count_date) == (Decimal("40.000"), TODAY)
+
+
+def test_a_count_dated_before_an_earlier_one_is_rejected_so_the_last_count_never_goes_back(
+    member, item, farm
+):
     register_movement(member, count(item, farm, "10", occurred_on=TODAY))
 
-    _, stock, _ = register_movement(
-        member, count(item, farm, "20", occurred_on=TODAY - timedelta(days=5))
+    with pytest.raises(ValidationError):
+        register_movement(member, count(item, farm, "20", occurred_on=TODAY - timedelta(days=5)))
+    assert stock_of(item, farm).last_count_date == TODAY
+
+
+def test_an_older_count_can_be_resent_after_later_movements(member, item, farm):
+    movement_id = uuid.uuid4()
+    day = TODAY - timedelta(days=4)
+    register_movement(member, count(item, farm, "100", occurred_on=day, id=movement_id))
+    record_consumption(item, farm, Decimal("10"), TODAY, "", member)
+
+    _, stock, created = register_movement(
+        member, count(item, farm, "100", occurred_on=day, id=movement_id)
     )
 
-    assert stock.last_count_date == TODAY
+    assert created is False
+    assert stock.quantity == Decimal("90.000")
 
 
 def test_a_consumption_subtracts_and_can_leave_the_stock_negative(member, item, farm):

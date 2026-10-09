@@ -207,7 +207,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   /api/input-movements?input=&farm=` (paginado; ajenos, `404`) piden `view_agriculturalinput`.
   `POST /api/input-movements` pide `inputs.manage_inputstock` y acepta solo `entry` y `count`; un
   `id` repetido con el mismo contenido responde `200` sin duplicar, con otro, `409
-  movement_id_conflict`. Un conteo calcula su diferencia contra el saldo del momento de guardar. Las
+  movement_id_conflict`. Un conteo calcula su diferencia contra el saldo del momento de guardar, y se rechaza si su fecha es anterior a un movimiento ya registrado (dejaría las existencias en lo contado y borraría el efecto de ese movimiento): la persona cuenta de nuevo con la fecha de hoy. Las
   salidas las registra el sistema: otra app descuenta lo que gasta una labor con
   `AgriculturalInput.record_consumption(farm, quantity, occurred_on, note, actor)` (cantidad en
   positivo, dentro de su propia transacción, sin validar existencias ni estados: una labor ya hecha
@@ -450,7 +450,10 @@ nada. Ruff y Black usan `line-length = 99`.
     milisegundos. Una app nueva que escriba sobre algo de una finca (cultivos, cosecha, lotes)
     toma ese bloqueo antes de leer lo que va a cambiar, con `root="plot__farm"` si cuelga de una
     parcela. Si algún día contendiera de verdad, se agregan bloqueos más finos *por debajo* de
-    este, sin romper nada.
+    este, sin romper nada. **Excepción deliberada, el inventario de insumos:** un movimiento
+    bloquea la finca, el insumo y sus existencias, siempre en ese orden. Las actividades descuentan
+    lo que gastan con el mismo orden (finca primero, que ya tienen bloqueada), y con un orden fijo
+    no hay esperas cruzadas. Un flujo nuevo que bloquee un insumo debe tomar antes la finca.
   - **Dentro de un bloqueo no va nada lento:** subir una foto o un archivo, llamar a un servicio
     externo o generar un reporte se hace antes o después, fuera de la transacción. Un archivo se
     sube primero y una transacción corta registra sus metadatos; si no, se retienen una conexión

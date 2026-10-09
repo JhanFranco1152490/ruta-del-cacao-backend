@@ -10,26 +10,17 @@ from operator import or_
 
 from django.db.models import BooleanField, Exists, ExpressionWrapper, OuterRef, Value
 
+from apps.common.db import dependent_relations, has_dependent_rows
+
 from .models import AgriculturalInput, AgriculturalInputAuditEvent
 
 
 def usage_relations():
-    # Con `include_hidden`: una tabla que apunte al insumo sin nombre inverso (`related_name="+"`)
-    # también lo usa.
-    return [
-        relation
-        for relation in AgriculturalInput._meta.get_fields(include_hidden=True)
-        if relation.auto_created
-        and not relation.concrete
-        and relation.related_model is not AgriculturalInputAuditEvent
-    ]
+    return dependent_relations(AgriculturalInput, ignore=(AgriculturalInputAuditEvent,))
 
 
 def is_used(item: AgriculturalInput) -> bool:
-    return any(
-        relation.related_model._base_manager.filter(**{relation.field.name: item}).exists()
-        for relation in usage_relations()
-    )
+    return has_dependent_rows(item, ignore=(AgriculturalInputAuditEvent,))
 
 
 def used_expression():

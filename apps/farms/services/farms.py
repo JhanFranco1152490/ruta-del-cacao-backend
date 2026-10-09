@@ -88,12 +88,12 @@ def get_farm(actor, farm_id) -> Farm:
 
 
 def _target_producer(actor, data: dict):
-    """El id del productor de la finca nueva (ver `resolve_target_producer`): además debe estar
-    activo cuando lo nombra la cuenta técnica."""
-    producer = resolve_target_producer(actor, data, Farm._meta.get_field("producer").related_model)
-    if actor.is_superuser and producer.status != "active":
-        raise FieldError({"producer_id": ["El productor está inactivo."]})
-    return producer.pk
+    return resolve_target_producer(
+        actor,
+        data,
+        Farm._meta.get_field("producer").related_model,
+        inactive=lambda: FieldError({"producer_id": ["El productor está inactivo."]}),
+    )
 
 
 @transaction.atomic

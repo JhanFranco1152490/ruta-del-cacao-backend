@@ -1,6 +1,6 @@
 from rest_framework import status
 
-from apps.common.exceptions import ApiError, ProducerRequired  # noqa: F401
+from apps.common.exceptions import ApiError
 
 
 class FarmNotFound(ApiError):

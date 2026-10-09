@@ -33,13 +33,14 @@ def create_input(actor, data: dict) -> AgriculturalInput:
     """Registra un insumo en el catálogo del productor de la sesión, o del que nombra la cuenta
     técnica. Solo en línea: el servidor genera el `id`."""
     data = dict(data)
-    producer = resolve_target_producer(
-        actor, data, AgriculturalInput._meta.get_field("producer").related_model
+    producer_id = resolve_target_producer(
+        actor,
+        data,
+        AgriculturalInput._meta.get_field("producer").related_model,
+        inactive=ProducerInactive,
     )
-    if actor.is_superuser and producer.status != "active":
-        raise ProducerInactive()
 
-    item = AgriculturalInput(producer_id=producer.pk, **data)
+    item = AgriculturalInput(producer_id=producer_id, **data)
     item.full_clean(validate_unique=False, validate_constraints=False)
     save_translating_unique(
         lambda: item.save(force_insert=True),

@@ -50,7 +50,7 @@ class AgriculturalInputWriteSerializer(RejectUnknownFieldsMixin, serializers.Ser
     input_type = serializers.ChoiceField(choices=AgriculturalInput.InputType.choices)
     unit = serializers.ChoiceField(choices=AgriculturalInput.Unit.choices)
     bag_weight_kg = serializers.DecimalField(
-        max_digits=6, decimal_places=2, required=False, allow_null=True
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
 
     def to_model_data(self) -> dict:

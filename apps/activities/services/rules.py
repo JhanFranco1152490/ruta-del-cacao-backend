@@ -4,17 +4,29 @@ from datetime import date
 
 from ..choices import ActivityType
 from ..exceptions import (
+    ActivityAlreadyDone,
+    ActivityOverdue,
     ActivityTypeNotAllowed,
     AssigneeNotAvailable,
     FarmInactive,
     InvalidActivity,
     PlotInactive,
 )
-from ..state import today_in_bogota
+from ..state import ActivityState, activity_state, can_edit, today_in_bogota
 from . import queries
 
 DESCRIPTION_MIN = 2
 DESCRIPTION_MAX = 80
+
+
+def ensure_still_planned(activity) -> None:
+    """Solo lo que todavía no ocurrió se edita o se elimina: una realizada ya no cambia, y una
+    vencida queda como evidencia de que no se cumplió a tiempo."""
+    state, _ = activity_state(activity, today_in_bogota())
+    if state == ActivityState.DONE:
+        raise ActivityAlreadyDone()
+    if not can_edit(state):
+        raise ActivityOverdue()
 
 
 def ensure_plot_open(plot) -> None:

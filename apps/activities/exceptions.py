@@ -63,6 +63,34 @@ class ActivityTypeNotAllowed(ApiError):
         super().__init__(fields={"activity_type": [self.default_detail]})
 
 
+class ActivityAlreadyDone(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Las actividades realizadas no se pueden modificar."
+    default_code = "activity_already_done"
+
+
+class ActivityOverdue(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Esta actividad venció y ya no se puede reprogramar. Si la labor se hizo, registra su "
+        "realización; si hay que hacerla, programa una nueva."
+    )
+    default_code = "activity_overdue"
+
+
+class StaleActivityVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Otra persona cambió esta actividad. Revisa los datos actuales antes de guardar."
+    )
+    default_code = "stale_version"
+
+    def __init__(self, current_activity):
+        # La vista la envía en `current` para que el formulario cargue los valores vigentes.
+        super().__init__()
+        self.current_activity = current_activity
+
+
 class AssigneeNotAvailable(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El responsable debe ser una cuenta activa del productor de la parcela."

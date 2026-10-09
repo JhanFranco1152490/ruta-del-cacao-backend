@@ -88,7 +88,10 @@ def delete_producer(actor, producer_id, expected_version: int) -> None:
         if reason:
             raise ProducerHasRecords(reason)
     counts = {dependent.name: dependent.count(producer) for dependent in dependents}
-    for dependent in dependents:
+    # Al revés de como se registraron: cada app se registra después de aquellas de las que
+    # depende, así que lo que apunta a las cuentas (el responsable de una labor, protegido) se va
+    # antes que ellas.
+    for dependent in reversed(dependents):
         dependent.delete_all(producer, actor)
     ProducerAuditEvent.objects.create(
         member_code=producer.member_code,

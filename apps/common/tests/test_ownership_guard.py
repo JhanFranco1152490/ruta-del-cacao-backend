@@ -23,7 +23,7 @@ def test_resource_services_do_not_filter_by_the_producer_of_the_actor_directly()
             relative = path.relative_to(APPS).as_posix()
             if relative in ALLOWED:
                 continue
-            for number, line in enumerate(path.read_text().splitlines(), start=1):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 if FORBIDDEN.search(line):
                     offenders.append(f"{relative}:{number}: {line.strip()}")
 

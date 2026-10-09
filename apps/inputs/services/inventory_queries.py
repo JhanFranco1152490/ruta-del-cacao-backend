@@ -14,10 +14,6 @@ def list_stocks(actor, farm_id) -> QuerySet[InputStock]:
     ).order_by("input__name_normalized", "input_id")
 
 
-def get_stock(item, farm) -> InputStock | None:
-    return InputStock.objects.filter(input=item, farm=farm).first()
-
-
 def list_movements(actor, input_id, farm_id) -> QuerySet[InputMovement]:
     """Los movimientos de un insumo en una finca, del más nuevo al más viejo. Un insumo o una finca
     ajenos o inexistentes son `404`."""

@@ -16,6 +16,9 @@ NOTE_MAX_LENGTH = 200
 # El mayor valor que cabe en una cantidad de inventario (12 dígitos con 3 decimales) sin llegar al
 # límite de la columna: lo que se acepta en una entrada o un conteo.
 QUANTITY_MAX = Decimal("9999999.999")
+# Lo que cabe en las columnas de cantidad (12 dígitos con 3 decimales): ni un movimiento ni el
+# saldo pueden pasarlo, o la base falla.
+STOCK_LIMIT = Decimal("999999999.999")
 
 
 class AgriculturalInput(models.Model):

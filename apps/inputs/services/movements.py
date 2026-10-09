@@ -24,6 +24,7 @@ from ..exceptions import (
 from ..models import (
     NOTE_MAX_LENGTH,
     QUANTITY_MAX,
+    STOCK_LIMIT,
     AgriculturalInput,
     InputMovement,
     InputStock,
@@ -99,6 +100,7 @@ def register_movement(actor, data: dict) -> tuple[InputMovement, InputStock, boo
             note=data.get("note", ""),
             actor=actor,
             movement_id=movement_id,
+            field="counted_quantity",
         )
     return movement, stock, True
 
@@ -109,6 +111,8 @@ def record_consumption(item, farm, quantity, occurred_on, note, actor) -> InputM
     `AgriculturalInput.record_consumption`."""
     if quantity <= 0:
         raise ValueError("The consumed quantity must be greater than zero.")
+    if item.producer_id != farm.producer_id:
+        raise ValueError("The input and the farm must belong to the same producer.")
     farm = _lock_farm(farm.pk)
     item = _lock_input(item.pk)
     stock = _locked_stock(item, farm)
@@ -133,8 +137,12 @@ def _apply(
     note,
     actor,
     movement_id=None,
+    field="quantity",
 ) -> InputMovement:
     """Crea el movimiento y lo suma a las existencias, ya bloqueadas."""
+    if abs(quantity) > STOCK_LIMIT or abs(stock.quantity + quantity) > STOCK_LIMIT:
+        message = "La cantidad deja las existencias fuera del rango permitido."
+        raise ValidationError({field: [message]})
     extra = {} if movement_id is None else {"id": movement_id}
     movement = InputMovement.objects.create(
         input_id=stock.input_id,

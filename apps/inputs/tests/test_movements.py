@@ -373,3 +373,36 @@ def test_a_count_concurrent_with_a_consumption_leaves_the_counted_quantity():
     assert stock_of(item, farm).quantity == total
     # O el conteo fue último (40) o la salida lo fue (30): nunca se pierde un movimiento.
     assert stock_of(item, farm).quantity in (Decimal("40.000"), Decimal("30.000"))
+
+
+def test_an_entry_that_would_overflow_the_stock_is_rejected_not_a_500(member, item, farm):
+    InputStock.objects.create(input=item, farm=farm, quantity=Decimal("999999999.000"))
+
+    with pytest.raises(ValidationError) as error:
+        register_movement(member, entry(item, farm, "1"))
+
+    assert "quantity" in error.value.detail
+    assert not InputMovement.objects.exists()
+    assert stock_of(item, farm).quantity == Decimal("999999999.000")
+
+
+def test_a_count_whose_difference_overflows_is_rejected_on_the_counted_field(member, item, farm):
+    InputStock.objects.create(input=item, farm=farm, quantity=Decimal("-999999999.000"))
+
+    with pytest.raises(ValidationError) as error:
+        register_movement(member, count(item, farm, "9999999"))
+
+    assert "counted_quantity" in error.value.detail
+
+
+def test_a_consumption_that_would_overflow_the_stock_is_rejected(member, item, farm):
+    InputStock.objects.create(input=item, farm=farm, quantity=Decimal("-999999999.000"))
+
+    with pytest.raises(ValidationError):
+        record_consumption(item, farm, Decimal("1"), TODAY, "", member)
+
+
+def test_a_consumption_with_a_farm_of_another_producer_is_a_programming_error(member, item):
+    with pytest.raises(ValueError):
+        record_consumption(item, FarmFactory(), Decimal("1"), TODAY, "", member)
+    assert not InputMovement.objects.exists()

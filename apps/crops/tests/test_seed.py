@@ -3,8 +3,8 @@ from importlib import import_module
 import pytest
 from django.apps import apps as installed_apps
 
+from apps.common.text import normalize_catalog_name
 from apps.crops.models import CacaoVariety
-from apps.crops.text import normalize_variety_name
 
 pytestmark = pytest.mark.django_db
 
@@ -59,7 +59,7 @@ def test_the_initial_catalog_has_the_authorized_clones_and_the_unknown_option(se
 
 def test_each_initial_variety_is_stored_with_its_normalized_name(seeded):
     for variety in CacaoVariety.objects.all():
-        assert variety.name_normalized == normalize_variety_name(variety.name)
+        assert variety.name_normalized == normalize_catalog_name(variety.name)
 
 
 def test_the_description_tells_origin_and_compatibility(seeded):

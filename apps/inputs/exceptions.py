@@ -62,3 +62,28 @@ class ProducerInactive(ApiError):
 
     def __init__(self):
         super().__init__(fields={"producer_id": [self.default_detail]})
+
+
+class FarmNotFound(ApiError):
+    # También cubre la finca de otro productor: responder distinto confirmaría que existe.
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "La finca no existe."
+    default_code = "not_found"
+
+
+class FarmInactive(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "La finca está inactiva: no se pueden registrar movimientos de inventario."
+    default_code = "farm_inactive"
+
+
+class InputInactive(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "El insumo está inactivo: no se pueden registrar entradas."
+    default_code = "input_inactive"
+
+
+class MovementIdConflict(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El identificador ya pertenece a otro movimiento."
+    default_code = "movement_id_conflict"

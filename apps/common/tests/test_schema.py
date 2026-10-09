@@ -138,6 +138,10 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/plot-characterizations/{id}"),
     ("get", "/api/plot-characterizations/{id}/history"),
     ("put", "/api/plot-characterizations/{id}"),
+    ("get", "/api/agricultural-inputs"),
+    ("post", "/api/agricultural-inputs"),
+    ("patch", "/api/agricultural-inputs/{id}"),
+    ("delete", "/api/agricultural-inputs/{id}"),
 }
 
 

@@ -4,7 +4,7 @@ from functools import partial
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, DecimalField, Q, QuerySet, Sum, Value
+from django.db.models import DecimalField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 from rest_framework.exceptions import ValidationError as FieldError
 
@@ -55,13 +55,6 @@ ALLOCATED_AREA = Coalesce(
     Value(Decimal("0")),
     output_field=DecimalField(max_digits=12, decimal_places=2),
 )
-# Lo que toda respuesta de una finca cuenta de sus parcelas: el área ya asignada y cuántas tiene,
-# activas e inactivas. Las dos recorren el mismo cruce con `plots` (una fila por parcela), así
-# que contar no multiplica la suma.
-PLOT_SUMMARY = {
-    "allocated_area_hectares": ALLOCATED_AREA,
-    "plot_count": Count("plots", distinct=True),
-}
 
 
 def filter_farms(farms, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
@@ -80,7 +73,7 @@ def filter_farms(farms, *, search=None, producer=None, municipality=None) -> Que
 def list_farms(actor, *, search=None, producer=None, municipality=None) -> QuerySet[Farm]:
     # Activas primero: la lista llega paginada, así que solo el servidor puede dejar las
     # inactivas al final de todas las páginas.
-    farms = readable_farms(actor).annotate(**PLOT_SUMMARY)
+    farms = readable_farms(actor).annotate(allocated_area_hectares=ALLOCATED_AREA)
     return filter_farms(
         farms, search=search, producer=producer, municipality=municipality
     ).order_by("-is_active", "name_normalized", "id")
@@ -88,7 +81,9 @@ def list_farms(actor, *, search=None, producer=None, municipality=None) -> Query
 
 def get_farm(actor, farm_id) -> Farm:
     try:
-        return readable_farms(actor).annotate(**PLOT_SUMMARY).get(pk=farm_id)
+        return (
+            readable_farms(actor).annotate(allocated_area_hectares=ALLOCATED_AREA).get(pk=farm_id)
+        )
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
 
@@ -148,7 +143,6 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
         return _resent_farm(existing, producer_id, data), False
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.CREATED)
     farm.allocated_area_hectares = Decimal("0")
-    farm.plot_count = 0
     return farm, True
 
 
@@ -160,7 +154,7 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
         raise FarmNotFound() from None
     # Con la finca bloqueada, ninguna parcela se registra ni se agranda hasta que esto termine.
     # La suma va en una consulta aparte: PostgreSQL no bloquea filas de una consulta agrupada.
-    _set_plot_summary(farm)
+    _set_allocated_area(farm)
     if check_expected_version(
         farm,
         expected_version,
@@ -207,7 +201,7 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
         farm = Farm.objects.select_for_update().get(pk=farm_id, **owner_filter(actor))
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
-    check_expected_version(farm, expected_version, stale=lambda: _stale_with_plot_summary(farm))
+    check_expected_version(farm, expected_version, stale=lambda: _stale_with_allocated_area(farm))
     remove_unimportant_farm(farm, actor)
 
 
@@ -237,7 +231,7 @@ def has_business_records(farm: Farm) -> bool:
 def _resent_farm(existing: Farm, producer_id, data: dict) -> Farm:
     if existing.producer_id != producer_id:
         raise FarmIdConflict()
-    _set_plot_summary(existing)
+    _set_allocated_area(existing)
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
     # después de una creación cuya respuesta se perdió. El conflicto lleva la finca del servidor
     # para que el cliente envíe esa edición como un PATCH con su versión, en vez de quedar
@@ -247,16 +241,16 @@ def _resent_farm(existing: Farm, producer_id, data: dict) -> Farm:
     return existing
 
 
-def _set_plot_summary(farm: Farm) -> None:
-    summary = Farm.objects.filter(pk=farm.pk).aggregate(**PLOT_SUMMARY)
-    for name, value in summary.items():
-        setattr(farm, name, value)
+def _set_allocated_area(farm: Farm) -> None:
+    farm.allocated_area_hectares = Farm.objects.filter(pk=farm.pk).aggregate(
+        allocated=ALLOCATED_AREA
+    )["allocated"]
 
 
-def _stale_with_plot_summary(farm: Farm) -> StaleFarmVersion:
-    # El conflicto devuelve la finca del servidor, con el resumen de sus parcelas como en toda
-    # respuesta de una finca.
-    _set_plot_summary(farm)
+def _stale_with_allocated_area(farm: Farm) -> StaleFarmVersion:
+    # El conflicto devuelve la finca del servidor, con su área asignada como en toda respuesta de
+    # una finca.
+    _set_allocated_area(farm)
     return StaleFarmVersion(farm)
 
 

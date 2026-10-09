@@ -145,7 +145,6 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
         "details": "Vereda El Pórtico, km 4",
         "area_hectares": "12.50",
         "allocated_area_hectares": "0.00",
-        "plot_count": 0,
         "altitude_masl": 950,
         "location": {"latitude": "7.8234567", "longitude": "-72.5123456"},
         "version": 1,

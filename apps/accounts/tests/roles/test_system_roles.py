@@ -156,3 +156,32 @@ def test_the_administrator_and_the_producer_can_delete_accounts(code):
 @pytest.mark.parametrize("code", [FOREMAN, QUALITY_MANAGER, SALES_MANAGER])
 def test_the_predefined_roles_cannot_delete_accounts(code):
     assert "accounts.users_delete" not in get_system_role(code).permission_codes
+
+
+INPUT_VIEW = "inputs.view_agriculturalinput"
+INPUT_ADD = "inputs.add_agriculturalinput"
+INPUT_CHANGE = "inputs.change_agriculturalinput"
+INPUT_DELETE = "inputs.delete_agriculturalinput"
+
+
+def _holders(permission):
+    return {
+        code
+        for code, definition in SYSTEM_ROLES.items()
+        if permission in definition["permissions"]
+    }
+
+
+@pytest.mark.parametrize("permission", [INPUT_VIEW, INPUT_ADD, INPUT_CHANGE])
+def test_the_producer_and_the_foreman_work_the_inputs_catalog(permission):
+    assert _holders(permission) == {PRODUCER, FOREMAN}
+
+
+def test_only_the_producer_deletes_inputs_and_can_delegate_it():
+    assert _holders(INPUT_DELETE) == {PRODUCER}
+
+
+@pytest.mark.parametrize("permission", [INPUT_VIEW, INPUT_ADD, INPUT_CHANGE, INPUT_DELETE])
+def test_the_inputs_permissions_are_delegable_and_the_association_has_none(permission):
+    assert is_delegable(permission)
+    assert ADMINISTRATOR not in _holders(permission)

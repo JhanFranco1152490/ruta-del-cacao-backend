@@ -9,6 +9,7 @@ from apps.farms.serializers import FarmProducerSerializer
 
 from .geometry import ADJUSTED_SOURCE
 from .models import Plot
+from .services.queries import CHARACTERIZATION_FILTERS, PLOT_ORDERINGS
 
 GPS_SOURCE = "gps"
 VERTEX_SOURCES = (GPS_SOURCE, "map", ADJUSTED_SOURCE)
@@ -106,6 +107,10 @@ class PlotDeleteQuerySerializer(serializers.Serializer):
 class PlotListQuerySerializer(serializers.Serializer):
     farm = serializers.UUIDField(required=False)
     producer = serializers.UUIDField(required=False)
+    characterization = serializers.ChoiceField(
+        choices=list(CHARACTERIZATION_FILTERS), required=False
+    )
+    ordering = serializers.ChoiceField(choices=list(PLOT_ORDERINGS), required=False)
     is_active = serializers.BooleanField(required=False)
     search = serializers.CharField(required=False, allow_blank=True)
 

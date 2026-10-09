@@ -164,8 +164,14 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   en `fields.plantings` y no un `404`: la cola lee un `404` como registro eliminado y descartaría
   la ficha. Más de 10.000 árboles/ha sobre el área declarada de la parcela es `422
   density_too_high` (1 m² por árbol: atrapa el cero de más sin bloquear siembras reales). El
-  listado (`GET /api/plot-characterizations?farm=`) exige `farm` y no se pagina. Consultar pide
-  `plots.view_plot`; la asociación no lee fichas.
+  listado (`GET /api/plot-characterizations`) exige `farm`, `plots` (ids separados por coma,
+  hasta 100) o los dos, y no se pagina. Consultar pide `plots.view_plot`; la asociación no lee
+  fichas.
+- **La lista de parcelas** (`GET /api/plots`) filtra por `characterization` (`done` o `pending`)
+  y trae `characterization_counts` (`{done, pending}`) junto a `count`, calculados con todos los
+  filtros menos ese, para el contador de la interfaz. `ordering` es `code` o
+  `producer,farm,code` (para agrupar), con desempate por id en cada nivel. La ficha se alcanza por
+  la relación inversa `characterization`, sin que `plots` importe nada de `crops`.
 - **El historial de una ficha** (`GET /api/plot-characterizations/{id}/history`, paginado, de la
   versión más nueva a la más vieja) devuelve, por versión, `version`, quién la guardó
   (`actor_name`, `null` si la cuenta se eliminó), los campos que cambió y los valores que dejó

@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 APPS = Path(__file__).resolve().parents[2]
-RESOURCE_SERVICES = ("farms/services", "plots/services", "crops/services")
+RESOURCE_SERVICES = ("farms/services", "plots/services", "crops/services", "inputs/services")
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin
 # alcanzarlo: ella no tiene productor propio. Esos servicios usan `owner_filter` y `owns`
 # (`apps/common/ownership.py`), que ya la excluyen de la restricción.

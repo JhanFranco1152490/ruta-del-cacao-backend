@@ -7,6 +7,7 @@ REQUIRED_ON_PATCH = {
     "PatchedProducerStatusRequest": ["status", "expected_version"],
     "PatchedFarmUpdateRequest": ["expected_version"],
     "PatchedPlotUpdateRequest": ["expected_version"],
+    "PatchedActivityUpdateRequest": ["expected_version"],
 }
 
 

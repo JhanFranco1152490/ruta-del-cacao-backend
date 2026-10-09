@@ -230,6 +230,13 @@ SPECTACULAR_SETTINGS = {
         "drf_spectacular.hooks.postprocess_schema_enums",
         "apps.common.schema.require_patch_body_fields",
     ],
+    # Varios recursos tienen un campo `status` con opciones distintas. Sin un nombre fijo,
+    # spectacular renombra alguno con un sufijo generado (`StatusFfeEnum`) cada vez que aparece
+    # otro, y los tipos que el frontend genera del esquema dejan de compilar.
+    "ENUM_NAME_OVERRIDES": {
+        "StatusEnum": "apps.producers.models.Producer.Status",
+        "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
+    },
 }
 
 SIMPLE_JWT = {

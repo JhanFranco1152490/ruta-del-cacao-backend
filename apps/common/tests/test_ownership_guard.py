@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 APPS = Path(__file__).resolve().parents[2]
-RESOURCE_SERVICES = ("farms/services", "plots/services", "crops/services")
+RESOURCE_SERVICES = ("farms/services", "plots/services", "crops/services", "activities/services")
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin
 # alcanzarlo: ella no tiene productor propio. Esos servicios usan `owner_filter` y `owns`
 # (`apps/common/ownership.py`), que ya la excluyen de la restricción.
@@ -12,6 +12,10 @@ ALLOWED: dict[str, str] = {
     "farms/services/scope.py": (
         "`readable_farms` devuelve todas las fincas a la cuenta técnica y a la asociación antes "
         "de llegar a la línea que filtra por el productor propio"
+    ),
+    "activities/services/queries.py": (
+        "`assignee_options` atiende primero a la cuenta técnica (que elige el productor) y solo "
+        "después toma el productor propio de las demás cuentas"
     ),
 }
 

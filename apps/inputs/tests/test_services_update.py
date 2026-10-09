@@ -113,30 +113,29 @@ def test_a_name_of_another_input_of_the_same_type_is_a_duplicate(member, produce
     assert events(item).count() == 0
 
 
-def test_changing_to_another_unit_clears_the_bag_weight(member, producer):
-    bag = AgriculturalInputFactory(producer=producer, unit="bag", bag_weight_kg=Decimal("50"))
+def test_the_package_can_be_added_changed_and_removed(member, item):
+    added = update_input(
+        member, item.pk, 1, {"package_type": "sack", "package_size": Decimal("50")}
+    )
+    assert (added.package_type, added.package_size) == ("sack", Decimal("50.000"))
+    assert events(item).get().changes["package_size"] == {"before": None, "after": "50.000"}
 
-    updated = update_input(member, bag.pk, 1, {"unit": "kg"})
+    changed = update_input(member, item.pk, 2, {"package_size": Decimal("46")})
+    assert changed.package_size == Decimal("46.000")
 
-    assert updated.bag_weight_kg is None
-    assert events(bag).get().changes["bag_weight_kg"] == {"before": "50.00", "after": None}
+    removed = update_input(member, item.pk, 3, {"package_type": None, "package_size": None})
+    assert (removed.package_type, removed.package_size) == (None, None)
 
 
-def test_changing_to_a_bag_needs_its_weight(member, item):
+def test_removing_only_half_of_the_package_is_rejected(member, producer):
+    packed = AgriculturalInputFactory(
+        producer=producer, package_type="tub", package_size=Decimal("100"), unit="ml"
+    )
+
     with pytest.raises(Exception) as error:
-        update_input(member, item.pk, 1, {"unit": "bag"})
+        update_input(member, packed.pk, 1, {"package_type": None})
 
-    assert "bag_weight_kg" in error.value.message_dict
-
-    updated = update_input(member, item.pk, 1, {"unit": "bag", "bag_weight_kg": Decimal("40")})
-    assert (updated.unit, updated.bag_weight_kg) == ("bag", Decimal("40.00"))
-
-
-def test_a_weight_with_a_unit_that_is_not_a_bag_is_rejected(member, item):
-    with pytest.raises(Exception) as error:
-        update_input(member, item.pk, 1, {"bag_weight_kg": Decimal("10")})
-
-    assert "bag_weight_kg" in error.value.message_dict
+    assert "package_type" in error.value.message_dict
 
 
 def test_the_unit_is_locked_once_the_input_is_used(member, used_input):
@@ -151,14 +150,15 @@ def test_the_unit_is_locked_once_the_input_is_used(member, used_input):
     assert used_input.unit == "kg"
 
 
-def test_the_bag_weight_is_locked_once_the_input_is_used(member, producer, input_usage_table):
-    bag = AgriculturalInputFactory(producer=producer, unit="bag", bag_weight_kg=Decimal("50"))
-    input_usage_table(bag)
+def test_the_package_can_change_even_when_the_input_is_used(member, producer, input_usage_table):
+    used = AgriculturalInputFactory(
+        producer=producer, unit="ml", package_type="tub", package_size=Decimal("100")
+    )
+    input_usage_table(used)
 
-    with pytest.raises(InputUnitLocked) as error:
-        update_input(member, bag.pk, 1, {"bag_weight_kg": Decimal("40")})
+    updated = update_input(member, used.pk, 1, {"package_type": "bottle", "package_size": "250"})
 
-    assert "bag_weight_kg" in error.value.fields
+    assert (updated.package_type, updated.package_size) == ("bottle", Decimal("250.000"))
 
 
 def test_name_type_and_status_can_change_on_a_used_input(member, producer, input_usage_table):

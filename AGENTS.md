@@ -52,7 +52,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
-| `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y peso del bulto): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado |
+| `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -188,11 +188,12 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   dispositivo. Los permisos son `inputs.{view,add,change,delete}_agriculturalinput`, delegables; el
   Capataz/Operario recibe los tres primeros y la asociación ninguno (`403`). Un insumo de otro
   productor es `404`. El nombre se compara sin mayúsculas, tildes, espacios ni guiones, dentro del
-  mismo tipo (`409 duplicate_input` con el existente en `existing`, también si está inactivo). Un
-  bulto lleva su peso en kg (`bag_weight_kg`, de 1 a 100), que es `null` con cualquier otra unidad y
-  se borra solo al dejar de ser bulto. `has_records` dice si algo lo usa, recorriendo las relaciones
-  del modelo (`usage.py`) sin que `inputs` conozca a las demás apps: mientras sea cierto, la unidad y
-  el peso no cambian (`422 input_unit_locked`) y el insumo no se elimina (`409 input_has_records`);
+  mismo tipo (`409 duplicate_input` con el existente en `existing`, también si está inactivo). La
+  unidad es kg, g, l, ml o unidades; la presentación (`package_type` y `package_size`, de 0,001 a
+  100.000) es opcional, va completa o no va y se quita enviando los dos en `null`. `has_records` dice
+  si algo lo usa, recorriendo las relaciones del modelo (`usage.py`) sin que `inputs` conozca a las
+  demás apps: mientras sea cierto, la unidad no cambia (`422 input_unit_locked`; la presentación sí)
+  y el insumo no se elimina (`409 input_has_records`);
   una tabla nueva que apunte a un insumo usa `PROTECT` y bloquea la fila del insumo al guardar.
   Registrar es solo en línea (el servidor genera el `id`) y `POST` acepta `producer_id` solo de la
   cuenta técnica (`422 producer_inactive` si el productor está inactivo). Eliminar lleva

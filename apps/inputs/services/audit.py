@@ -7,9 +7,9 @@ from ..models import AgriculturalInput, AgriculturalInputAuditEvent
 
 
 def api_value(value):
-    """El valor como lo ve la API: el peso en texto con dos decimales, el resto tal cual."""
+    """El valor como lo ve la API: el contenido en texto con tres decimales, el resto tal cual."""
     if isinstance(value, Decimal):
-        return f"{value:.2f}"
+        return f"{value:.3f}"
     return value
 
 

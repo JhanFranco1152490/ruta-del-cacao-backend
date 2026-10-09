@@ -8,7 +8,7 @@ from ..models import AgriculturalInput, AgriculturalInputAuditEvent
 from .audit import record_input_audit_event
 
 NAME_UNIQUE_CONSTRAINT = "inputs_input_producer_type_name_unique"
-CONTENT_FIELDS = ("name", "input_type", "unit", "bag_weight_kg", "is_active")
+CONTENT_FIELDS = ("name", "input_type", "unit", "package_type", "package_size", "is_active")
 
 
 def existing_duplicate(item: AgriculturalInput) -> AgriculturalInput | None:

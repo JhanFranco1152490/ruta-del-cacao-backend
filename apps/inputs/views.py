@@ -57,8 +57,9 @@ from .services import create_input, delete_input, get_input, list_inputs, update
         description=(
             "Edición parcial, incluida la activación o desactivación con `is_active`. Requiere "
             "`expected_version`; si el insumo cambió, 409 `stale_version` con el vigente en "
-            "`current`. La unidad y el peso del bulto no cambian cuando el insumo ya se usó "
-            "(422 `input_unit_locked`)."
+            "`current`. La unidad no cambia cuando el insumo ya tiene registros (422 "
+            "`input_unit_locked`). Para quitar la presentación se envían `package_type` y "
+            "`package_size` en `null`."
         ),
         request=AgriculturalInputUpdateSerializer,
         responses={

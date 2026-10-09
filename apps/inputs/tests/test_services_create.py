@@ -40,7 +40,9 @@ def test_creates_an_active_input_in_the_catalog_of_the_producer(member, producer
 
 
 def test_leaves_a_created_event_with_every_field_and_no_previous_value(member):
-    item = create_input(member, input_data(unit="bag", bag_weight_kg=Decimal("50")))
+    item = create_input(
+        member, input_data(unit="ml", package_type="tub", package_size=Decimal("100"))
+    )
 
     event = AgriculturalInputAuditEvent.objects.get()
     assert (event.action, event.actor_id, event.input_id, event.version) == (
@@ -50,8 +52,9 @@ def test_leaves_a_created_event_with_every_field_and_no_previous_value(member):
         1,
     )
     assert event.changes["name"] == {"before": None, "after": "Urea 46 %"}
-    assert event.changes["bag_weight_kg"] == {"before": None, "after": "50.00"}
-    assert event.changes["unit"] == {"before": None, "after": "bag"}
+    assert event.changes["package_type"] == {"before": None, "after": "tub"}
+    assert event.changes["package_size"] == {"before": None, "after": "100.000"}
+    assert event.changes["unit"] == {"before": None, "after": "ml"}
 
 
 def test_a_name_that_only_differs_in_case_accents_spaces_or_dashes_is_a_duplicate(
@@ -94,9 +97,9 @@ def test_the_same_name_with_another_type_or_another_producer_is_accepted(member)
 
 def test_an_invalid_input_is_not_saved(member):
     with pytest.raises(Exception) as error:
-        create_input(member, input_data(unit="bag"))
+        create_input(member, input_data(package_type="tub"))
 
-    assert "bag_weight_kg" in error.value.message_dict
+    assert "package_size" in error.value.message_dict
     assert AgriculturalInput.objects.count() == 0
 
 

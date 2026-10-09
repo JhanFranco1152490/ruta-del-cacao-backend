@@ -14,8 +14,9 @@ from ..usage import is_used
 from .audit import record_input_audit_event
 from .create import CONTENT_FIELDS, NAME_UNIQUE_CONSTRAINT, duplicate_error
 
-# Cambiarlos cambiaría lo que significan las cantidades ya registradas.
-LOCKED_WHEN_USED = ("unit", "bag_weight_kg")
+# Cambiarla cambiaría lo que significan las cantidades ya registradas. La presentación no: solo
+# cambia cómo se muestran y se capturan.
+LOCKED_WHEN_USED = ("unit",)
 
 
 @transaction.atomic
@@ -70,13 +71,6 @@ def update_input(actor, input_id, expected_version: int, data: dict) -> Agricult
 def _apply(item: AgriculturalInput, data: dict) -> None:
     for name, value in data.items():
         setattr(item, name, value)
-    # Al dejar de ser bulto el peso deja de tener sentido: no hace falta que el cliente lo borre.
-    if (
-        "unit" in data
-        and data["unit"] != AgriculturalInput.Unit.BAG
-        and "bag_weight_kg" not in data
-    ):
-        item.bag_weight_kg = None
 
 
 def _already_applied(item: AgriculturalInput, data: dict) -> bool:

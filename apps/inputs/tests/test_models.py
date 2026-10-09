@@ -40,43 +40,53 @@ def test_name_outside_2_to_80_characters_or_without_content_is_rejected(name):
     assert "name" in error.value.message_dict
 
 
-def test_a_bag_needs_its_weight():
+def test_a_package_needs_its_size_and_a_size_needs_its_package():
+    with pytest.raises(ValidationError) as no_size:
+        clean(build(package_type="tub"))
+    with pytest.raises(ValidationError) as no_type:
+        clean(build(package_size=Decimal("100")))
+
+    assert "package_size" in no_size.value.message_dict
+    assert "package_type" in no_type.value.message_dict
+
+
+@pytest.mark.parametrize("size", ["0", "0.0009", "100000.001"])
+def test_the_package_size_must_be_between_0_001_and_100000(size):
+    with pytest.raises(ValidationError) as error:
+        clean(build(package_type="tub", package_size=Decimal(size)))
+
+    assert "package_size" in error.value.message_dict
+
+
+@pytest.mark.parametrize("size", ["0.001", "3.785", "100000"])
+def test_a_package_accepts_the_limits_and_three_decimals(size):
+    clean(build(package_type="gallon", package_size=Decimal(size)))
+
+
+def test_a_package_type_outside_the_options_is_rejected():
+    with pytest.raises(ValidationError) as error:
+        clean(build(package_type="pallet", package_size=Decimal("1")))
+
+    assert "package_type" in error.value.message_dict
+
+
+def test_the_unit_cannot_be_a_bag_anymore():
     with pytest.raises(ValidationError) as error:
         clean(build(unit="bag"))
 
-    assert "bag_weight_kg" in error.value.message_dict
+    assert "unit" in error.value.message_dict
 
 
-@pytest.mark.parametrize("weight", ["0", "0.99", "100.01"])
-def test_the_weight_of_a_bag_must_be_between_1_and_100(weight):
-    with pytest.raises(ValidationError) as error:
-        clean(build(unit="bag", bag_weight_kg=Decimal(weight)))
-
-    assert "bag_weight_kg" in error.value.message_dict
-
-
-@pytest.mark.parametrize("weight", ["1", "50", "100"])
-def test_a_bag_accepts_the_limits(weight):
-    clean(build(unit="bag", bag_weight_kg=Decimal(weight)))
-
-
-def test_a_weight_with_another_unit_is_rejected():
-    with pytest.raises(ValidationError) as error:
-        clean(build(unit="kg", bag_weight_kg=Decimal("50")))
-
-    assert "bag_weight_kg" in error.value.message_dict
-
-
-def test_the_database_requires_the_weight_exactly_for_bags():
+def test_the_database_requires_the_package_type_and_size_together():
     with pytest.raises(IntegrityError), transaction.atomic():
-        AgriculturalInputFactory(unit="bag")
+        AgriculturalInputFactory(package_type="tub")
     with pytest.raises(IntegrityError), transaction.atomic():
-        AgriculturalInputFactory(unit="kg", bag_weight_kg=Decimal("50"))
+        AgriculturalInputFactory(package_size=Decimal("100"))
 
 
-def test_the_database_rejects_a_weight_out_of_range():
+def test_the_database_rejects_a_package_size_out_of_range():
     with pytest.raises(IntegrityError), transaction.atomic():
-        AgriculturalInputFactory(unit="bag", bag_weight_kg=Decimal("100.50"))
+        AgriculturalInputFactory(package_type="tub", package_size=Decimal("100000.5"))
 
 
 def test_name_and_type_are_unique_per_producer_once_normalized():

@@ -48,7 +48,7 @@ class InputHasRecords(ApiError):
 
 class InputUnitLocked(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    default_detail = "No se puede cambiar: el insumo ya se usó en registros."
+    default_detail = "No se puede cambiar: el insumo ya tiene movimientos o se usó en registros."
     default_code = "input_unit_locked"
 
     def __init__(self, field: str):

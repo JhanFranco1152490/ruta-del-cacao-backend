@@ -10,14 +10,14 @@ from apps.common.text import normalize_catalog_name
 
 NAME_MIN_LENGTH = 2
 NAME_MAX_LENGTH = 80
-BAG_WEIGHT_MIN = Decimal("1")
-BAG_WEIGHT_MAX = Decimal("100")
+PACKAGE_SIZE_MIN = Decimal("0.001")
+PACKAGE_SIZE_MAX = Decimal("100000")
 
 
 class AgriculturalInput(models.Model):
     """Un insumo del catálogo de un productor, compartido por todas sus fincas. La unidad es la
-    de las cantidades que se registren con él; un bulto lleva además su peso, porque cambia según
-    el producto y sin él las cantidades en bultos no se podrían comparar ni sumar."""
+    de las cantidades que se registren con él; la presentación (empaque y contenido) solo ayuda a
+    capturar y a mostrar esas cantidades."""
 
     class InputType(models.TextChoices):
         FERTILIZER = "fertilizer", "Fertilizante"
@@ -31,8 +31,19 @@ class AgriculturalInput(models.Model):
         G = "g", "Gramos"
         L = "l", "Litros"
         ML = "ml", "Mililitros"
-        BAG = "bag", "Bulto"
         UNIT = "unit", "Unidades"
+
+    class PackageType(models.TextChoices):
+        # Lista fija para que la interfaz sepa escribir el plural (potes, galones).
+        SACK = "sack", "Bulto"
+        BAG = "bag", "Bolsa"
+        TUB = "tub", "Pote"
+        FLASK = "flask", "Frasco"
+        BOTTLE = "bottle", "Botella"
+        GALLON = "gallon", "Galón"
+        DRUM = "drum", "Caneca"
+        BOX = "box", "Caja"
+        SACHET = "sachet", "Sobre"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     producer = models.ForeignKey(
@@ -45,12 +56,17 @@ class AgriculturalInput(models.Model):
     name_normalized = models.CharField(max_length=240, editable=False)
     input_type = models.CharField(max_length=32, choices=InputType.choices)
     unit = models.CharField(max_length=8, choices=Unit.choices)
-    bag_weight_kg = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
+    # Cómo se compra el insumo (un pote de 100 mL): no cambia lo que se cuenta, que va en la
+    # unidad. Los dos van juntos o ninguno.
+    package_type = models.CharField(
+        max_length=16, choices=PackageType.choices, null=True, blank=True
+    )
+    package_size = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
         null=True,
         blank=True,
-        validators=[MinValueValidator(BAG_WEIGHT_MIN), MaxValueValidator(BAG_WEIGHT_MAX)],
+        validators=[MinValueValidator(PACKAGE_SIZE_MIN), MaxValueValidator(PACKAGE_SIZE_MAX)],
     )
     is_active = models.BooleanField(default=True)
     version = models.PositiveIntegerField(default=1)
@@ -66,17 +82,17 @@ class AgriculturalInput(models.Model):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(unit="bag", bag_weight_kg__isnull=False)
-                    | (~models.Q(unit="bag") & models.Q(bag_weight_kg__isnull=True))
+                    models.Q(package_type__isnull=False, package_size__isnull=False)
+                    | models.Q(package_type__isnull=True, package_size__isnull=True)
                 ),
-                name="inputs_input_bag_weight_iff_bag",
+                name="inputs_input_package_both_or_none",
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    bag_weight_kg__gte=BAG_WEIGHT_MIN, bag_weight_kg__lte=BAG_WEIGHT_MAX
+                    package_size__gte=PACKAGE_SIZE_MIN, package_size__lte=PACKAGE_SIZE_MAX
                 )
-                | models.Q(bag_weight_kg__isnull=True),
-                name="inputs_input_bag_weight_range",
+                | models.Q(package_size__isnull=True),
+                name="inputs_input_package_size_range",
             ),
         ]
         default_permissions = ()
@@ -109,10 +125,10 @@ class AgriculturalInput(models.Model):
             errors["name"] = (
                 f"El nombre debe tener entre {NAME_MIN_LENGTH} y {NAME_MAX_LENGTH} caracteres."
             )
-        if self.unit == self.Unit.BAG and self.bag_weight_kg is None:
-            errors["bag_weight_kg"] = "El peso del bulto es obligatorio."
-        elif self.unit != self.Unit.BAG and self.bag_weight_kg is not None:
-            errors["bag_weight_kg"] = "Solo un bulto lleva peso."
+        if self.package_type is None and self.package_size is not None:
+            errors["package_type"] = "El empaque es obligatorio si hay contenido."
+        elif self.package_type is not None and self.package_size is None:
+            errors["package_size"] = "El contenido es obligatorio si hay empaque."
         if errors:
             raise ValidationError(errors)
 

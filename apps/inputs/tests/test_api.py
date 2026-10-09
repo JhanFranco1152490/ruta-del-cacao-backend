@@ -112,9 +112,11 @@ def test_list_returns_the_whole_catalog_ordered_by_name_without_pagination(
 
 
 def test_the_representation_has_the_documented_shape(auth_client, owner, producer):
-    bag = AgriculturalInputFactory(producer=producer, unit="bag", bag_weight_kg=Decimal("50"))
+    packed = AgriculturalInputFactory(
+        producer=producer, unit="ml", package_type="tub", package_size=Decimal("100")
+    )
 
-    row = auth_client(owner).get(detail(bag)).data
+    row = auth_client(owner).get(detail(packed)).data
 
     assert set(row) == {
         "id",
@@ -122,14 +124,15 @@ def test_the_representation_has_the_documented_shape(auth_client, owner, produce
         "name",
         "input_type",
         "unit",
-        "bag_weight_kg",
+        "package_type",
+        "package_size",
         "is_active",
         "has_records",
         "version",
         "created_at",
         "updated_at",
     }
-    assert row["bag_weight_kg"] == "50.00"
+    assert (row["package_type"], row["package_size"]) == ("tub", "100.000")
     assert row["has_records"] is False
     assert row["producer"] == {
         "id": str(producer.pk),
@@ -193,13 +196,13 @@ def test_a_malformed_producer_filter_is_a_validation_error(auth_client, owner):
 
 def test_create_returns_201_with_location_and_the_input(auth_client, owner, producer):
     response = auth_client(owner).post(
-        URL, input_data(unit="bag", bag_weight_kg="50"), format="json"
+        URL, input_data(unit="ml", package_type="tub", package_size="100"), format="json"
     )
 
     assert response.status_code == 201
     created = AgriculturalInput.objects.get()
     assert response["Location"] == detail(created)
-    assert response.data["bag_weight_kg"] == "50.00"
+    assert response.data["package_size"] == "100.000"
     assert (response.data["version"], response.data["is_active"]) == (1, True)
     assert created.producer_id == producer.pk
     assert AgriculturalInputAuditEvent.objects.get().action == "created"
@@ -217,10 +220,13 @@ def test_create_returns_201_with_location_and_the_input(auth_client, owner, prod
         ({"input_type": "herbicide"}, "input_type"),
         ({"unit": None}, "unit"),
         ({"unit": "gallon"}, "unit"),
-        ({"unit": "bag"}, "bag_weight_kg"),
-        ({"unit": "bag", "bag_weight_kg": "0.5"}, "bag_weight_kg"),
-        ({"unit": "bag", "bag_weight_kg": "100.5"}, "bag_weight_kg"),
-        ({"unit": "kg", "bag_weight_kg": "50"}, "bag_weight_kg"),
+        ({"unit": "bag"}, "unit"),
+        ({"package_type": "tub"}, "package_size"),
+        ({"package_size": "100"}, "package_type"),
+        ({"package_type": "pallet", "package_size": "1"}, "package_type"),
+        ({"package_type": "tub", "package_size": "0.0005"}, "package_size"),
+        ({"package_type": "tub", "package_size": "100000.5"}, "package_size"),
+        ({"package_type": "tub", "package_size": "1.2345"}, "package_size"),
         ({"version": 3}, "version"),
         ({"is_active": False}, "is_active"),
         ({"producer_id": "6f1a7e0e-0000-4000-8000-000000000000"}, "producer_id"),
@@ -315,7 +321,7 @@ def test_patch_can_deactivate_and_reactivate(auth_client, owner, item):
         ({"name": "Urea 2"}, "expected_version"),
         ({"expected_version": 1}, None),
         ({"name": "", "expected_version": 1}, "name"),
-        ({"unit": "bag", "expected_version": 1}, "bag_weight_kg"),
+        ({"package_type": "tub", "expected_version": 1}, "package_size"),
         ({"producer_id": "x", "name": "Urea 2", "expected_version": 1}, "producer_id"),
         ({"version": 1, "name": "Urea 2", "expected_version": 1}, "version"),
     ],
@@ -419,3 +425,18 @@ def test_delete_of_a_used_input_answers_409(auth_client, owner, producer, input_
     assert response.status_code == 409
     assert response.data["code"] == "input_has_records"
     assert AgriculturalInput.objects.filter(pk=used.pk).exists()
+
+
+def test_patch_removes_the_package_with_both_fields_in_null(auth_client, owner, producer):
+    packed = AgriculturalInputFactory(
+        producer=producer, unit="ml", package_type="tub", package_size=Decimal("100")
+    )
+
+    response = auth_client(owner).patch(
+        detail(packed),
+        {"package_type": None, "package_size": None, "expected_version": 1},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert (response.data["package_type"], response.data["package_size"]) == (None, None)

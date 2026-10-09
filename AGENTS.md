@@ -52,6 +52,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
+| `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y peso del bulto): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -97,12 +98,13 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
-  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity` (409);
+  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
+  `duplicate_input`, `input_has_records` (409);
   `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
   `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive`,
-  `density_too_high` (422);
+  `density_too_high`, `input_unit_locked`, `producer_inactive` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en
@@ -181,6 +183,24 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   Unicode): `CCN-51`, `CCN 51` y `ccn51` son la misma variedad. Cada variedad tiene además hasta
   5 nombres comunes (`common_names`), que **sí se repiten entre variedades** (de un mismo lugar
   salen varios clones: "Saravena" son los tres FSA) y que la búsqueda también compara.
+- **El catálogo de insumos** (`/api/agricultural-inputs`) es de cada productor y se entrega completo,
+  activos e inactivos, en `{"results": [...]}` sin paginar: la búsqueda y los filtros corren en el
+  dispositivo. Los permisos son `inputs.{view,add,change,delete}_agriculturalinput`, delegables; el
+  Capataz/Operario recibe los tres primeros y la asociación ninguno (`403`). Un insumo de otro
+  productor es `404`. El nombre se compara sin mayúsculas, tildes, espacios ni guiones, dentro del
+  mismo tipo (`409 duplicate_input` con el existente en `existing`, también si está inactivo). Un
+  bulto lleva su peso en kg (`bag_weight_kg`, de 1 a 100), que es `null` con cualquier otra unidad y
+  se borra solo al dejar de ser bulto. `has_records` dice si algo lo usa, recorriendo las relaciones
+  del modelo (`usage.py`) sin que `inputs` conozca a las demás apps: mientras sea cierto, la unidad y
+  el peso no cambian (`422 input_unit_locked`) y el insumo no se elimina (`409 input_has_records`);
+  una tabla nueva que apunte a un insumo usa `PROTECT` y bloquea la fila del insumo al guardar.
+  Registrar es solo en línea (el servidor genera el `id`) y `POST` acepta `producer_id` solo de la
+  cuenta técnica (`422 producer_inactive` si el productor está inactivo). Eliminar lleva
+  `expected_version` en la URL; los insumos de un productor creado por error se eliminan con él.
+- **El historial de un insumo** (`AgriculturalInputAuditEvent`) guarda por cada campo cambiado su
+  valor anterior y nuevo (`changes`), a diferencia de los demás historiales: un insumo no tiene datos
+  personales. Es de solo lectura y solo para superusuarios en el admin, y el evento `deleted` guarda
+  `input_ref` e `input_name` para sobrevivir al insumo.
 - **Esquema OpenAPI** con `drf-spectacular`: `GET /api/schema` y Swagger en `/api/docs`, **solo
   con `DEBUG=True`**. Las vistas declaran sus respuestas de error con `error_responses(...)`
   (`apps/common/schema.py`) para que el esquema traiga la forma estándar. El frontend debe
@@ -220,8 +240,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   Una prueba (`apps/common/tests/test_ownership_guard.py`) falla si un servicio de fincas, parcelas o
   fichas filtra directo por el productor del actor. Lo que se crea y no cuelga de nada que ya exista
   lleva el productor en el cuerpo: `POST /api/farms` acepta `producer_id` **solo** de la cuenta
-  técnica (y debe existir y estar activo); de cualquier otra cuenta es un `400`. La auditoría registra
-  siempre a quien actuó.
+  técnica (y debe existir y estar activo); de cualquier otra cuenta es un `400`. Insumos hace lo mismo y comparte `resolve_target_producer`
+  (`apps/common/ownership.py`). La auditoría registra siempre a quien actuó.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché
@@ -273,6 +293,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Historial de las fichas** (`PlotCharacterizationAuditEvent`): de solo lectura y solo para
   superusuarios. El admin no filtra por productor, así que con `plots.view_plot` un empleado
   vería las fichas de todos, y la asociación no lee fichas.
+- **Historial de los insumos** (`AgriculturalInputAuditEvent`): de solo lectura y solo para
+  superusuarios, por la misma razón: el admin no filtra por productor. Se ve el valor anterior y
+  nuevo de cada campo cambiado.
 
 ## Variables de entorno
 

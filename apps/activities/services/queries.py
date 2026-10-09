@@ -10,7 +10,7 @@ from django.db.models import QuerySet
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 
-from ..exceptions import ActivityNotFound, PlotNotFound
+from ..exceptions import ActivityNotFound, InvalidActivity, PlotNotFound
 from ..models import AgriculturalActivity
 
 # Los modelos de la parcela y de la cuenta se toman de las relaciones y no de sus apps: ninguna
@@ -23,6 +23,13 @@ def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
     return AgriculturalActivity.objects.filter(
         **owner_filter(actor, "plot__farm__producer_id")
     ).select_related("plot__farm", "assignee", "completed_by")
+
+
+def get_activity(actor, activity_id) -> AgriculturalActivity:
+    activity = visible_activities(actor).filter(pk=activity_id).first()
+    if activity is None:
+        raise ActivityNotFound()
+    return activity
 
 
 def lock_activity(actor, activity_id) -> AgriculturalActivity:
@@ -50,6 +57,35 @@ def lock_plot(actor, plot_id):
     )
     plot.farm = farm
     return plot
+
+
+def assignee_options(actor, producer_id=None) -> list[dict]:
+    """Las cuentas a las que se les puede asignar una labor: las del productor (su cuenta y sus
+    empleados), activas e inactivas. Las inactivas sirven para filtrar y para mostrar labores
+    viejas; el formulario solo ofrece las activas.
+
+    Solo el id, el nombre y si está activa: es lo mínimo para asignar una labor, y quien la asigna
+    no tiene por qué ver el correo ni el documento de sus compañeros. La cuenta técnica dice de
+    qué productor; de cualquier otra cuenta `producer_id` se ignora.
+    """
+    if actor.is_superuser:
+        if producer_id is None:
+            raise InvalidActivity("producer", "Indica de qué productor son los responsables.")
+    else:
+        producer_id = actor.producer_id
+    if producer_id is None:
+        return []
+    accounts = User.objects.filter(producer_id=producer_id, is_superuser=False).order_by(
+        "last_name", "first_name", "id"
+    )
+    return [
+        {
+            "id": account.pk,
+            "full_name": account.get_full_name() or account.email,
+            "is_active": account.is_active,
+        }
+        for account in accounts
+    ]
 
 
 def assignable_account(producer_id, account_id):

@@ -52,7 +52,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
-| `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado |
+| `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -99,12 +99,12 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
   `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
-  `duplicate_input`, `input_has_records` (409);
+  `duplicate_input`, `input_has_records`, `movement_id_conflict` (409);
   `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
   `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive`,
-  `density_too_high`, `input_unit_locked`, `producer_inactive` (422);
+  `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en
@@ -198,6 +198,21 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   Registrar es solo en línea (el servidor genera el `id`) y `POST` acepta `producer_id` solo de la
   cuenta técnica (`422 producer_inactive` si el productor está inactivo). Eliminar lleva
   `expected_version` en la URL; los insumos de un productor creado por error se eliminan con él.
+- **El inventario de insumos** se lleva por finca. `InputStock` es el saldo de un insumo en una finca
+  (puede ser negativo: faltan entradas por registrar) y `InputMovement`, cada movimiento: entrada,
+  conteo o salida por actividad. El saldo siempre es la suma de los `quantity` de sus movimientos,
+  y los movimientos no se editan ni se borran: un error se corrige con un conteo. Todo pasa por
+  `services/movements.py`, que bloquea siempre en el mismo orden (finca, insumo, existencias).
+  `GET /api/input-stocks?farm=` (sin paginar; finca ajena, lista vacía) y `GET
+  /api/input-movements?input=&farm=` (paginado; ajenos, `404`) piden `view_agriculturalinput`.
+  `POST /api/input-movements` pide `inputs.manage_inputstock` y acepta solo `entry` y `count`; un
+  `id` repetido con el mismo contenido responde `200` sin duplicar, con otro, `409
+  movement_id_conflict`. Un conteo calcula su diferencia contra el saldo del momento de guardar. Las
+  salidas las registra el sistema: otra app descuenta lo que gasta una labor con
+  `AgriculturalInput.record_consumption(farm, quantity, occurred_on, note, actor)` (cantidad en
+  positivo, dentro de su propia transacción, sin validar existencias ni estados: una labor ya hecha
+  no se rechaza). Una finca con movimientos no se elimina (`farm_has_records`), porque la
+  restricción `PROTECT` las cuenta sola.
 - **El historial de un insumo** (`AgriculturalInputAuditEvent`) guarda por cada campo cambiado su
   valor anterior y nuevo (`changes`), a diferencia de los demás historiales: un insumo no tiene datos
   personales. Es de solo lectura y solo para superusuarios en el admin, y el evento `deleted` guarda

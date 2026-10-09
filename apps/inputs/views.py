@@ -100,6 +100,7 @@ class AgriculturalInputViewSet(GenericViewSet):
         "destroy": "inputs.delete_agriculturalinput",
     }
     filter_backends = []
+    pagination_class = None
     lookup_value_converter = "uuid"
 
     def list(self, request):

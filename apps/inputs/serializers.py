@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from apps.common.serializers import (
@@ -41,6 +42,9 @@ class AgriculturalInputSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+# Sin `many=False`, el esquema envolvería la respuesta de una acción `list` en un arreglo, y
+# esta respuesta es un solo objeto con `results`, sin paginar.
+@extend_schema_serializer(many=False)
 class AgriculturalInputListSerializer(serializers.Serializer):
     results = AgriculturalInputSerializer(many=True)
 

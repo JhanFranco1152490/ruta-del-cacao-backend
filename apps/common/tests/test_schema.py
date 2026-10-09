@@ -31,6 +31,28 @@ def test_producer_list_documents_filters_and_pagination(schema):
     assert {"search", "status", "municipality_code", "page", "page_size"} <= parameters
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/cacao-varieties",
+        "/api/plot-characterizations",
+        "/api/agricultural-inputs",
+        "/api/input-stocks",
+    ],
+)
+def test_unpaginated_lists_document_an_object_with_results(schema, path):
+    # El cliente se genera de este esquema: si dijera arreglo o página, los tipos no
+    # coincidirían con lo que el servidor responde.
+    operation = schema["paths"][path]["get"]
+    response = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    component = schema["components"]["schemas"][response["$ref"].rsplit("/", 1)[-1]]
+    parameters = {p["name"] for p in operation.get("parameters", [])}
+
+    assert component["type"] == "object"
+    assert "results" in component["properties"]
+    assert not {"page", "page_size"} & parameters
+
+
 @pytest.fixture
 def reload_urls(settings):
     # Las rutas del esquema se registran al importar el módulo de URLs según DEBUG, así que

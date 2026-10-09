@@ -2,14 +2,14 @@ from rest_framework import serializers
 
 from apps.common.serializers import (
     ApiErrorSerializer,
+    FarmProducerSerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
 )
-from apps.farms.serializers import FarmProducerSerializer
 
 from .geometry import ADJUSTED_SOURCE
 from .models import Plot
-from .services.queries import CHARACTERIZATION_FILTERS, PLOT_ORDERINGS
+from .services.queries import CHARACTERIZATION_STATES, PLOT_ORDERINGS
 
 GPS_SOURCE = "gps"
 VERTEX_SOURCES = (GPS_SOURCE, "map", ADJUSTED_SOURCE)
@@ -108,7 +108,7 @@ class PlotListQuerySerializer(serializers.Serializer):
     farm = serializers.UUIDField(required=False)
     producer = serializers.UUIDField(required=False)
     characterization = serializers.ChoiceField(
-        choices=list(CHARACTERIZATION_FILTERS), required=False
+        choices=list(CHARACTERIZATION_STATES), required=False
     )
     ordering = serializers.ChoiceField(choices=list(PLOT_ORDERINGS), required=False)
     is_active = serializers.BooleanField(required=False)

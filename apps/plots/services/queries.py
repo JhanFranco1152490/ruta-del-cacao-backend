@@ -1,21 +1,17 @@
 from django.contrib.postgres.lookups import Unaccent
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, OuterRef, Q, QuerySet
 from django.db.models.functions import Lower
 
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
+from apps.common.plot_characterization import characterized
 
 from ..exceptions import PlotNotFound
 from ..models import Plot
 
-# La ficha de la parcela es de otra app: se alcanza por su relación con la parcela
-# (`characterization`), sin importar su código, como fincas suma el área de sus parcelas por
-# `plots`. Es una relación uno a uno, así que el cruce no repite parcelas.
-CHARACTERIZED = Q(characterization__isnull=False)
-CHARACTERIZATION_FILTERS = {
-    "done": CHARACTERIZED,
-    "pending": Q(characterization__isnull=True),
-}
+# Con ficha (`done`) o sin ella (`pending`). Si una parcela tiene ficha lo dice la app de fichas
+# (ver `apps/common/plot_characterization.py`): esta app no conoce su modelo.
+CHARACTERIZATION_STATES = ("done", "pending")
 
 
 def _by_name(field: str):
@@ -73,12 +69,17 @@ def with_characterization(plots: QuerySet[Plot], characterization: str | None) -
     """Solo las que tienen ficha (`done`) o las que no (`pending`); todas sin filtro."""
     if characterization is None:
         return plots
-    return plots.filter(CHARACTERIZATION_FILTERS[characterization])
+    has_characterization = characterized(OuterRef("pk"))
+    return plots.filter(
+        has_characterization if characterization == "done" else ~has_characterization
+    )
 
 
 def count_characterizations(plots: QuerySet[Plot]) -> dict:
     """Cuántas de estas parcelas tienen ficha y cuántas no, en una sola consulta."""
-    counts = plots.aggregate(total=Count("pk"), done=Count("pk", filter=CHARACTERIZED))
+    counts = plots.annotate(has_characterization=characterized(OuterRef("pk"))).aggregate(
+        total=Count("pk"), done=Count("pk", filter=Q(has_characterization=True))
+    )
     return {"done": counts["done"], "pending": counts["total"] - counts["done"]}
 
 

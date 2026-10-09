@@ -32,7 +32,7 @@ from .services import (
     update_plot,
     with_characterization,
 )
-from .services.queries import CHARACTERIZATION_FILTERS, PLOT_ORDERINGS
+from .services.queries import CHARACTERIZATION_STATES, PLOT_ORDERINGS
 
 
 @extend_schema_view(
@@ -45,7 +45,7 @@ from .services.queries import CHARACTERIZATION_FILTERS, PLOT_ORDERINGS
             OpenApiParameter(
                 "characterization",
                 str,
-                enum=list(CHARACTERIZATION_FILTERS),
+                enum=list(CHARACTERIZATION_STATES),
                 description=(
                     "Solo las parcelas con ficha (`done`) o sin ella (`pending`). No cambia "
                     "`characterization_counts`, que cuenta con los demás filtros."

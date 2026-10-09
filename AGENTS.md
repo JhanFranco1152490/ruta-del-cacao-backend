@@ -170,8 +170,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **La lista de parcelas** (`GET /api/plots`) filtra por `characterization` (`done` o `pending`)
   y trae `characterization_counts` (`{done, pending}`) junto a `count`, calculados con todos los
   filtros menos ese, para el contador de la interfaz. `ordering` es `code` o
-  `producer,farm,code` (para agrupar), con desempate por id en cada nivel. La ficha se alcanza por
-  la relación inversa `characterization`, sin que `plots` importe nada de `crops`.
+  `producer,farm,code` (para agrupar), con desempate por id en cada nivel. Si una parcela tiene
+  ficha lo dice `crops` con un `Exists` que registra en `apps/common/plot_characterization.py`
+  desde su `ready()`: `plots` lo usa sin conocer el modelo de fichas.
 - **El historial de una ficha** (`GET /api/plot-characterizations/{id}/history`, paginado, de la
   versión más nueva a la más vieja) devuelve, por versión, `version`, quién la guardó
   (`actor_name`, `null` si la cuenta se eliminó), los campos que cambió y los valores que dejó

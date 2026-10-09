@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from apps.common.serializers import (
     ApiErrorSerializer,
+    FarmProducerSerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
 )
@@ -27,13 +28,6 @@ class LocationSerializer(serializers.Serializer):
     longitude = serializers.DecimalField(max_digits=10, decimal_places=7)
 
 
-class FarmProducerSerializer(serializers.Serializer):
-    id = serializers.UUIDField()
-    member_code = serializers.CharField()
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
-
-
 class FarmSerializer(serializers.ModelSerializer):
     department = serializers.SerializerMethodField()
     municipality = serializers.SerializerMethodField()
@@ -42,9 +36,6 @@ class FarmSerializer(serializers.ModelSerializer):
     allocated_area_hectares = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
-    # Cuántas parcelas tiene, activas e inactivas. Es solo un número: la asociación lo recibe
-    # aunque no consulte las parcelas de cada productor.
-    plot_count = serializers.IntegerField(read_only=True)
     # De quién es la finca: la lista y el detalle lo muestran. Solo lectura: una finca no cambia
     # de dueño.
     producer = FarmProducerSerializer(read_only=True)
@@ -60,7 +51,6 @@ class FarmSerializer(serializers.ModelSerializer):
             "details",
             "area_hectares",
             "allocated_area_hectares",
-            "plot_count",
             "altitude_masl",
             "location",
             "version",

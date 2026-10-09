@@ -1,5 +1,7 @@
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
+from datetime import date, datetime
+from decimal import Decimal
 
 from django.db import models
 
@@ -30,6 +32,31 @@ class AuditEventBase(models.Model):
             raise ValueError("Changed fields must be non-empty strings.")
 
         return cls.objects.create(action=action, changed_fields=normalized_fields, **fields)
+
+
+def _as_api_value(value):
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    if isinstance(value, uuid.UUID | Decimal):
+        return str(value)
+    return value
+
+
+def field_changes(before: Mapping[str, object], after: Mapping[str, object]) -> dict:
+    """El valor anterior y el nuevo de cada campo que cambió, con los valores como los entrega la
+    API (fechas en ISO, UUID y decimales en texto), listos para guardarse en JSON.
+
+    Es para los historiales que deben mostrar qué valor tenía cada campo. Solo sirve para
+    registros sin datos personales: una persona se guarda por su id, nunca por su nombre.
+    Un campo que falta en uno de los lados cuenta como vacío.
+    """
+    changes = {}
+    for name in sorted(before.keys() | after.keys()):
+        old, new = before.get(name), after.get(name)
+        if old == new:
+            continue
+        changes[name] = {"before": _as_api_value(old), "after": _as_api_value(new)}
+    return changes
 
 
 STATUS_FIELD = "is_active"

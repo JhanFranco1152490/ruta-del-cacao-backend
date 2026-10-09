@@ -33,13 +33,21 @@ def save_next_version(
     row: models.Model,
     update_fields: Iterable[str],
     *,
-    constraint: str,
-    duplicate: Callable[[], Exception],
+    constraint: str | None = None,
+    duplicate: Callable[[], Exception] | None = None,
 ) -> None:
     """Sube la versión y guarda solo `update_fields` (más `version` y `updated_at`), traduciendo
-    el choque con la restricción única `constraint` a `duplicate()`."""
+    el choque con la restricción única `constraint` a `duplicate()`.
+
+    Un registro sin restricción única (nada que pueda repetirse) no pasa ninguno de los dos.
+    """
+    if (constraint is None) != (duplicate is None):
+        raise TypeError("constraint and duplicate go together.")
     row.version += 1
     fields = [*update_fields, "version", "updated_at"]
+    if constraint is None:
+        row.save(update_fields=fields)
+        return
     save_translating_unique(
         lambda: row.save(update_fields=fields),
         constraint=constraint,

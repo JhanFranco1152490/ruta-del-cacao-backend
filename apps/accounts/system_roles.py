@@ -60,6 +60,7 @@ SYSTEM_ROLES = {
             "inputs.add_agriculturalinput",
             "inputs.change_agriculturalinput",
             "inputs.delete_agriculturalinput",
+            "inputs.manage_inputstock",
         ],
     },
     # Eliminar un insumo no se deshace y ningún flujo del capataz lo pide: queda en el Productor,
@@ -71,6 +72,7 @@ SYSTEM_ROLES = {
             "inputs.view_agriculturalinput",
             "inputs.add_agriculturalinput",
             "inputs.change_agriculturalinput",
+            "inputs.manage_inputstock",
         ],
     },
     QUALITY_MANAGER: {

@@ -54,7 +54,11 @@ def test_every_permission_of_the_producer_role_can_be_delegated():
 
 
 def test_input_actions_bring_the_permission_to_see_the_catalog():
-    for action in ("add", "change", "delete"):
-        code = f"inputs.{action}_agriculturalinput"
+    for code in (
+        "inputs.add_agriculturalinput",
+        "inputs.change_agriculturalinput",
+        "inputs.delete_agriculturalinput",
+        "inputs.manage_inputstock",
+    ):
         assert with_dependencies({code}) == {code, "inputs.view_agriculturalinput"}
     assert registry.area_of("inputs.view_agriculturalinput") == "inputs"

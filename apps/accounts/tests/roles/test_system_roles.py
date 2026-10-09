@@ -162,6 +162,7 @@ INPUT_VIEW = "inputs.view_agriculturalinput"
 INPUT_ADD = "inputs.add_agriculturalinput"
 INPUT_CHANGE = "inputs.change_agriculturalinput"
 INPUT_DELETE = "inputs.delete_agriculturalinput"
+INPUT_STOCK = "inputs.manage_inputstock"
 
 
 def _holders(permission):
@@ -172,7 +173,7 @@ def _holders(permission):
     }
 
 
-@pytest.mark.parametrize("permission", [INPUT_VIEW, INPUT_ADD, INPUT_CHANGE])
+@pytest.mark.parametrize("permission", [INPUT_VIEW, INPUT_ADD, INPUT_CHANGE, INPUT_STOCK])
 def test_the_producer_and_the_foreman_work_the_inputs_catalog(permission):
     assert _holders(permission) == {PRODUCER, FOREMAN}
 
@@ -181,7 +182,9 @@ def test_only_the_producer_deletes_inputs_and_can_delegate_it():
     assert _holders(INPUT_DELETE) == {PRODUCER}
 
 
-@pytest.mark.parametrize("permission", [INPUT_VIEW, INPUT_ADD, INPUT_CHANGE, INPUT_DELETE])
+@pytest.mark.parametrize(
+    "permission", [INPUT_VIEW, INPUT_ADD, INPUT_CHANGE, INPUT_DELETE, INPUT_STOCK]
+)
 def test_the_inputs_permissions_are_delegable_and_the_association_has_none(permission):
     assert is_delegable(permission)
     assert ADMINISTRATOR not in _holders(permission)

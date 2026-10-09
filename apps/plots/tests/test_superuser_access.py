@@ -47,3 +47,16 @@ def test_the_technical_account_edits_and_lists_the_plots_of_any_farm(auth_client
     assert [item["code"] for item in listed.data["results"]] == ["Lote 1"]
     assert edited.status_code == 200
     assert edited.data["code"] == "Lote 2"
+
+
+def test_the_technical_account_lists_the_plots_of_one_producer(auth_client, superuser, farm):
+    PlotFactory(farm=farm, code="Suya")
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="Ajena")
+    client = auth_client(superuser)
+
+    everyone = client.get("/api/plots").data["results"]
+    one = client.get("/api/plots", {"producer": farm.producer_id}).data["results"]
+
+    assert [item["code"] for item in everyone] == ["Ajena", "Suya"]
+    assert [item["code"] for item in one] == ["Suya"]
+    assert one[0]["farm"]["producer"]["id"] == str(farm.producer_id)

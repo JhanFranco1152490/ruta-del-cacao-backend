@@ -2,12 +2,14 @@ from rest_framework import serializers
 
 from apps.common.serializers import (
     ApiErrorSerializer,
+    FarmProducerSerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
 )
 
 from .geometry import ADJUSTED_SOURCE
 from .models import Plot
+from .services.queries import CHARACTERIZATION_STATES, PLOT_ORDERINGS
 
 GPS_SOURCE = "gps"
 VERTEX_SOURCES = (GPS_SOURCE, "map", ADJUSTED_SOURCE)
@@ -46,6 +48,11 @@ class VertexInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 class PlotFarmSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
+    # Una finca inactiva congela sus parcelas y sus fichas: la lista general lo necesita para no
+    # ofrecer cambios que el servidor rechazaría.
+    is_active = serializers.BooleanField()
+    # Quien no tiene un productor propio (la cuenta técnica) ve parcelas de muchos.
+    producer = FarmProducerSerializer()
 
 
 class PlotSerializer(serializers.ModelSerializer):
@@ -99,6 +106,11 @@ class PlotDeleteQuerySerializer(serializers.Serializer):
 
 class PlotListQuerySerializer(serializers.Serializer):
     farm = serializers.UUIDField(required=False)
+    producer = serializers.UUIDField(required=False)
+    characterization = serializers.ChoiceField(
+        choices=list(CHARACTERIZATION_STATES), required=False
+    )
+    ordering = serializers.ChoiceField(choices=list(PLOT_ORDERINGS), required=False)
     is_active = serializers.BooleanField(required=False)
     search = serializers.CharField(required=False, allow_blank=True)
 

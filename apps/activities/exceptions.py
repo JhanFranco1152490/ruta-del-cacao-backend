@@ -99,6 +99,20 @@ class MonitoringRequiresResult(ApiError):
     default_code = "monitoring_requires_result"
 
 
+class InputInactive(ApiError):
+    # Mismo código que usa la app de insumos. Lleva los afectados para que el registro que esperaba
+    # en la cola marque cuáles elegir de nuevo.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "Este insumo ya no está disponible. Elige otro del catálogo."
+    default_code = "input_inactive"
+
+    def __init__(self, input_ids):
+        super().__init__(
+            fields={"inputs": [self.default_detail]},
+            extra={"input_ids": [str(input_id) for input_id in input_ids]},
+        )
+
+
 class AssigneeNotAvailable(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El responsable debe ser una cuenta activa del productor de la parcela."

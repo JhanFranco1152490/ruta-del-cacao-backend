@@ -9,6 +9,7 @@ from apps.activities.choices import ActivityStatus, ActivityType
 from apps.activities.models import AgriculturalActivity
 from apps.activities.state import today_in_bogota
 from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.inputs.tests.factories import AgriculturalInputFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
 
@@ -328,7 +329,7 @@ def test_a_future_completion_date_is_400(client, activity):
     assert response.json()["fields"]["done_date"] == ["La fecha no puede ser futura."]
 
 
-def test_inputs_are_not_accepted_yet(client, activity):
+def test_an_unknown_input_is_400_so_the_queue_does_not_drop_it(client, activity):
     response = client.post(
         completion_url(activity),
         {
@@ -340,6 +341,64 @@ def test_inputs_are_not_accepted_yet(client, activity):
 
     assert response.status_code == 400
     assert "inputs" in response.json()["fields"]
+
+
+def test_a_quantity_with_more_than_three_decimals_is_400(client, activity, plot):
+    item = AgriculturalInputFactory(producer=plot.farm.producer)
+
+    response = client.post(
+        completion_url(activity),
+        {
+            "done_date": today_in_bogota().isoformat(),
+            "inputs": [{"input_id": str(item.pk), "quantity": "2.0005"}],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "inputs" in response.json()["fields"]
+
+
+def test_the_completion_with_inputs_shows_up_in_the_inventory(auth_client, client, activity, plot):
+    item = AgriculturalInputFactory(producer=plot.farm.producer)
+
+    response = client.post(
+        completion_url(activity),
+        {
+            "done_date": today_in_bogota().isoformat(),
+            "inputs": [{"input_id": str(item.pk), "quantity": "50"}],
+        },
+        format="json",
+    )
+    reader = UserFactory(
+        producer=plot.farm.producer, permissions=["inputs.view_agriculturalinput"]
+    )
+    movements = auth_client(reader).get(
+        "/api/input-movements", {"input": str(item.pk), "farm": str(plot.farm_id)}
+    )
+
+    assert response.status_code == 200
+    [movement] = movements.json()["results"]
+    assert movement["kind"] == "consumption"
+    assert movement["quantity"] == "-50.000"
+    assert movement["note"] == "Poda · P-03"
+
+
+def test_an_inactive_input_is_422_with_its_id(client, activity, plot):
+    item = AgriculturalInputFactory(producer=plot.farm.producer, is_active=False)
+
+    response = client.post(
+        completion_url(activity),
+        {
+            "done_date": today_in_bogota().isoformat(),
+            "inputs": [{"input_id": str(item.pk), "quantity": "1"}],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "input_inactive"
+    assert response.json()["input_ids"] == [str(item.pk)]
 
 
 def test_a_monitoring_is_422(client, plot, owner):

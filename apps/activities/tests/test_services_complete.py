@@ -135,7 +135,7 @@ def test_a_date_before_the_scheduled_one_but_after_planning_is_accepted():
     )
 
 
-def test_inputs_cannot_be_recorded_yet():
+def test_an_unknown_input_leaves_the_activity_scheduled():
     activity = scheduled_in(1)
 
     with pytest.raises(InvalidActivity) as error:

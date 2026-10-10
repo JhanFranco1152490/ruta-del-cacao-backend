@@ -154,11 +154,13 @@ class AgriculturalActivityViewSet(GenericViewSet):
 
     @extend_schema(
         description=(
-            "Registra la realización. Llega desde la cola del dispositivo: no pide versión, y el "
-            "mismo registro reenviado responde 200 sin cambios. Una realizada con otros datos "
-            "responde 409 `activity_already_done`; un monitoreo, 422 "
-            "`monitoring_requires_result`. `inputs` debe venir vacío hasta que existan los "
-            "insumos."
+            "Registra la realización con los insumos que gastó (ninguno, uno o varios), que se "
+            "descuentan del inventario de la finca aunque las existencias queden negativas. Llega "
+            "desde la cola del dispositivo: no pide versión, y el mismo registro reenviado "
+            "responde 200 sin cambios ni otro descuento. Una realizada con otros datos responde "
+            "409 `activity_already_done`; un monitoreo, 422 `monitoring_requires_result`; un "
+            "insumo inactivo, 422 `input_inactive` con los afectados en `input_ids`. Un insumo "
+            "que no es del catálogo del productor es 400, no 404."
         ),
         request=CompletionSerializer,
         responses={

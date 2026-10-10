@@ -246,8 +246,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     tipo solo si cambian.
   - **Registrar la realización** (`POST …/{id}/completion`) llega desde la cola: no pide versión,
     el mismo envío responde `200` sin cambios y otra fecha sobre una realizada es
-    `activity_already_done`. Un monitoreo es `422 monitoring_requires_result`. `inputs` debe
-    venir vacío hasta que exista la app `inputs`.
+    `activity_already_done`. Un monitoreo es `422 monitoring_requires_result`.
+  - **Insumos de la realización** (`inputs`: ninguno, uno o varios, sin repetir): cada uno se
+    descuenta del inventario de la finca con `record_consumption`, en la misma transacción, con la
+    nota `{labor} · {código de la parcela}` que muestra Insumos ("Fertilización · P-03"; con Otro,
+    su descripción). Las existencias pueden quedar negativas. Bloqueo: la finca, los insumos por
+    id y sus existencias, el mismo orden que el inventario. El reenvío idéntico no vuelve a
+    descontar. Un insumo inactivo es `422 input_inactive` con `input_ids`; uno que no es del
+    catálogo del productor, `400` (no `404`: la cola lo leería como actividad eliminada). Una
+    actividad de tipo Inventario no lleva insumos.
   - **Listado** (`GET ?from=&to=`) de hasta 120 días, sin paginar; **responsables**
     (`GET …/assignees`) con solo id, nombre y si está activa.
   - El responsable (`assignee`) es `PROTECT`: una cuenta responsable de alguna actividad no se

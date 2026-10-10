@@ -130,10 +130,16 @@ class ActivityDeleteQuerySerializer(serializers.Serializer):
     expected_version = serializers.IntegerField(min_value=1)
 
 
+class UsedInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    input_id = serializers.UUIDField()
+    # En la unidad del insumo. Que sea mayor que cero lo valida el servicio, con su mensaje.
+    quantity = serializers.DecimalField(max_digits=10, decimal_places=3)
+
+
 class CompletionSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     done_date = serializers.DateField()
-    # Los insumos se aceptan cuando exista el catálogo de insumos; hoy debe venir vacío.
-    inputs = serializers.ListField(child=serializers.DictField(), required=False, default=list)
+    # Ninguno, uno o varios: una labor sin insumos se registra con la lista vacía.
+    inputs = UsedInputSerializer(many=True, required=False, default=list)
     # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
     captured_at = serializers.DateTimeField(required=False, allow_null=True, default=None)
 

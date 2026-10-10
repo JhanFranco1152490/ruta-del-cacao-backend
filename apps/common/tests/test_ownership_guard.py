@@ -2,7 +2,13 @@ import re
 from pathlib import Path
 
 APPS = Path(__file__).resolve().parents[2]
-RESOURCE_SERVICES = ("farms/services", "plots/services", "crops/services", "activities/services")
+RESOURCE_SERVICES = (
+    "farms/services",
+    "plots/services",
+    "crops/services",
+    "inputs/services",
+    "activities/services",
+)
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin
 # alcanzarlo: ella no tiene productor propio. Esos servicios usan `owner_filter` y `owns`
 # (`apps/common/ownership.py`), que ya la excluyen de la restricción.
@@ -27,7 +33,7 @@ def test_resource_services_do_not_filter_by_the_producer_of_the_actor_directly()
             relative = path.relative_to(APPS).as_posix()
             if relative in ALLOWED:
                 continue
-            for number, line in enumerate(path.read_text().splitlines(), start=1):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 if FORBIDDEN.search(line):
                     offenders.append(f"{relative}:{number}: {line.strip()}")
 

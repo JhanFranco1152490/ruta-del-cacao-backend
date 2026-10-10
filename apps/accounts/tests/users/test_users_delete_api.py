@@ -77,11 +77,15 @@ def test_deleting_requires_the_users_delete_permission():
 
 def test_a_delegate_with_the_permission_deletes_an_employee():
     producer = ProducerFactory()
-    # El delegado tiene también lo del Capataz/Operario: nadie administra a alguien con más
-    # permisos que él.
+    # Nadie administra una cuenta con más permisos de los que tiene: el delegado también lleva los
+    # del Capataz/Operario.
     delegate = make_delegate(
         producer,
-        ["accounts.users_view", "accounts.users_delete", *SYSTEM_ROLES[FOREMAN]["permissions"]],
+        [
+            "accounts.users_view",
+            "accounts.users_delete",
+            *SYSTEM_ROLES[FOREMAN]["permissions"],
+        ],
     )
     employee = make_employee(producer)
 

@@ -10,12 +10,6 @@ class FarmNotFound(ApiError):
     default_code = "not_found"
 
 
-class ProducerRequired(ApiError):
-    status_code = status.HTTP_403_FORBIDDEN
-    default_detail = "La cuenta no está vinculada a un productor."
-    default_code = "permission_denied"
-
-
 class StaleFarmVersion(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "La finca fue modificada. Revisa los cambios antes de guardar."

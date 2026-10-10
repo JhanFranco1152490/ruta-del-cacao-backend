@@ -39,21 +39,24 @@ def save_translating_unique(
     return None
 
 
-def has_dependent_rows(instance: models.Model, *, ignore=()) -> bool:
-    """Si alguna fila de otra tabla apunta a `instance`, salvo las de los modelos de `ignore`
-    (normalmente su historial de auditoría).
+def dependent_relations(model: type[models.Model], *, ignore=()) -> list:
+    """Las relaciones inversas de otras tablas que apuntan a `model`, salvo las de los modelos de
+    `ignore` (normalmente su historial de auditoría).
 
     Se recorren las relaciones del modelo en vez de una lista fija: así una tabla nueva que
-    dependa del registro (cultivos, capturas, lotes) impide eliminarlo sin que nadie tenga que
-    acordarse de agregarla. `include_hidden` incluye también las relaciones declaradas sin
-    nombre inverso.
+    dependa del registro (cultivos, capturas, lotes) cuenta sin que nadie tenga que acordarse de
+    agregarla. `include_hidden` incluye también las relaciones declaradas sin nombre inverso.
     """
-    for relation in type(instance)._meta.get_fields(include_hidden=True):
-        if not relation.auto_created or relation.concrete:
-            continue
-        if relation.related_model in ignore:
-            continue
-        lookup = {relation.field.name: instance}
-        if relation.related_model._base_manager.filter(**lookup).exists():
-            return True
-    return False
+    return [
+        relation
+        for relation in model._meta.get_fields(include_hidden=True)
+        if relation.auto_created and not relation.concrete and relation.related_model not in ignore
+    ]
+
+
+def has_dependent_rows(instance: models.Model, *, ignore=()) -> bool:
+    """Si alguna fila de otra tabla apunta a `instance`, salvo las de los modelos de `ignore`."""
+    return any(
+        relation.related_model._base_manager.filter(**{relation.field.name: instance}).exists()
+        for relation in dependent_relations(type(instance), ignore=ignore)
+    )

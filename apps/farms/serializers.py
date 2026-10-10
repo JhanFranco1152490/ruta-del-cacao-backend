@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from apps.common.serializers import (
     ApiErrorSerializer,
+    FarmProducerSerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
 )
@@ -25,13 +26,6 @@ class TerritoryReferenceSerializer(serializers.Serializer):
 class LocationSerializer(serializers.Serializer):
     latitude = serializers.DecimalField(max_digits=9, decimal_places=7)
     longitude = serializers.DecimalField(max_digits=10, decimal_places=7)
-
-
-class FarmProducerSerializer(serializers.Serializer):
-    id = serializers.UUIDField()
-    member_code = serializers.CharField()
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
 
 
 class FarmSerializer(serializers.ModelSerializer):

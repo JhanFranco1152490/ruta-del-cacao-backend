@@ -5,9 +5,9 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.common.audit import AuditEventBase
+from apps.common.text import normalize_catalog_name
 
 from .choices import ManagementSystem, Propagation, ShadeType, Stage
-from .text import normalize_variety_name
 
 MAX_COMMON_NAMES = 5
 
@@ -56,7 +56,7 @@ class CacaoVariety(models.Model):
     def clean(self):
         if isinstance(self.name, str):
             self.name = self.name.strip()
-        self.name_normalized = normalize_variety_name(self.name or "")
+        self.name_normalized = normalize_catalog_name(self.name or "")
         # Un nombre hecho solo de espacios o guiones quedaría vacío al compararlo.
         if not self.name_normalized:
             raise ValidationError({"name": "Este campo es obligatorio."})
@@ -65,7 +65,7 @@ class CacaoVariety(models.Model):
 
 
 def search_text(name: str, common_names) -> str:
-    return "|".join(normalize_variety_name(text) for text in [name, *common_names])
+    return "|".join(normalize_catalog_name(text) for text in [name, *common_names])
 
 
 def _clean_common_names(names) -> list[str]:
@@ -74,7 +74,7 @@ def _clean_common_names(names) -> list[str]:
     cleaned, seen = [], set()
     for name in names:
         name = name.strip()
-        key = normalize_variety_name(name)
+        key = normalize_catalog_name(name)
         if key and key not in seen:
             seen.add(key)
             cleaned.append(name)

@@ -3,9 +3,9 @@ from datetime import date
 import factory
 from factory.django import DjangoModelFactory
 
+from apps.common.text import normalize_catalog_name
 from apps.crops.choices import Propagation, Stage
 from apps.crops.models import CacaoVariety, PlotCharacterization, PlotPlanting, search_text
-from apps.crops.text import normalize_variety_name
 from apps.plots.tests.factories import PlotFactory
 
 
@@ -15,7 +15,7 @@ class CacaoVarietyFactory(DjangoModelFactory):
 
     # Nombres que no existen en el catálogo inicial, para no chocar con él.
     name = factory.Sequence(lambda n: f"Clon de prueba {n:03d}")
-    name_normalized = factory.LazyAttribute(lambda variety: normalize_variety_name(variety.name))
+    name_normalized = factory.LazyAttribute(lambda variety: normalize_catalog_name(variety.name))
     common_names = factory.LazyFunction(list)
     search_normalized = factory.LazyAttribute(
         lambda variety: search_text(variety.name, variety.common_names)

@@ -78,8 +78,9 @@ def assignee_options(actor, producer_id=None) -> list[dict]:
     viejas; el formulario solo ofrece las activas.
 
     Solo el id, el nombre y si está activa: es lo mínimo para asignar una labor, y quien la asigna
-    no tiene por qué ver el correo ni el documento de sus compañeros. La cuenta técnica dice de
-    qué productor; de cualquier otra cuenta `producer_id` se ignora.
+    no tiene por qué ver el documento ni los roles de sus compañeros. Una cuenta sin nombre se
+    muestra por su correo, como en los historiales: es la única forma de reconocerla. La cuenta
+    técnica dice de qué productor; de cualquier otra cuenta `producer_id` se ignora.
     """
     if actor.is_superuser:
         if producer_id is None:

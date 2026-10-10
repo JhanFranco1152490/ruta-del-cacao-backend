@@ -22,10 +22,11 @@ from .services import list_movements, list_stocks, register_movement
 @extend_schema_view(
     list=extend_schema(
         description=(
-            "Las existencias de una finca, sin paginar y solo de los insumos que tienen "
-            "movimientos en ella (los demás están «Sin movimientos»). Una finca ajena o que no "
-            "existe devuelve la lista vacía. `quantity` es un decimal en texto, en la unidad del "
-            "insumo, y puede ser negativo."
+            "Las existencias, sin paginar y solo de los insumos que tienen movimientos (los "
+            "demás están «Sin movimientos»). Con `farm`, las de esa finca; sin ella, una fila "
+            "por insumo y finca de todo el alcance, para sumar el total. Una finca ajena o que "
+            "no existe devuelve la lista vacía. `producer` solo lo usa la cuenta técnica. "
+            "`quantity` es un decimal en texto, en la unidad del insumo, y puede ser negativo."
         ),
         parameters=[InputStockQuerySerializer],
         responses={200: InputStockListSerializer, **error_responses(400, 401, 403)},
@@ -41,7 +42,11 @@ class InputStockViewSet(GenericViewSet):
     def list(self, request):
         query = InputStockQuerySerializer(data=request.query_params.dict())
         query.is_valid(raise_exception=True)
-        stocks = list_stocks(request.user, query.validated_data["farm"])
+        stocks = list_stocks(
+            request.user,
+            query.validated_data.get("farm"),
+            query.validated_data.get("producer"),
+        )
         return Response({"results": InputStockSerializer(stocks, many=True).data})
 
 

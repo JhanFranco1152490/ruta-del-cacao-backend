@@ -71,7 +71,9 @@ class InputMovementResultSerializer(serializers.Serializer):
 
 
 class InputStockQuerySerializer(serializers.Serializer):
-    farm = serializers.UUIDField()
+    # Sin finca son las de todas las fincas del alcance. `producer` solo lo usa la cuenta técnica.
+    farm = serializers.UUIDField(required=False)
+    producer = serializers.UUIDField(required=False)
 
 
 class InputMovementQuerySerializer(serializers.Serializer):

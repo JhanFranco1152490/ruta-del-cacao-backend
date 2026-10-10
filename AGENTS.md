@@ -210,7 +210,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   conteo o salida por actividad. El saldo siempre es la suma de los `quantity` de sus movimientos,
   y los movimientos no se editan ni se borran: un error se corrige con un conteo. Todo pasa por
   `services/movements.py`, que bloquea siempre en el mismo orden (finca, insumo, existencias).
-  `GET /api/input-stocks?farm=` (sin paginar; finca ajena, lista vacía) y `GET
+  `GET /api/input-stocks` (sin paginar; `farm` opcional: con ella las de esa finca, sin ella una fila por insumo y finca de todo el alcance para sumar el total; finca ajena, lista vacía; `producer` solo lo usa la cuenta técnica) y `GET
   /api/input-movements?input=&farm=` (paginado; ajenos, `404`) piden `view_agriculturalinput`.
   `POST /api/input-movements` pide `inputs.manage_inputstock` y acepta solo `entry` y `count`; un
   `id` repetido con el mismo contenido responde `200` sin duplicar, con otro, `409

@@ -6,12 +6,17 @@ from ..exceptions import FarmNotFound, InputNotFound
 from ..models import AgriculturalInput, InputMovement, InputStock
 
 
-def list_stocks(actor, farm_id) -> QuerySet[InputStock]:
-    """Las existencias de una finca, solo de los insumos con movimientos. Una finca ajena o que no
-    existe da la lista vacía, como las parcelas de una finca ajena."""
-    return InputStock.objects.filter(
-        farm_id=farm_id, **owner_filter(actor, "input__producer_id")
-    ).order_by("input__name_normalized", "input_id")
+def list_stocks(actor, farm_id=None, producer=None) -> QuerySet[InputStock]:
+    """Las existencias de los insumos con movimientos: las de una finca (`farm_id`) o, sin ella,
+    las de todas las fincas del alcance de quien llama, una fila por insumo y finca. Una finca
+    ajena o que no existe da la lista vacía, como las parcelas de una finca ajena. Solo la cuenta
+    técnica elige de qué productor ver (`producer`); para las demás el alcance ya es el suyo."""
+    stocks = InputStock.objects.filter(**owner_filter(actor, "input__producer_id"))
+    if farm_id is not None:
+        stocks = stocks.filter(farm_id=farm_id)
+    if producer is not None and actor.is_superuser:
+        stocks = stocks.filter(input__producer_id=producer)
+    return stocks.order_by("input__name_normalized", "input_id", "farm_id")
 
 
 def list_movements(actor, input_id, farm_id) -> QuerySet[InputMovement]:

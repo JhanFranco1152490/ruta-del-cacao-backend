@@ -307,11 +307,59 @@ def test_stocks_list_only_inputs_with_movements_in_the_farm(
     ]
 
 
-def test_stocks_need_the_farm(auth_client, owner):
+def test_without_a_farm_the_stocks_of_every_farm_come_one_row_per_input_and_farm(
+    auth_client, owner, producer, item, farm
+):
+    other = FarmFactory(producer=producer)
+    entry(owner, item, farm, "100")
+    entry(owner, item, other, "40")
+    AgriculturalInputFactory(producer=ProducerFactory())
+
     response = auth_client(owner).get(STOCKS)
+
+    assert response.status_code == 200
+    rows = {(row["farm_id"], row["quantity"]) for row in response.data["results"]}
+    assert rows == {(str(farm.pk), "100.000"), (str(other.pk), "40.000")}
+
+
+def test_a_malformed_farm_is_a_validation_error(auth_client, owner):
+    response = auth_client(owner).get(STOCKS, {"farm": "x"})
 
     assert response.status_code == 400
     assert "farm" in response.data["fields"]
+
+
+def test_the_technical_account_reads_all_the_stocks_or_those_of_one_producer(
+    auth_client, owner, item, farm
+):
+    entry(owner, item, farm, "10")
+    foreign_item = AgriculturalInputFactory()
+    foreign_farm = FarmFactory(producer=foreign_item.producer)
+    entry(UserFactory(producer=foreign_item.producer), foreign_item, foreign_farm, "20")
+    client = auth_client(UserFactory(is_superuser=True))
+
+    everything = client.get(STOCKS)
+    one = client.get(STOCKS, {"producer": str(foreign_item.producer_id)})
+
+    assert len(everything.data["results"]) == 2
+    assert [row["quantity"] for row in one.data["results"]] == ["20.000"]
+
+
+def test_the_producer_filter_is_ignored_for_regular_accounts_in_the_stocks(
+    auth_client, owner, item, farm
+):
+    entry(owner, item, farm, "10")
+    foreign_item = AgriculturalInputFactory()
+    entry(
+        UserFactory(producer=foreign_item.producer),
+        foreign_item,
+        FarmFactory(producer=foreign_item.producer),
+        "20",
+    )
+
+    response = auth_client(owner).get(STOCKS, {"producer": str(foreign_item.producer_id)})
+
+    assert [row["quantity"] for row in response.data["results"]] == ["10.000"]
 
 
 def test_the_stocks_of_a_foreign_farm_are_empty(auth_client, owner):

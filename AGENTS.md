@@ -231,7 +231,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   restricción `PROTECT` las cuenta sola.
 - **El historial de un insumo** (`AgriculturalInputAuditEvent`) guarda por cada campo cambiado su
   valor anterior y nuevo (`changes`), a diferencia de los demás historiales: un insumo no tiene datos
-  personales. Es de solo lectura y solo para superusuarios en el admin, y el evento `deleted` guarda
+  personales. Lo calcula `field_changes` (`apps/common/audit.py`), la misma función que usan las
+  actividades: un historial nuevo con valores la reutiliza en vez de escribir la suya. Es de solo lectura y solo para superusuarios en el admin, y el evento `deleted` guarda
   `input_ref` e `input_name` para sobrevivir al insumo.
 - **Las actividades agrícolas** (`/api/agricultural-activities`):
   - **Estados:** se guardan `scheduled` y `done`; la API entrega además `state` y `days_late`,

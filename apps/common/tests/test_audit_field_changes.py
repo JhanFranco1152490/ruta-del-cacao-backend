@@ -49,3 +49,32 @@ def test_a_field_missing_on_one_side_counts_as_empty():
 
 def test_decimals_that_are_equal_in_value_are_not_a_change():
     assert field_changes({"quantity": Decimal("2.0")}, {"quantity": Decimal("2.000")}) == {}
+
+
+def test_with_the_fields_given_every_one_is_listed_even_if_it_did_not_change():
+    # Quien llama ya sabe qué cambió (o, en un alta, quiere todos los campos), y un campo que
+    # sigue vacío también queda.
+    changes = field_changes(
+        {}, {"name": "Urea", "package_type": None}, fields=["package_type", "name"]
+    )
+
+    assert changes == {
+        "name": {"before": None, "after": "Urea"},
+        "package_type": {"before": None, "after": None},
+    }
+
+
+def test_with_the_fields_given_the_others_are_left_out():
+    changes = field_changes(
+        {"name": "Urea", "unit": "kg"}, {"name": "Urea 46 %", "unit": "g"}, fields=["name"]
+    )
+
+    assert changes == {"name": {"before": "Urea", "after": "Urea 46 %"}}
+
+
+def test_decimals_can_be_written_with_fixed_places():
+    changes = field_changes(
+        {"package_size": None}, {"package_size": Decimal("50")}, decimal_places=3
+    )
+
+    assert changes == {"package_size": {"before": None, "after": "50.000"}}

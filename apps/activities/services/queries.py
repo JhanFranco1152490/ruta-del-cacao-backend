@@ -20,9 +20,12 @@ User = AgriculturalActivity._meta.get_field("assignee").related_model
 
 
 def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
-    return AgriculturalActivity.objects.filter(
-        **owner_filter(actor, "plot__farm__producer_id")
-    ).select_related("plot__farm", "assignee", "completed_by")
+    # Los insumos usados se precargan con su insumo: el listado no hace una consulta por fila.
+    return (
+        AgriculturalActivity.objects.filter(**owner_filter(actor, "plot__farm__producer_id"))
+        .select_related("plot__farm", "assignee", "completed_by")
+        .prefetch_related("inputs__input")
+    )
 
 
 def list_activities(actor, date_from, date_to, producer_id=None) -> QuerySet[AgriculturalActivity]:

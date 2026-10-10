@@ -34,6 +34,21 @@ class AssigneeSerializer(serializers.Serializer):
     is_active = serializers.BooleanField()
 
 
+class UsedInputItemSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    unit = serializers.CharField()
+    package_type = serializers.CharField(allow_null=True)
+    package_size = serializers.DecimalField(max_digits=10, decimal_places=3, allow_null=True)
+    is_active = serializers.BooleanField()
+
+
+class UsedInputOutputSerializer(serializers.Serializer):
+    input = UsedInputItemSerializer()
+    # En la unidad del insumo, que no cambia una vez usado.
+    quantity = serializers.DecimalField(max_digits=10, decimal_places=3)
+
+
 class RecorderSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     full_name = serializers.CharField()
@@ -46,7 +61,7 @@ class AgriculturalActivitySerializer(serializers.ModelSerializer):
     state = serializers.SerializerMethodField()
     days_late = serializers.SerializerMethodField()
     assignee = serializers.SerializerMethodField()
-    # Los insumos usados llegan cuando exista el catálogo de insumos; mientras tanto, ninguno.
+    # Vacío mientras no esté realizada. Un insumo desactivado después sigue saliendo, marcado.
     inputs = serializers.SerializerMethodField()
     completed_by = serializers.SerializerMethodField()
 
@@ -91,8 +106,9 @@ class AgriculturalActivitySerializer(serializers.ModelSerializer):
         account = activity.assignee
         return {"id": account.pk, "full_name": full_name(account), "is_active": account.is_active}
 
-    def get_inputs(self, activity) -> list[dict]:
-        return []
+    def get_inputs(self, activity) -> UsedInputOutputSerializer(many=True):
+        rows = sorted(activity.inputs.all(), key=lambda row: (row.input.name, str(row.input_id)))
+        return UsedInputOutputSerializer(rows, many=True).data
 
     def get_completed_by(self, activity) -> RecorderSerializer(allow_null=True):
         account = activity.completed_by

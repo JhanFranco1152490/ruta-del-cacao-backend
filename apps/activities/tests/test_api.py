@@ -378,6 +378,9 @@ def test_the_completion_with_inputs_shows_up_in_the_inventory(auth_client, clien
     )
 
     assert response.status_code == 200
+    [shown] = response.json()["inputs"]
+    assert shown["input"]["id"] == str(item.pk)
+    assert shown["quantity"] == "50.000"
     [movement] = movements.json()["results"]
     assert movement["kind"] == "consumption"
     assert movement["quantity"] == "-50.000"

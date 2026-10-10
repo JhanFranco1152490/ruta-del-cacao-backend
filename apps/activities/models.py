@@ -101,6 +101,36 @@ class AgriculturalActivity(models.Model):
         ]
 
 
+class AgriculturalActivityInput(models.Model):
+    """Un insumo que se gastó en una labor, con su cantidad en la unidad del insumo. Se registra
+    con la realización y no cambia después."""
+
+    activity = models.ForeignKey(
+        AgriculturalActivity, on_delete=models.CASCADE, related_name="inputs"
+    )
+    # Un insumo usado no se elimina aunque dos operaciones se crucen: la base es la garantía final.
+    input = models.ForeignKey(
+        "inputs.AgriculturalInput", on_delete=models.PROTECT, related_name="activity_uses"
+    )
+    quantity = models.DecimalField(max_digits=10, decimal_places=3)
+    # La salida que esta labor dejó en el inventario de la finca. La relación va de aquí hacia los
+    # insumos, para que esa app no tenga que conocer las actividades.
+    stock_movement = models.OneToOneField(
+        "inputs.InputMovement", on_delete=models.PROTECT, related_name="activity_use"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["activity", "input"], name="activities_input_once_per_activity"
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0), name="activities_input_quantity_positive"
+            ),
+        ]
+        default_permissions = ()
+
+
 class AgriculturalActivityAuditEvent(AuditEventBase):
     class Action(models.TextChoices):
         CREATED = "created", "Actividad programada"

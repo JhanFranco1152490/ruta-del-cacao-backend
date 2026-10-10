@@ -42,6 +42,11 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "plots.change_plot": PermissionInfo(area="plots", delegable=True),
     "plots.delete_plot": PermissionInfo(area="plots", delegable=True),
     "crops.change_plotcharacterization": PermissionInfo(area="crops", delegable=True),
+    "inputs.view_agriculturalinput": PermissionInfo(area="inputs", delegable=True),
+    "inputs.add_agriculturalinput": PermissionInfo(area="inputs", delegable=True),
+    "inputs.change_agriculturalinput": PermissionInfo(area="inputs", delegable=True),
+    "inputs.delete_agriculturalinput": PermissionInfo(area="inputs", delegable=True),
+    "inputs.manage_inputstock": PermissionInfo(area="inputs", delegable=True),
     # No delegable: el catálogo de variedades es común a toda la asociación, no del espacio de
     # un productor.
     "crops.manage_cacaovariety": PermissionInfo(area="crops", delegable=False),
@@ -85,6 +90,10 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "plots.delete_plot": "plots.view_plot",
     # La ficha se registra desde la parcela: sin verla no hay cómo llegar a ella.
     "crops.change_plotcharacterization": "plots.view_plot",
+    "inputs.add_agriculturalinput": "inputs.view_agriculturalinput",
+    "inputs.change_agriculturalinput": "inputs.view_agriculturalinput",
+    "inputs.delete_agriculturalinput": "inputs.view_agriculturalinput",
+    "inputs.manage_inputstock": "inputs.view_agriculturalinput",
 }
 
 

@@ -11,7 +11,7 @@ from rest_framework.exceptions import ValidationError as FieldError
 from apps.common.audit import record_update_events
 from apps.common.db import has_dependent_rows, save_translating_unique
 from apps.common.farm_dependents import registered_dependents
-from apps.common.ownership import owner_filter
+from apps.common.ownership import owner_filter, resolve_target_producer
 from apps.common.territorial import coordinates_outside_operating_area
 from apps.common.versioning import check_expected_version, save_next_version
 
@@ -24,7 +24,6 @@ from ..exceptions import (
     InvalidCoordinates,
     LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
-    ProducerRequired,
     StaleFarmVersion,
 )
 from ..models import MUNICIPALITY_DEPARTMENT_MISMATCH, Farm, FarmAuditEvent
@@ -89,28 +88,12 @@ def get_farm(actor, farm_id) -> Farm:
 
 
 def _target_producer(actor, data: dict):
-    """El productor de la finca nueva: el de la sesión, o el que nombra la cuenta técnica.
-
-    La cuenta técnica no tiene un productor propio, así que lo manda en `producer_id` (y debe
-    existir y estar activo). Para cualquier otra cuenta mandarlo es un error, aunque sea el suyo:
-    una finca nunca se crea a nombre de otro productor. Quita `producer_id` de `data`.
-    """
-    requested = data.pop("producer_id", None)
-    if not actor.is_superuser:
-        if requested is not None:
-            raise FieldError({"producer_id": ["Campo no permitido."]})
-        if actor.producer_id is None:
-            raise ProducerRequired()
-        return actor.producer_id
-    if requested is None:
-        raise FieldError({"producer_id": ["Este campo es requerido."]})
-    # El modelo se toma de la relación y no de su app: ninguna app importa de otra.
-    producer = Farm._meta.get_field("producer").related_model.objects.filter(pk=requested).first()
-    if producer is None:
-        raise FieldError({"producer_id": ["El productor no existe."]})
-    if producer.status != "active":
-        raise FieldError({"producer_id": ["El productor está inactivo."]})
-    return producer.pk
+    return resolve_target_producer(
+        actor,
+        data,
+        Farm._meta.get_field("producer").related_model,
+        inactive=lambda: FieldError({"producer_id": ["El productor está inactivo."]}),
+    )
 
 
 @transaction.atomic

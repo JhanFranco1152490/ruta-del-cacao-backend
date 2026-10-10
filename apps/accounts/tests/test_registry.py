@@ -51,3 +51,14 @@ def test_every_permission_of_the_producer_role_can_be_delegated():
     # Por eso la cuenta Productor se protege con una regla explícita (`ensure_can_manage_account`)
     # y no con un permiso que solo ella tenga: un empleado puede llegar a tener todos los suyos.
     assert all(is_delegable(code) for code in SYSTEM_ROLES[PRODUCER]["permissions"])
+
+
+def test_input_actions_bring_the_permission_to_see_the_catalog():
+    for code in (
+        "inputs.add_agriculturalinput",
+        "inputs.change_agriculturalinput",
+        "inputs.delete_agriculturalinput",
+        "inputs.manage_inputstock",
+    ):
+        assert with_dependencies({code}) == {code, "inputs.view_agriculturalinput"}
+    assert registry.area_of("inputs.view_agriculturalinput") == "inputs"

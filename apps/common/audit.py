@@ -8,8 +8,9 @@ class AuditEventBase(models.Model):
     """Lo común a los historiales de cambios de un registro del dominio.
 
     Cada historial concreto declara sus `Action` (con `action` como campo de esas opciones), el
-    registro al que apunta y `actor`. Solo se guardan los nombres de los campos que cambiaron,
-    nunca sus valores, para que el historial no repita datos personales.
+    registro al que apunta y `actor`. Por defecto solo se guardan los nombres de los campos que
+    cambiaron, nunca sus valores, para que el historial no repita datos personales. Un historial
+    puede guardar además los valores solo si el registro no tiene ningún dato personal (un insumo).
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

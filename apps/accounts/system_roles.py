@@ -56,9 +56,25 @@ SYSTEM_ROLES = {
             "plots.change_plot",
             "plots.delete_plot",
             "crops.change_plotcharacterization",
+            "inputs.view_agriculturalinput",
+            "inputs.add_agriculturalinput",
+            "inputs.change_agriculturalinput",
+            "inputs.delete_agriculturalinput",
+            "inputs.manage_inputstock",
         ],
     },
-    FOREMAN: {"kind": Role.Kind.PREDEFINED, "name": "Capataz/Operario", "permissions": []},
+    # Eliminar un insumo no se deshace y ningún flujo del capataz lo pide: queda en el Productor,
+    # que puede delegarlo en un rol propio.
+    FOREMAN: {
+        "kind": Role.Kind.PREDEFINED,
+        "name": "Capataz/Operario",
+        "permissions": [
+            "inputs.view_agriculturalinput",
+            "inputs.add_agriculturalinput",
+            "inputs.change_agriculturalinput",
+            "inputs.manage_inputstock",
+        ],
+    },
     QUALITY_MANAGER: {
         "kind": Role.Kind.PREDEFINED,
         "name": "Encargado de calidad",

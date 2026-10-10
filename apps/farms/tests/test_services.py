@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 
 from apps.accounts.tests.factories import UserFactory
 from apps.common import territorial
+from apps.common.exceptions import ProducerRequired
 from apps.farms import services
 from apps.farms.exceptions import (
     DuplicateFarmName,
@@ -17,7 +18,6 @@ from apps.farms.exceptions import (
     InvalidCoordinates,
     LocationOutsideOperatingArea,
     MunicipalityDepartmentMismatch,
-    ProducerRequired,
     StaleFarmVersion,
 )
 from apps.farms.models import Farm, FarmAuditEvent

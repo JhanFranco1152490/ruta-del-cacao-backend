@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/", include("apps.plots.urls")),
     path("api/", include("apps.crops.urls")),
     path("api/", include("apps.inputs.urls")),
+    path("api/", include("apps.activities.urls")),
     path("api/", include("apps.common.urls")),
 ]
 

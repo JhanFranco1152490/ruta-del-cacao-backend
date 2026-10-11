@@ -95,6 +95,17 @@ def test_a_delegate_with_the_permission_deletes_an_employee():
     assert not exists(employee)
 
 
+def test_a_delegate_cannot_delete_an_employee_with_more_permissions_than_it_has():
+    producer = ProducerFactory()
+    delegate = make_delegate(producer, ["accounts.users_view", "accounts.users_delete"])
+    employee = make_employee(producer)
+
+    response = delete_as(delegate, employee)
+
+    assert response.status_code == 403
+    assert exists(employee)
+
+
 def test_an_account_of_another_producer_is_not_found():
     owner = make_producer_owner(ProducerFactory())
     other = make_employee(ProducerFactory())

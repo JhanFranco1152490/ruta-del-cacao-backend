@@ -50,6 +50,11 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     # No delegable: el catálogo de variedades es común a toda la asociación, no del espacio de
     # un productor.
     "crops.manage_cacaovariety": PermissionInfo(area="crops", delegable=False),
+    "activities.view_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "activities.add_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "activities.change_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "activities.complete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "activities.delete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
 }
 
 
@@ -94,6 +99,13 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "inputs.change_agriculturalinput": "inputs.view_agriculturalinput",
     "inputs.delete_agriculturalinput": "inputs.view_agriculturalinput",
     "inputs.manage_inputstock": "inputs.view_agriculturalinput",
+    # Las actividades se programan y se consultan en una parcela: sin verla no hay cómo llegar a
+    # ellas.
+    "activities.view_agriculturalactivity": "plots.view_plot",
+    "activities.add_agriculturalactivity": "activities.view_agriculturalactivity",
+    "activities.change_agriculturalactivity": "activities.view_agriculturalactivity",
+    "activities.complete_agriculturalactivity": "activities.view_agriculturalactivity",
+    "activities.delete_agriculturalactivity": "activities.view_agriculturalactivity",
 }
 
 

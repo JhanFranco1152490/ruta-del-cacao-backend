@@ -61,18 +61,31 @@ SYSTEM_ROLES = {
             "inputs.change_agriculturalinput",
             "inputs.delete_agriculturalinput",
             "inputs.manage_inputstock",
+            "activities.view_agriculturalactivity",
+            "activities.add_agriculturalactivity",
+            "activities.change_agriculturalactivity",
+            "activities.complete_agriculturalactivity",
+            "activities.delete_agriculturalactivity",
         ],
     },
-    # Eliminar un insumo no se deshace y ningún flujo del capataz lo pide: queda en el Productor,
-    # que puede delegarlo en un rol propio.
+    # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
+    # el Productor, que puede delegarlo en un rol propio.
     FOREMAN: {
         "kind": Role.Kind.PREDEFINED,
         "name": "Capataz/Operario",
         "permissions": [
+            # Consulta las fincas y parcelas en las que programa sus labores; gestionarlas sigue
+            # siendo del Productor.
+            "farms.view_farm",
+            "plots.view_plot",
             "inputs.view_agriculturalinput",
             "inputs.add_agriculturalinput",
             "inputs.change_agriculturalinput",
             "inputs.manage_inputstock",
+            "activities.view_agriculturalactivity",
+            "activities.add_agriculturalactivity",
+            "activities.change_agriculturalactivity",
+            "activities.complete_agriculturalactivity",
         ],
     },
     QUALITY_MANAGER: {

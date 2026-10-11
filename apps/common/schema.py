@@ -8,6 +8,7 @@ REQUIRED_ON_PATCH = {
     "PatchedFarmUpdateRequest": ["expected_version"],
     "PatchedPlotUpdateRequest": ["expected_version"],
     "PatchedAgriculturalInputUpdateRequest": ["expected_version"],
+    "PatchedActivityUpdateRequest": ["expected_version"],
 }
 
 

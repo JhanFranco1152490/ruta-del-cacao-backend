@@ -1,6 +1,7 @@
 from django.db import transaction
 
 from apps.common.db import has_dependent_rows
+from apps.common.plot_dependents import registered_dependents
 from apps.common.versioning import check_expected_version
 
 from ..exceptions import PlotHasRecords, StalePlotVersion
@@ -26,10 +27,20 @@ def delete_plot(actor, plot_id, expected_version: int) -> None:
 
 
 def has_business_records(plot: Plot) -> bool:
-    return has_dependent_rows(plot, ignore=(PlotAuditEvent,))
+    """Si la parcela tiene algo importante: un dependiente registrado que lo considere así, o
+    cualquier otra tabla que la apunte, salvo su auditoría. Así una tabla nueva bloquea el borrado
+    sin que nadie la agregue a una lista."""
+    dependents = registered_dependents()
+    if any(dependent.important_record(plot) for dependent in dependents):
+        return True
+    handled = tuple(model for dependent in dependents for model in dependent.models)
+    return has_dependent_rows(plot, ignore=(PlotAuditEvent, *handled))
 
 
 def remove_plot(plot: Plot, actor) -> None:
-    """Elimina la parcela y deja el rastro. Quien llama ya comprobó que no tiene registros."""
+    """Elimina la parcela con lo que se va con ella, y deja el rastro. Quien llama ya comprobó que
+    no tiene registros."""
+    for dependent in registered_dependents():
+        dependent.delete_all(plot, actor)
     record_plot_audit_event(plot=plot, actor=actor, action=PlotAuditEvent.Action.DELETED)
     plot.delete()

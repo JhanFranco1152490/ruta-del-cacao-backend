@@ -1,16 +1,13 @@
 from collections.abc import Iterable
-from decimal import Decimal
 
 from django.contrib.auth.base_user import AbstractBaseUser
 
+from apps.common.audit import field_changes
+
 from ..models import AgriculturalInput, AgriculturalInputAuditEvent
 
-
-def api_value(value):
-    """El valor como lo ve la API: el contenido en texto con tres decimales, el resto tal cual."""
-    if isinstance(value, Decimal):
-        return f"{value:.3f}"
-    return value
+# Como los muestra la API del insumo: el contenido del empaque con tres decimales.
+DECIMAL_PLACES = 3
 
 
 def record_input_audit_event(
@@ -23,12 +20,13 @@ def record_input_audit_event(
 ) -> AgriculturalInputAuditEvent:
     """Deja un evento con, por cada campo cambiado, su valor anterior y nuevo. Sin `before`
     (el alta), cada anterior es `None`."""
-    before = before or {}
     fields = sorted(set(changed_fields))
-    changes = {
-        name: {"before": api_value(before.get(name)), "after": api_value(getattr(item, name))}
-        for name in fields
-    }
+    changes = field_changes(
+        before or {},
+        {name: getattr(item, name) for name in fields},
+        fields=fields,
+        decimal_places=DECIMAL_PLACES,
+    )
     return AgriculturalInputAuditEvent.record(
         input=item,
         input_ref=item.pk,

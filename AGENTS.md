@@ -51,6 +51,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
 | `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
+| `apps/activities/` | Actividades agrícolas de cada parcela: programar, editar, reprogramar, eliminar lo programado por error, registrar la realización (también desde la cola sin conexión) y consultar por periodo, con su historial de valores anterior y nuevo. Los estados retrasada y vencida se calculan con la fecha (`state.py`); todo su alcance pasa por `services/queries.py` |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
@@ -126,7 +127,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   un productor lo declara con `register_dependent(ProducerDependent(...))` de
   `apps/common/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
   eliminan), como ya hacen `farms` y `accounts`: así `producers` no importa de ninguna. Deja un
-  `ProducerAuditEvent` sin relación con el productor, que sobrevive.
+  `ProducerAuditEvent` sin relación con el productor, que sobrevive. Los dependientes se eliminan
+  **al revés de como se registraron** (fincas antes que cuentas): cada app se registra después de
+  aquellas de las que depende, y lo que apunta a una cuenta con `PROTECT` (el responsable de una
+  actividad) tiene que irse antes que ella.
 - **La altitud de una finca debe caber en el terreno de su municipio**, con 100 m de margen y sin
   bajar de 0 (`apps/common/municipality_altitude.py`, calculado sobre un modelo de elevación de
   30 m; el frontend usa la misma tabla). Solo se exige al crear y cuando cambian la altitud o el
@@ -144,7 +148,12 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
   tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
   declara con `register_dependent(FarmDependent(...))` de `apps/common/farm_dependents.py`. Una
-  tabla que apunte a la finca sin estar registrada también la bloquea. Los dos registros salen de
+  tabla que apunte a la finca sin estar registrada también la bloquea. **Eliminar una parcela**
+  consulta igual su propio registro (`apps/common/plot_dependents.py`): `activities` se registra
+  ahí, y las actividades sin realizar se van con la parcela, cada una con su evento `deleted`;
+  una realizada responde `409 plot_has_records`. Como el borrado de una finca pasa por el de sus
+  parcelas, la regla vale también para fincas y productores. Lo que apunta a la parcela sin
+  registrarse (la ficha) sigue bloqueándola. Los tres registros salen de
   `apps/common/dependents.py`.
 - **Paginación única:** `page` (desde 1) y `page_size` (1–100, 20 por defecto); respuesta
   `{"count", "next", "previous", "results"}`. Una página fuera de rango responde 404
@@ -222,14 +231,45 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   restricción `PROTECT` las cuenta sola.
 - **El historial de un insumo** (`AgriculturalInputAuditEvent`) guarda por cada campo cambiado su
   valor anterior y nuevo (`changes`), a diferencia de los demás historiales: un insumo no tiene datos
-  personales. Es de solo lectura y solo para superusuarios en el admin, y el evento `deleted` guarda
+  personales. Lo calcula `field_changes` (`apps/common/audit.py`), la misma función que usan las
+  actividades: un historial nuevo con valores la reutiliza en vez de escribir la suya. Es de solo lectura y solo para superusuarios en el admin, y el evento `deleted` guarda
   `input_ref` e `input_name` para sobrevivir al insumo.
+- **Las actividades agrícolas** (`/api/agricultural-activities`):
+  - **Estados:** se guardan `scheduled` y `done`; la API entrega además `state` y `days_late`,
+    calculados con la fecha de Bogotá: `delayed` el día 1 y 2 de atraso y `overdue` desde el
+    tercero (`OVERDUE_AFTER_DAYS`, el frontend tiene la misma constante). Retrasada se edita,
+    reprograma y elimina; vencida solo se registra (`409 activity_overdue`); realizada no se toca
+    (`409 activity_already_done`).
+  - **Programar** (`POST`, `id` del cliente, reenvío idéntico `200`) solo en parcela y finca
+    activas; `phytosanitary_control` es `422 activity_type_not_allowed` (se crea desde un
+    monitoreo). **Editar** (`PATCH` con `expected_version`) valida la fecha, el responsable y el
+    tipo solo si cambian.
+  - **Registrar la realización** (`POST …/{id}/completion`) llega desde la cola: no pide versión,
+    el mismo envío responde `200` sin cambios y otra fecha sobre una realizada es
+    `activity_already_done`. Un monitoreo es `422 monitoring_requires_result`.
+  - **Insumos de la realización** (`inputs`: ninguno, uno o varios, sin repetir): cada uno se
+    descuenta del inventario de la finca con `record_consumption`, en la misma transacción, con la
+    nota `{labor} · {código de la parcela}` que muestra Insumos ("Fertilización · P-03"; con Otro,
+    su descripción). Las existencias pueden quedar negativas. Bloqueo: la finca, los insumos por
+    id y sus existencias, el mismo orden que el inventario. El reenvío idéntico no vuelve a
+    descontar. Un insumo inactivo es `422 input_inactive` con `input_ids`; uno que no es del
+    catálogo del productor, `400` (no `404`: la cola lo leería como actividad eliminada). Una
+    actividad de tipo Inventario no lleva insumos.
+  - **Listado** (`GET ?from=&to=`) de hasta 120 días, sin paginar; **responsables**
+    (`GET …/assignees`) con solo id, nombre y si está activa.
+  - El responsable (`assignee`) es `PROTECT`: una cuenta responsable de alguna actividad no se
+    elimina (`account_has_activity`).
+  - El historial guarda `changes` con el valor anterior y el nuevo de cada campo
+    (`field_changes`, `apps/common/audit.py`); una persona va por su id, nunca por su nombre.
 - **Esquema OpenAPI** con `drf-spectacular`: `GET /api/schema` y Swagger en `/api/docs`, **solo
   con `DEBUG=True`**. Las vistas declaran sus respuestas de error con `error_responses(...)`
   (`apps/common/schema.py`) para que el esquema traiga la forma estándar. El frontend debe
   generar sus tipos con `openapi-typescript` a partir de este esquema y no escribirlos a mano:
   un endpoint o campo nuevo debe quedar reflejado en el esquema en el mismo PR.
   Se valida con `python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yml`.
+  Un campo con opciones que se llame igual que otro de otro recurso (`status`) lleva su nombre
+  fijo en `ENUM_NAME_OVERRIDES` (`config/settings.py`): si no, spectacular renombra alguno con un
+  sufijo generado y los tipos del frontend dejan de compilar.
 
 ## Sesión, CSRF y acceso
 
@@ -319,6 +359,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Historial de los insumos** (`AgriculturalInputAuditEvent`): de solo lectura y solo para
   superusuarios, por la misma razón: el admin no filtra por productor. Se ve el valor anterior y
   nuevo de cada campo cambiado.
+- **Historial de las actividades** (`AgriculturalActivityAuditEvent`): igual, de solo lectura y
+  solo para superusuarios, con el valor anterior y el nuevo de cada cambio.
 
 ## Variables de entorno
 

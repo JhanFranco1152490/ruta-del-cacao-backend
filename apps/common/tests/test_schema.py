@@ -140,9 +140,10 @@ def test_duplicate_document_conflict_documents_the_existing_producer(schema):
     assert "existing_producer_id" not in conflict["required"]
 
 
-# Descripciones intencionales: las ediciones parciales, el alta de fincas (su `id` de cliente) y
-# los dos endpoints del mapa de fincas (qué devuelven y con qué alcance). Las de los enums las
-# arma drf-spectacular a partir de las opciones del modelo.
+# Descripciones intencionales: las ediciones parciales, el alta de fincas (su `id` de cliente),
+# los dos endpoints del mapa de fincas (qué devuelven y con qué alcance) y las actividades (qué
+# estados permiten cada acción y cómo responde un reenvío de la cola). Las de los enums las arma
+# drf-spectacular a partir de las opciones del modelo.
 DOCUMENTED_OPERATIONS = {
     ("patch", "/api/producers/{id}"),
     ("post", "/api/farms"),
@@ -167,6 +168,12 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/input-stocks"),
     ("get", "/api/input-movements"),
     ("post", "/api/input-movements"),
+    ("get", "/api/agricultural-activities"),
+    ("post", "/api/agricultural-activities"),
+    ("patch", "/api/agricultural-activities/{id}"),
+    ("delete", "/api/agricultural-activities/{id}"),
+    ("post", "/api/agricultural-activities/{id}/completion"),
+    ("get", "/api/agricultural-activities/assignees"),
 }
 
 

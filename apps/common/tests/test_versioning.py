@@ -93,3 +93,28 @@ def test_a_name_that_is_already_taken_becomes_the_domain_error():
         )
 
     assert Farm.objects.get(pk=other.pk).name == "El Mirador"
+
+
+def test_without_a_unique_constraint_it_saves_without_translating_anything():
+    farm = FarmFactory(details="antes")
+    farm.details = "después"
+
+    save_next_version(farm, ["details"])
+
+    stored = Farm.objects.get(pk=farm.pk)
+    assert stored.version == 2
+    assert stored.details == "después"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"constraint": NAME_UNIQUE_CONSTRAINT}, {"duplicate": NameTaken}],
+    ids=["constraint-only", "duplicate-only"],
+)
+def test_a_constraint_without_its_error_or_the_other_way_round_is_a_programming_error(kwargs):
+    farm = FarmFactory()
+
+    with pytest.raises(TypeError):
+        save_next_version(farm, ["details"], **kwargs)
+
+    assert Farm.objects.get(pk=farm.pk).version == 1

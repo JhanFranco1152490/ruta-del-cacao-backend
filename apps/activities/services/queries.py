@@ -10,6 +10,7 @@ from django.db.models import QuerySet
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 
+from ..choices import ActivityStatus
 from ..exceptions import ActivityNotFound, InvalidActivity, PlotNotFound
 from ..models import AgriculturalActivity
 
@@ -33,6 +34,17 @@ def list_activities(actor, date_from, date_to, producer_id=None) -> QuerySet[Agr
     ubican por su fecha programada, como las demás: el calendario muestra lo planeado y si se
     cumplió. `producer_id` solo lo usa la cuenta técnica, que sin él ve las de todos."""
     activities = visible_activities(actor).filter(scheduled_date__range=(date_from, date_to))
+    if actor.is_superuser and producer_id is not None:
+        activities = activities.filter(plot__farm__producer_id=producer_id)
+    return activities.order_by("scheduled_date", "activity_type", "id")
+
+
+def pending_activities(actor, through, producer_id=None) -> QuerySet[AgriculturalActivity]:
+    """Las actividades sin realizar con fecha programada hasta `through`, incluida. No tiene fecha
+    mínima: una vencida sigue pendiente mientras no se registre, por viejo que sea su atraso.
+    `producer_id` solo lo usa la cuenta técnica, como en `list_activities`."""
+    activities = visible_activities(actor).filter(scheduled_date__lte=through)
+    activities = activities.exclude(status=ActivityStatus.DONE)
     if actor.is_superuser and producer_id is not None:
         activities = activities.filter(plot__farm__producer_id=producer_id)
     return activities.order_by("scheduled_date", "activity_type", "id")

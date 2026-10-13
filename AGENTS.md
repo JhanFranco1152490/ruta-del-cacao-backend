@@ -255,7 +255,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     descontar. Un insumo inactivo es `422 input_inactive` con `input_ids`; uno que no es del
     catálogo del productor, `400` (no `404`: la cola lo leería como actividad eliminada). Una
     actividad de tipo Inventario no lleva insumos.
-  - **Listado** (`GET ?from=&to=`) de hasta 120 días, sin paginar; **responsables**
+  - **Listado** (`GET ?from=&to=`) de hasta 120 días, sin paginar; **pendientes**
+    (`GET …/pending?through=`) las que siguen sin realizar hasta esa fecha, sin fecha mínima ni
+    paginar, para que una vencida vieja no se pierda por el límite del listado; **responsables**
     (`GET …/assignees`) con solo id, nombre y si está activa.
   - El responsable (`assignee`) es `PROTECT`: una cuenta responsable de alguna actividad no se
     elimina (`account_has_activity`).

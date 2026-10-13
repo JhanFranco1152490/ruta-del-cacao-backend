@@ -164,8 +164,9 @@ MAX_PERIOD_DAYS = 120
 
 
 class ActivityListQuerySerializer(serializers.Serializer):
-    # Cubre el mes que se ve (hasta 42 días de cuadrícula) y la copia sin conexión (del mes
-    # anterior a dos meses después), sin abrir la puerta a pedir años enteros sin paginar.
+    # Cubre el mes que se ve (hasta 42 días de cuadrícula) sin abrir la puerta a pedir años
+    # enteros sin paginar. La copia sin conexión (cuatro meses) no cabe: casi siempre pasa de 120
+    # días, así que el dispositivo la pide un mes por petición.
 
     def get_fields(self):
         # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
@@ -183,6 +184,11 @@ class ActivityListQuerySerializer(serializers.Serializer):
                 {"to": [f"El periodo no puede pasar de {MAX_PERIOD_DAYS} días."]}
             )
         return attrs
+
+
+class PendingQuerySerializer(serializers.Serializer):
+    through = serializers.DateField()
+    producer = serializers.UUIDField(required=False)
 
 
 class ActivityListSerializer(serializers.Serializer):

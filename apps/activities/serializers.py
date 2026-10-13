@@ -186,6 +186,11 @@ class ActivityListQuerySerializer(serializers.Serializer):
         return attrs
 
 
+class PendingQuerySerializer(serializers.Serializer):
+    through = serializers.DateField()
+    producer = serializers.UUIDField(required=False)
+
+
 class ActivityListSerializer(serializers.Serializer):
     results = AgriculturalActivitySerializer(many=True)
 

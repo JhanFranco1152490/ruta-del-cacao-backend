@@ -21,11 +21,12 @@ from .serializers import (
     AssigneeListSerializer,
     AssigneeQuerySerializer,
     CompletionSerializer,
+    PendingQuerySerializer,
 )
 from .services.complete import complete_activity
 from .services.create import create_activity
 from .services.delete import delete_activity
-from .services.queries import assignee_options, get_activity, list_activities
+from .services.queries import assignee_options, get_activity, list_activities, pending_activities
 from .services.update import update_activity
 
 
@@ -107,6 +108,7 @@ class AgriculturalActivityViewSet(GenericViewSet):
         "destroy": "activities.delete_agriculturalactivity",
         "completion": "activities.complete_agriculturalactivity",
         "assignees": "activities.view_agriculturalactivity",
+        "pending": "activities.view_agriculturalactivity",
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -189,6 +191,26 @@ class AgriculturalActivityViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         options = assignee_options(request.user, query.validated_data.get("producer"))
         return Response({"results": AssigneeListSerializer({"results": options}).data["results"]})
+
+    @extend_schema(
+        description=(
+            "Las actividades sin realizar con fecha programada hasta `through`, incluida, sin "
+            "fecha mínima ni paginar: una vencida sigue pendiente mientras no se registre. "
+            "`state` y `days_late` se calculan con la fecha de hoy en Bogotá."
+        ),
+        parameters=[
+            OpenApiParameter("through", str, required=True, description="Última fecha incluida."),
+            OpenApiParameter("producer", str, description="Solo para la cuenta técnica."),
+        ],
+        responses={200: ActivityListSerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"])
+    def pending(self, request):
+        query = PendingQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        params = query.validated_data
+        activities = pending_activities(request.user, params["through"], params.get("producer"))
+        return Response({"results": AgriculturalActivitySerializer(activities, many=True).data})
 
     def handle_exception(self, exc):
         # El servicio lanza el conflicto con la actividad del dominio; aquí se convierte en lo

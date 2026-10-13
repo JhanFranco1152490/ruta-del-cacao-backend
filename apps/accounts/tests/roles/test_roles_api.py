@@ -246,29 +246,22 @@ def test_a_non_administrator_cannot_send_producer_id(auth_client):
     assert "producer_id" in response.data["fields"]
 
 
-def test_administrator_must_send_producer_id(auth_client):
-    admin = make_administrator()
-
-    response = auth_client(admin).post(
-        ROLES_URL, {"name": "X", "permission_codes": []}, format="json"
-    )
-
-    assert response.status_code == 400
-    assert "producer_id" in response.data["fields"]
-
-
-def test_administrator_cannot_create_a_role_for_a_producer(auth_client):
+def test_administrator_cannot_manage_roles(auth_client):
     admin = make_administrator()
     producer = ProducerFactory()
+    role = RoleFactory(producer=producer)
+    client = auth_client(admin)
 
-    response = auth_client(admin).post(
+    created = client.post(
         ROLES_URL,
         {"name": "X", "permission_codes": [], "producer_id": str(producer.id)},
         format="json",
     )
+    edited = client.patch(f"{ROLES_URL}/{role.id}", {"name": "Y"}, format="json")
+    deleted = client.delete(f"{ROLES_URL}/{role.id}")
 
-    assert response.status_code == 403
-    assert response.data["code"] == "exceeds_own_permissions"
+    assert [created.status_code, edited.status_code, deleted.status_code] == [403, 403, 403]
+    assert created.data["code"] == "permission_denied"
 
 
 def test_superuser_creates_a_role_for_any_producer(auth_client):
@@ -400,9 +393,9 @@ def test_a_producer_edits_its_own_role(auth_client):
 
 
 def test_editing_a_system_role_is_immutable(auth_client):
-    admin = make_administrator()
+    owner = make_producer_owner(ProducerFactory())
 
-    response = auth_client(admin).patch(
+    response = auth_client(owner).patch(
         f"{ROLES_URL}/{get_system_role(ADMINISTRATOR).id}", {"name": "Otro"}, format="json"
     )
 
@@ -539,9 +532,9 @@ def test_deleting_a_role_with_an_assigned_user_is_rejected(auth_client):
 
 
 def test_deleting_a_predefined_role_is_immutable(auth_client):
-    admin = make_administrator()
+    owner = make_producer_owner(ProducerFactory())
 
-    response = auth_client(admin).delete(f"{ROLES_URL}/{get_system_role(FOREMAN).id}")
+    response = auth_client(owner).delete(f"{ROLES_URL}/{get_system_role(FOREMAN).id}")
 
     assert response.status_code == 403
     assert response.data["code"] == "role_immutable"

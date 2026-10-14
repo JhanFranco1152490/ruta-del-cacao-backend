@@ -23,7 +23,6 @@ SYSTEM_ROLES = {
             "accounts.users_change_status",
             "accounts.users_delete",
             "accounts.roles_view",
-            "accounts.roles_manage",
             "producers.view",
             "producers.create",
             "producers.update",

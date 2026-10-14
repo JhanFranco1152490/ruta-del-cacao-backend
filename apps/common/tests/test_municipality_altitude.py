@@ -1,3 +1,5 @@
+import hashlib
+
 from apps.common.municipality_altitude import (
     ALTITUDE_MARGIN_M,
     ALTITUDE_RANGES,
@@ -28,3 +30,17 @@ def test_a_code_that_is_not_a_municipality_has_no_range():
 
 def test_the_ranges_are_coherent():
     assert all(minimum < maximum for minimum, maximum in ALTITUDE_RANGES.values())
+
+
+# La misma tabla y el mismo margen viven copiados en la aplicación web, que avisa con ellos
+# mientras se escribe. Los dos repos fijan esta misma huella: si cambia la tabla o el margen, esta
+# prueba falla y obliga a actualizar la huella en ambos lados a la vez.
+SHARED_TABLE_FINGERPRINT = "b430c1a23646da285ea354451dc3139b3f95649f1836a4292ffcbb8d9e4778cc"
+
+
+def test_the_table_matches_the_copy_the_web_app_ships():
+    lines = [f"margin:{ALTITUDE_MARGIN_M}"] + [
+        f"{code}:{minimum}-{maximum}"
+        for code, (minimum, maximum) in sorted(ALTITUDE_RANGES.items())
+    ]
+    assert hashlib.sha256("\n".join(lines).encode()).hexdigest() == SHARED_TABLE_FINGERPRINT

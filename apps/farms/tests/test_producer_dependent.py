@@ -1,6 +1,7 @@
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
+from apps.accounts.tests.role_helpers import make_delegate
 from apps.farms.models import Farm, FarmAuditEvent
 from apps.farms.producer_dependent import farms_dependent
 from apps.farms.tests.factories import FarmFactory
@@ -44,3 +45,18 @@ def test_deleting_all_removes_only_that_producers_farms_and_audits_each_one():
     )
     assert events.count() == 2
     assert {event.actor for event in events} == {actor}
+
+
+def test_the_employees_assigned_to_a_farm_do_not_keep_the_producer_from_being_deleted():
+    # Al eliminar un productor creado por error sus fincas se van antes que sus cuentas: la finca
+    # asignada a un empleado no cuenta como registro suyo ni impide borrarla.
+    producer = ProducerFactory()
+    farm = FarmFactory(producer=producer)
+    employee = make_delegate(producer, ["plots.view_plot"], farm=farm)
+
+    assert farms_dependent.important_record(producer) is None
+    farms_dependent.delete_all(producer, UserFactory())
+
+    assert not Farm.objects.filter(pk=farm.pk).exists()
+    employee.refresh_from_db()
+    assert not employee.farms.exists()

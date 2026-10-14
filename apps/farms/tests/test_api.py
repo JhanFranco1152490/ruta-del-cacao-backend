@@ -100,24 +100,30 @@ def test_a_producer_delegates_farm_management_to_an_employee(auth_client):
     producer = ProducerFactory()
     role = auth_client(make_producer_owner(producer)).post(
         "/api/roles",
-        {"name": "Encargado de fincas", "permission_codes": ["farms.add_farm"]},
+        {"name": "Encargado de fincas", "permission_codes": ["farms.change_farm"]},
         format="json",
     )
     assert role.status_code == 201
-    # Registrar fincas sin poder consultarlas no tiene sentido: el rol recibe también la vista.
-    assert sorted(role.data["permissions"]) == ["farms.add_farm", "farms.view_farm"]
+    # Editar fincas sin poder consultarlas no tiene sentido: el rol recibe también la vista.
+    assert sorted(role.data["permissions"]) == ["farms.change_farm", "farms.view_farm"]
 
-    employee = grant_role(UserFactory(producer=producer), Role.objects.get(pk=role.data["id"]))
     own_farm = FarmFactory(producer=producer)
+    FarmFactory(producer=producer)
     FarmFactory()
+    employee = grant_role(
+        UserFactory(producer=producer, farm=own_farm), Role.objects.get(pk=role.data["id"])
+    )
     client = auth_client(employee)
 
     listed = client.get("/api/farms")
     created = client.post("/api/farms", VALID_DATA, format="json")
 
+    # Un empleado está limitado a la finca en la que trabaja: ve solo esa. Registrar fincas no
+    # se delega: queda en el Productor.
     assert [farm["id"] for farm in listed.data["results"]] == [str(own_farm.id)]
-    assert created.status_code == 201
-    assert Farm.objects.get(pk=created.data["id"]).producer == producer
+    assert created.status_code == 403
+    assert created.data["code"] == "permission_denied"
+    assert Farm.objects.filter(producer=producer).count() == 2
 
 
 # --- Crear -------------------------------------------------------------------------------

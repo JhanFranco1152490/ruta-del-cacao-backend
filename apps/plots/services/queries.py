@@ -49,7 +49,7 @@ def list_plots(
     """Las parcelas de las fincas del productor de la sesión. Una finca o un productor ajenos
     no dan error: simplemente no tienen parcelas que mostrar."""
     plots = (
-        Plot.objects.filter(**owner_filter(actor, "farm__producer_id"))
+        Plot.objects.filter(**owner_filter(actor, "farm__producer_id", farm="farm_id"))
         .select_related("farm__producer")
         .order_by(*PLOT_ORDERINGS[ordering])
     )
@@ -86,7 +86,7 @@ def count_characterizations(plots: QuerySet[Plot]) -> dict:
 def get_plot(actor, plot_id) -> Plot:
     try:
         return Plot.objects.select_related("farm__producer").get(
-            pk=plot_id, **owner_filter(actor, "farm__producer_id")
+            pk=plot_id, **owner_filter(actor, "farm__producer_id", farm="farm_id")
         )
     except Plot.DoesNotExist:
         raise PlotNotFound() from None
@@ -101,7 +101,7 @@ def lock_plot(actor, plot_id) -> Plot:
         Plot,
         plot_id,
         root="farm",
-        scope=owner_filter(actor, "farm__producer_id"),
+        scope=owner_filter(actor, "farm__producer_id", farm="farm_id"),
         not_found=PlotNotFound,
     )
     plot.farm = farm

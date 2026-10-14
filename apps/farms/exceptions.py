@@ -35,6 +35,16 @@ class FarmHasRecords(ApiError):
     default_code = "farm_has_records"
 
 
+class FarmHasAccounts(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La finca tiene empleados asignados. Reasígnalos antes de eliminarla."
+    default_code = "farm_has_accounts"
+
+    def __init__(self, accounts: int):
+        # Cuántos son, para que la pantalla lo diga; nunca quiénes.
+        super().__init__(extra={"accounts": accounts})
+
+
 class FarmIdConflict(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El identificador ya pertenece a otra finca."

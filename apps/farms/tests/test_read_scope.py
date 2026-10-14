@@ -55,9 +55,25 @@ def test_producer_reads_only_its_farms(auth_client, farms):
 
 
 def test_employee_reads_only_its_producer_farms(auth_client, farms):
-    employee = make_delegate(farms["second"].producer, ["farms.view_farm"])
+    employee = make_delegate(farms["second"].producer, ["farms.view_farm"], farm=farms["second"])
 
     assert listed_names(auth_client(employee)) == ["Beta"]
+
+
+def test_employee_reads_only_the_farm_it_works_in(auth_client, farms):
+    producer = farms["second"].producer
+    other = FarmFactory(producer=producer, name="Gamma")
+    client = auth_client(make_delegate(producer, ["farms.view_farm"], farm=farms["second"]))
+
+    assert listed_names(client) == ["Beta"]
+    # Como si no existiera: la respuesta no confirma que el productor tiene otra finca.
+    assert client.get(f"/api/farms/{other.pk}").status_code == 404
+
+
+def test_employee_without_a_farm_reads_none(auth_client, farms):
+    employee = make_delegate(farms["second"].producer, ["farms.view_farm"])
+
+    assert listed_names(auth_client(employee)) == []
 
 
 def test_account_without_producer_or_admin_role_reads_nothing(auth_client, farms):

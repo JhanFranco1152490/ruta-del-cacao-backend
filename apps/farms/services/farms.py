@@ -6,18 +6,20 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import DecimalField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError as FieldError
 
 from apps.common.audit import record_update_events
 from apps.common.db import has_dependent_rows, save_translating_unique
 from apps.common.farm_dependents import registered_dependents
-from apps.common.ownership import owner_filter, resolve_target_producer
+from apps.common.ownership import owner_filter, reaches_all_farms, resolve_target_producer
 from apps.common.territorial import coordinates_outside_operating_area
 from apps.common.versioning import check_expected_version, save_next_version
 
 from ..exceptions import (
     DuplicateFarmName,
     FarmAreaBelowPlots,
+    FarmHasAccounts,
     FarmHasRecords,
     FarmIdConflict,
     FarmNotFound,
@@ -104,6 +106,10 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
     contenido devuelve la finca ya creada (`creada=False`), de modo que reintentar un envío
     cortado nunca duplica.
     """
+    # Un empleado está limitado a la finca en la que trabaja: registrar otra no le corresponde,
+    # aunque su rol traiga el permiso, porque quedaría fuera de su propio alcance.
+    if not reaches_all_farms(actor):
+        raise PermissionDenied("Solo el productor registra fincas.")
     producer_id = _target_producer(actor, data)
     farm_id = data.get("id")
     if farm_id is not None:
@@ -132,7 +138,7 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
 @transaction.atomic
 def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
     try:
-        farm = Farm.objects.select_for_update().get(pk=farm_id, **owner_filter(actor))
+        farm = Farm.objects.select_for_update().get(pk=farm_id, **owner_filter(actor, farm="id"))
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
     # Con la finca bloqueada, ninguna parcela se registra ni se agranda hasta que esto termine.
@@ -181,10 +187,15 @@ def delete_farm(actor, farm_id, expected_version: int) -> None:
     """Elimina una finca creada por error. Solo si no tiene registros del negocio; la que los
     tiene se desactiva. Su auditoría se conserva y el borrado queda registrado en ella."""
     try:
-        farm = Farm.objects.select_for_update().get(pk=farm_id, **owner_filter(actor))
+        farm = Farm.objects.select_for_update().get(pk=farm_id, **owner_filter(actor, farm="id"))
     except Farm.DoesNotExist:
         raise FarmNotFound() from None
     check_expected_version(farm, expected_version, stale=lambda: _stale_with_allocated_area(farm))
+    # Antes que lo demás: los empleados no se desasignan solos al eliminar su finca, porque
+    # quedarían sin acceso sin que nadie lo decidiera.
+    assigned = farm.accounts.count()
+    if assigned:
+        raise FarmHasAccounts(assigned)
     remove_unimportant_farm(farm, actor)
 
 
@@ -197,6 +208,9 @@ def remove_unimportant_farm(farm: Farm, actor) -> None:
     for dependent in registered_dependents():
         dependent.delete_all(farm, actor)
     record_farm_audit_event(farm=farm, actor=actor, action=FarmAuditEvent.Action.DELETED)
+    # Solo llega aquí con cuentas asignadas al eliminar un productor creado por error, que
+    # elimina sus fincas antes que sus cuentas: se sueltan para que la finca pueda irse.
+    farm.accounts.clear()
     farm.delete()
 
 
@@ -208,7 +222,12 @@ def has_business_records(farm: Farm) -> bool:
     if any(dependent.important_record(farm) for dependent in dependents):
         return True
     handled = tuple(model for dependent in dependents for model in dependent.models)
-    return has_dependent_rows(farm, ignore=(FarmAuditEvent, *handled))
+    # Las cuentas asignadas a la finca no son un registro suyo: quién trabaja en ella se decide
+    # aparte (ver `delete_farm`). El modelo se toma de la relación: esta app no importa de otra.
+    accounts = Farm._meta.get_field("accounts")
+    return has_dependent_rows(
+        farm, ignore=(FarmAuditEvent, accounts.related_model, accounts.through, *handled)
+    )
 
 
 def _resent_farm(existing: Farm, producer_id, data: dict) -> Farm:

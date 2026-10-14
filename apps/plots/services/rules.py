@@ -36,7 +36,11 @@ Farm = Plot._meta.get_field("farm").related_model
 
 def lock_farm(actor, farm_id):
     """La finca del productor de la sesión, bloqueada hasta el final de la transacción."""
-    farm = Farm.objects.select_for_update().filter(pk=farm_id, **owner_filter(actor)).first()
+    farm = (
+        Farm.objects.select_for_update()
+        .filter(pk=farm_id, **owner_filter(actor, farm="id"))
+        .first()
+    )
     if farm is None:
         raise FarmNotFound()
     return farm

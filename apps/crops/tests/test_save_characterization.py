@@ -150,7 +150,9 @@ def test_the_device_time_is_kept(owner, plot, ccn51):
 
 
 def test_an_employee_with_the_delegated_permission_works_on_the_producers_plot(plot, ccn51):
-    employee = make_delegate(plot.farm.producer, ["crops.change_plotcharacterization"])
+    employee = make_delegate(
+        plot.farm.producer, ["crops.change_plotcharacterization"], farm=plot.farm
+    )
 
     _, created = save_characterization(employee, plot.pk, None, data((ccn51, 900)))
 

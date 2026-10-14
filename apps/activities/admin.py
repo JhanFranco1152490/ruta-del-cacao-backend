@@ -1,12 +1,30 @@
 from django.contrib import admin
 
-from apps.common.admin import ReadOnlyAdminMixin
+from apps.common.admin import ReadOnlyInlineMixin, SuperuserReadOnlyAdminMixin
 
-from .models import AgriculturalActivityAuditEvent
+from .models import AgriculturalActivity, AgriculturalActivityAuditEvent, AgriculturalActivityInput
+
+
+class ActivityInputInline(ReadOnlyInlineMixin, admin.TabularInline):
+    model = AgriculturalActivityInput
+    fields = ("input", "quantity", "stock_movement")
+    readonly_fields = fields
+
+
+@admin.register(AgriculturalActivity)
+class AgriculturalActivityAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
+    """Las actividades con los insumos que gastaron, de solo lectura: una realización no se
+    modifica y el resto tiene reglas de fecha y de estado que solo aplica la aplicación."""
+
+    list_display = ("activity_type", "plot", "scheduled_date", "status", "assignee")
+    list_filter = ("status", "activity_type")
+    list_select_related = ("plot__farm", "assignee")
+    search_fields = ("plot__code", "plot__farm__name__unaccent")
+    inlines = [ActivityInputInline]
 
 
 @admin.register(AgriculturalActivityAuditEvent)
-class AgriculturalActivityAuditEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+class AgriculturalActivityAuditEventAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
     """El historial de las actividades con el valor anterior y el nuevo de cada cambio, de solo
     lectura."""
 

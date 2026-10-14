@@ -7,14 +7,20 @@ from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.auth.axes import lockout_identifier
-from apps.accounts.models import Role
+from apps.accounts.models import AccountManagementEvent, Role, User
 from apps.accounts.system_roles import ADMINISTRATOR
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.helpers import login_by_email
-from apps.accounts.tests.role_helpers import make_producer_owner
+from apps.accounts.tests.role_helpers import (
+    make_administrator,
+    make_delegate,
+    make_producer_owner,
+)
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("plain_static_files")]
@@ -24,9 +30,14 @@ REFRESH_URL = "/api/auth/refresh"
 
 
 @pytest.fixture
-def admin_client():
+def superuser_account():
+    return UserFactory(is_staff=True, is_superuser=True)
+
+
+@pytest.fixture
+def admin_client(superuser_account):
     client = Client()
-    client.force_login(UserFactory(is_staff=True, is_superuser=True))
+    client.force_login(superuser_account)
     return client
 
 
@@ -203,3 +214,249 @@ def test_the_user_admin_shows_the_producer_and_its_roles_as_read_only(admin_clie
     assert owner.producer.member_code in body
     assert "Productor" in body
     assert 'name="groups"' not in body
+
+
+# --- User: las escrituras pasan por los servicios de cuentas ---
+
+
+def user_form(user, **overrides):
+    data = {
+        "email": user.email,
+        "document_type": user.document_type,
+        "identity_document": user.identity_document,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "is_active": "on" if user.is_active else "",
+        "is_staff": "on" if user.is_staff else "",
+        "is_superuser": "on" if user.is_superuser else "",
+    }
+    data.update(overrides)
+    return {name: value for name, value in data.items() if value != ""}
+
+
+def user_url(name, user):
+    return reverse(f"admin:accounts_user_{name}", args=[user.pk])
+
+
+def employee():
+    return UserFactory(producer=ProducerFactory(), first_name="Ana", last_name="Prueba")
+
+
+def issue_session(user):
+    RefreshToken.for_user(user)
+
+
+def sessions_revoked(user):
+    return not OutstandingToken.objects.filter(user=user, blacklistedtoken__isnull=True).exists()
+
+
+def test_an_account_cannot_be_added_from_the_admin(admin_client):
+    before = User.objects.count()
+
+    assert admin_client.get(reverse("admin:accounts_user_add")).status_code == 403
+    response = admin_client.post(
+        reverse("admin:accounts_user_add"),
+        {
+            "email": "sinrol@example.com",
+            "document_type": "CC",
+            "identity_document": "99887766",
+            "password1": "Clave-segura-12345",
+            "password2": "Clave-segura-12345",
+        },
+    )
+
+    assert response.status_code == 403
+    assert User.objects.count() == before
+
+
+def test_editing_the_data_goes_through_update_account_and_revokes_the_sessions_of_a_new_email(
+    admin_client,
+):
+    user = employee()
+    issue_session(user)
+
+    response = admin_client.post(
+        user_url("change", user),
+        user_form(user, first_name="Ana María", email="nuevo.correo@example.com"),
+    )
+
+    assert response.status_code == 302
+    user.refresh_from_db()
+    assert (user.first_name, user.email) == ("Ana María", "nuevo.correo@example.com")
+    assert sessions_revoked(user)
+
+
+def test_a_repeated_email_is_refused_and_nothing_changes(admin_client):
+    user = employee()
+    other = UserFactory(producer=user.producer)
+    original = user.email
+
+    response = admin_client.post(
+        user_url("change", user), user_form(user, email=other.email, first_name="Otro")
+    )
+
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert (user.email, user.first_name) == (original, "Ana")
+
+
+def test_deactivating_goes_through_set_account_status(admin_client, superuser_account):
+    user = employee()
+    issue_session(user)
+
+    admin_client.post(user_url("change", user), user_form(user, is_active=""))
+
+    user.refresh_from_db()
+    assert not user.is_active
+    assert sessions_revoked(user)
+    event = AccountManagementEvent.objects.get(target_user=user)
+    assert event.event_type == AccountManagementEvent.EventType.ACCOUNT_DEACTIVATED
+    assert event.actor == superuser_account
+
+
+def test_the_last_administrator_cannot_be_deactivated_from_the_admin(admin_client):
+    administrator = make_administrator()
+    response = admin_client.post(
+        user_url("change", administrator), user_form(administrator, is_active=""), follow=True
+    )
+
+    administrator.refresh_from_db()
+    assert administrator.is_active
+    assert response.redirect_chain[-1][0] == user_url("change", administrator)
+
+
+def test_an_account_that_never_signed_in_is_deleted_through_the_service(
+    admin_client, superuser_account
+):
+    user = employee()
+
+    response = admin_client.post(user_url("delete", user), {"post": "yes"})
+
+    assert response.status_code == 302
+    assert not User.objects.filter(pk=user.pk).exists()
+    event = AccountManagementEvent.objects.get(target_user_ref=user.pk)
+    assert event.event_type == AccountManagementEvent.EventType.ACCOUNT_DELETED
+    assert event.actor == superuser_account
+
+
+def test_an_account_that_already_signed_in_is_not_deleted_and_the_admin_says_why(admin_client):
+    user = employee()
+    User.objects.filter(pk=user.pk).update(last_login=timezone.now())
+
+    response = admin_client.post(user_url("delete", user), {"post": "yes"}, follow=True)
+
+    assert User.objects.filter(pk=user.pk).exists()
+    assert "inició sesión" in response.content.decode()
+
+
+def test_the_bulk_delete_action_is_not_offered_for_accounts(admin_client):
+    employee()
+
+    body = admin_client.get(reverse("admin:accounts_user_changelist")).content.decode()
+
+    assert "delete_selected" not in body
+
+
+def test_the_last_login_cannot_be_edited_to_get_around_the_delete_rule(admin_client):
+    user = employee()
+    User.objects.filter(pk=user.pk).update(last_login=timezone.now())
+
+    admin_client.post(
+        user_url("change", user),
+        {**user_form(user), "last_login_0": "", "last_login_1": ""},
+    )
+
+    user.refresh_from_db()
+    assert user.last_login is not None
+
+
+def test_the_personal_data_of_a_producer_account_is_read_only(admin_client):
+    owner = make_producer_owner(ProducerFactory())
+    original = owner.first_name
+
+    admin_client.post(user_url("change", owner), user_form(owner, first_name="Cambiado"))
+
+    owner.refresh_from_db()
+    assert owner.first_name == original
+    body = admin_client.get(user_url("change", owner)).content.decode()
+    assert 'name="first_name"' not in body
+
+
+def test_a_technical_account_is_edited_directly_and_cannot_be_deleted(admin_client):
+    technical = UserFactory(is_staff=True, is_superuser=True, first_name="Técnica")
+
+    admin_client.post(
+        user_url("change", technical), user_form(technical, first_name="Equipo técnico")
+    )
+
+    technical.refresh_from_db()
+    assert technical.first_name == "Equipo técnico"
+    assert admin_client.post(user_url("delete", technical), {"post": "yes"}).status_code == 403
+    assert User.objects.filter(pk=technical.pk).exists()
+
+
+def test_the_technical_flags_are_saved_directly_for_a_superuser(admin_client):
+    user = employee()
+
+    admin_client.post(user_url("change", user), user_form(user, is_staff="on"))
+
+    user.refresh_from_db()
+    assert user.is_staff
+
+
+def test_a_new_password_from_the_admin_revokes_the_sessions(admin_client):
+    user = employee()
+    issue_session(user)
+
+    response = admin_client.post(
+        reverse("admin:auth_user_password_change", args=[user.pk]),
+        {"password1": "otra clave segura 2026", "password2": "otra clave segura 2026"},
+    )
+
+    assert response.status_code == 302
+    user.refresh_from_db()
+    assert user.check_password("otra clave segura 2026")
+    assert sessions_revoked(user)
+
+
+def test_a_rejected_password_form_leaves_the_sessions_open(admin_client):
+    user = employee()
+    issue_session(user)
+
+    admin_client.post(
+        reverse("admin:auth_user_password_change", args=[user.pk]),
+        {"password1": "una clave", "password2": "otra distinta"},
+    )
+
+    assert not sessions_revoked(user)
+
+
+def test_the_permissions_follow_the_api_ones():
+    user = employee()
+    viewer = Client()
+    viewer.force_login(
+        UserFactory(is_staff=True, producer=user.producer, permissions=["accounts.users_view"])
+    )
+
+    assert viewer.get(user_url("change", user)).status_code == 200
+    assert (
+        viewer.post(user_url("change", user), user_form(user, first_name="X")).status_code == 403
+    )
+    assert viewer.post(user_url("delete", user), {"post": "yes"}).status_code == 403
+
+
+def test_staff_who_is_not_the_technical_account_only_reaches_the_accounts_it_can_manage():
+    mine = employee()
+    theirs = employee()
+    technical = UserFactory(is_staff=True, is_superuser=True, email="tecnica@example.com")
+    delegate = make_delegate(mine.producer, ["accounts.users_view", "accounts.users_update"])
+    delegate.is_staff = True
+    delegate.save(update_fields=["is_staff"])
+    client = Client()
+    client.force_login(delegate)
+
+    body = client.get(reverse("admin:accounts_user_changelist")).content.decode()
+
+    assert mine.email in body
+    assert theirs.email not in body and technical.email not in body
+    assert client.get(user_url("change", theirs)).status_code == 302

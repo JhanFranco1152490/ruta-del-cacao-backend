@@ -7,6 +7,8 @@ from apps.activities.services.create import create_activity
 from apps.activities.state import today_in_bogota
 from apps.plots.tests.factories import PlotFactory
 
+from .factories import AgriculturalActivityFactory, AgriculturalActivityInputFactory
+
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("plain_static_files")]
 
 
@@ -67,3 +69,52 @@ def test_nobody_edits_the_history_from_the_admin(event):
     response = client.post(change_url(event), {"action": "deleted"})
 
     assert response.status_code == 403
+
+
+# --- Actividades ---
+
+
+def test_an_activity_shows_the_inputs_it_used_and_nothing_can_be_edited():
+    used = AgriculturalActivityInputFactory()
+    activity = used.activity
+    client = login(UserFactory(is_staff=True, is_superuser=True))
+    url = reverse("admin:activities_agriculturalactivity_change", args=[activity.pk])
+
+    body = client.get(url).content.decode()
+
+    assert used.input.name in body
+    assert (
+        client.get(reverse("admin:activities_agriculturalactivity_changelist")).status_code == 200
+    )
+    assert client.get(reverse("admin:activities_agriculturalactivity_add")).status_code == 403
+    assert client.post(url, {}).status_code == 403
+    deletion = reverse("admin:activities_agriculturalactivity_delete", args=[activity.pk])
+    assert client.post(deletion, {"post": "yes"}).status_code == 403
+
+
+def test_the_activity_list_searches_by_plot_code():
+    wanted = AgriculturalActivityFactory(plot__code="P-BUSCADA")
+    AgriculturalActivityFactory(plot__code="P-OTRA")
+    client = login(UserFactory(is_staff=True, is_superuser=True))
+
+    body = client.get(
+        reverse("admin:activities_agriculturalactivity_changelist"), {"q": "P-BUSCADA"}
+    ).content.decode()
+
+    assert wanted.plot.code in body and "P-OTRA" not in body
+
+
+def test_staff_who_is_not_the_technical_account_does_not_read_activities():
+    activity = AgriculturalActivityFactory()
+    employee = login(
+        UserFactory(
+            is_staff=True,
+            producer=activity.plot.farm.producer,
+            permissions=["activities.view_agriculturalactivity"],
+        )
+    )
+
+    assert (
+        employee.get(reverse("admin:activities_agriculturalactivity_changelist")).status_code
+        == 403
+    )

@@ -86,6 +86,18 @@ def test_administrator_does_not_see_the_custom_roles_of_a_producer(auth_client):
     assert response.status_code == 404
 
 
+def test_administrator_lists_only_the_system_roles(auth_client):
+    admin = make_administrator()
+    custom = RoleFactory(producer=ProducerFactory())
+
+    response = auth_client(admin).get(ROLES_URL)
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.data["results"]}
+    assert str(custom.id) not in ids
+    assert {item["kind"] for item in response.data["results"]} <= {"fixed", "predefined"}
+
+
 def test_superuser_sees_the_custom_roles_of_any_producer(auth_client):
     superuser = UserFactory(is_superuser=True)
     role = RoleFactory(producer=ProducerFactory())

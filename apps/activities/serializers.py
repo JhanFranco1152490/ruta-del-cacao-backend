@@ -34,6 +34,14 @@ class AssigneeSerializer(serializers.Serializer):
     is_active = serializers.BooleanField()
 
 
+class AssigneeOptionSerializer(AssigneeSerializer):
+    # Una cuenta de la lista de responsables. `farm_ids` son las fincas en las que trabaja (vacía
+    # en el Productor, que vale para todas) y `assignable`, si quien pregunta puede asignarle una
+    # labor.
+    farm_ids = serializers.ListField(child=serializers.UUIDField())
+    assignable = serializers.BooleanField()
+
+
 class UsedInputItemSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -200,7 +208,7 @@ class AssigneeQuerySerializer(serializers.Serializer):
 
 
 class AssigneeListSerializer(serializers.Serializer):
-    results = AssigneeSerializer(many=True)
+    results = AssigneeOptionSerializer(many=True)
 
 
 class ActivityConflictErrorSerializer(ApiErrorSerializer):

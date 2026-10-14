@@ -100,7 +100,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
   `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
-  `duplicate_input`, `input_has_records`, `movement_id_conflict` (409);
+  `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
+  `input_shared` (409);
   `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
@@ -258,7 +259,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   - **Listado** (`GET ?from=&to=`) de hasta 120 días, sin paginar; **pendientes**
     (`GET …/pending?through=`) las que siguen sin realizar hasta esa fecha, sin fecha mínima ni
     paginar, para que una vencida vieja no se pierda por el límite del listado; **responsables**
-    (`GET …/assignees`) con solo id, nombre y si está activa.
+    (`GET …/assignees`) con id, nombre, si está activa, sus fincas y si se le puede asignar.
   - El responsable (`assignee`) es `PROTECT`: una cuenta responsable de alguna actividad no se
     elimina (`account_has_activity`).
   - El historial guarda `changes` con el valor anterior y el nuevo de cada campo
@@ -292,8 +293,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
   productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca
   `delegable=False` con la razón escrita al lado, por ejemplo que actúe sobre toda la
-  asociación (`producers.*`). La cuenta Productor no se protege con un permiso sino con una
-  regla (`ensure_can_manage_account`), porque todo lo que el rol Productor tiene es delegable.
+  asociación (`producers.*`) o que decida cómo está hecha la unidad productiva
+  (`farms.add_farm`). La cuenta Productor no se protege con un permiso sino con una
+  regla (`ensure_can_manage_account`), porque casi todo lo que el rol Productor tiene es delegable.
   Un permiso de acción declara además su dependencia de
   vista en `PERMISSION_DEPENDENCIES` (crear o editar sin poder consultar no sirve). Un código
   que no está en el registro queda no delegable, pero eso es una red contra el olvido, no la
@@ -307,6 +309,42 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   lleva el productor en el cuerpo: `POST /api/farms` acepta `producer_id` **solo** de la cuenta
   técnica (y debe existir y estar activo); de cualquier otra cuenta es un `400`. Insumos hace lo mismo y comparte `resolve_target_producer`
   (`apps/common/ownership.py`). La auditoría registra siempre a quien actuó.
+- **Un empleado solo alcanza las fincas en las que trabaja** (`User.farms`, una o varias). El Productor y la cuenta
+  técnica alcanzan todas; un empleado sin finca, ninguna (el alcance falla cerrado). Empleado es la
+  cuenta con productor y algún rol distinto del de Productor (`is_employee`,
+  `apps/common/roles.py`). Todo lo que cuelga de una finca pasa su ruta a `owner_filter` con
+  `farm=` (`"farm_id"` en una parcela, `"plot__farm_id"` en lo que cuelga de ella, `"id"` en la
+  finca misma): así lo de otra finca responde `404`, igual que lo de otro productor. Un recurso
+  nuevo agrega su caso a `apps/common/tests/test_farm_scope.py`. Además:
+  - **Las fincas de una cuenta** se envían en `farm_ids` al crearla, al editarla o al cambiarle los
+    roles, y es obligatoria si algún rol trae un permiso de campo (`FIELD_PERMISSIONS`,
+    `apps/accounts/registry.py`). Las cuentas Productor y Administrador no la llevan. La cuenta
+    expone `farms` y `needs_farm`; la sesión, `farms` y `all_farms`. `GET /api/users` filtra por
+    `farm` y `without_farm`, y un empleado con fincas solo ve a quien comparte alguna con él.
+  - **Crear empleados:** el Productor (y la cuenta técnica) en cualquier finca; un empleado de
+    confianza con `accounts.users_create` solo en la suya (la cuenta nueva la toma sola; otra es
+    `403`). Mover a alguien de finca es solo del Productor, y no se hace mientras tenga actividades
+    programadas o retrasadas en la que deja (`409 account_has_pending_work`, con `pending` y
+    `overdue`; las vencidas no bloquean). Cada app que asigne trabajo en una finca lo declara con
+    `register_guard` (`apps/common/farm_change_guards.py`).
+  - **Registrar fincas no se delega** (`farms.add_farm`) y una finca con empleados asignados no se elimina
+    (`409 farm_has_accounts`, con cuántos en `accounts`). Al eliminar un productor creado por error
+    la finca se suelta de sus cuentas antes de borrarla.
+  - **Insumos por finca:** el catálogo se guarda una vez por productor, pero un empleado lista,
+    consulta y edita solo los que tienen una fila de existencias en su finca (también en cero o sin
+    movimientos: el que él registra nace así). Esa fila sin movimientos no cuenta como registro
+    (`has_records`), no sale en `GET /api/input-stocks` y se elimina con el insumo o con la finca.
+    `GET /api/agricultural-inputs/catalog?search=` (`inputs.manage_inputstock`, 2 caracteres o
+    más, hasta 20) busca en todo el catálogo activo sin cantidades, para traer a la finca con una
+    entrada un insumo que ya usa otra. Un empleado no edita, desactiva ni elimina un insumo que
+    está en más de una finca (`409 input_shared`) y nunca le cambia la unidad (`403` con
+    `fields.unit`).
+  - **Responsables de una actividad:** una cuenta activa con
+    `activities.complete_agriculturalactivity` que trabaje en la finca de la parcela, o el
+    Productor. Al Productor solo le asigna él mismo o la cuenta técnica. Se decide por el permiso
+    y no por el rol, que en un rol propio puede llamarse de cualquier forma. `GET …/assignees`
+    trae `farm_ids` y `assignable` (relativo a quien pregunta) para que el formulario arme la lista
+    de la parcela elegida, también sin conexión.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché

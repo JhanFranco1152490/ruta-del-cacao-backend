@@ -1,7 +1,7 @@
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
-from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.activities.tests.factories import AgriculturalActivityFactory, make_assignee
 from apps.activities.tests.test_api import URL, body
 from apps.plots.tests.factories import PlotFactory
 
@@ -15,7 +15,7 @@ def superuser():
 
 def test_the_technical_account_schedules_on_a_plot_of_any_producer(auth_client, superuser):
     plot = PlotFactory()
-    assignee = UserFactory(producer=plot.farm.producer)
+    assignee = make_assignee(plot.farm.producer)
 
     response = auth_client(superuser).post(URL, body(plot, assignee), format="json")
 

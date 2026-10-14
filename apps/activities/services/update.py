@@ -38,7 +38,7 @@ def update_activity(actor, activity_id, expected_version: int, data: dict) -> Ag
     changed = _differences(before, sent)
     if not changed:
         return activity
-    after = _validated(activity, before, sent)
+    after = _validated(actor, activity, before, sent)
 
     for name, value in after.items():
         if name == "assignee_id":
@@ -72,9 +72,10 @@ def _differences(before: dict, sent: dict) -> dict:
     return {name: sent[name] for name in PLAN_FIELDS if str(sent[name]) != str(before[name])}
 
 
-def _validated(activity: AgriculturalActivity, before: dict, sent: dict) -> dict:
+def _validated(actor, activity: AgriculturalActivity, before: dict, sent: dict) -> dict:
     """Valida solo lo que cambia: una actividad retrasada se reasigna sin moverle la fecha, y una
-    cuyo responsable se desactivó se edita sin cambiarlo. Devuelve los valores a guardar."""
+    cuyo responsable ya no se podría asignar (se desactivó, cambió de finca, o es el Productor y
+    quien edita es un empleado) se edita sin cambiarlo. Devuelve los valores a guardar."""
     after = {}
     if sent["activity_type"] != before["activity_type"]:
         rules.ensure_type_allowed(sent["activity_type"])
@@ -86,7 +87,5 @@ def _validated(activity: AgriculturalActivity, before: dict, sent: dict) -> dict
         rules.ensure_not_past(sent["scheduled_date"])
         after["scheduled_date"] = sent["scheduled_date"]
     if str(sent["assignee_id"]) != str(before["assignee_id"]):
-        after["assignee_id"] = rules.assignee_for(
-            activity.plot.farm.producer_id, sent["assignee_id"]
-        )
+        after["assignee_id"] = rules.assignee_for(actor, activity.plot, sent["assignee_id"])
     return after

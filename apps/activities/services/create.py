@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from apps.common.db import save_translating_unique
-from apps.common.ownership import owns
+from apps.common.ownership import owns, reaches_farm
 
 from ..exceptions import ActivityIdConflict
 from ..models import AgriculturalActivity, AgriculturalActivityAuditEvent
@@ -32,7 +32,7 @@ def create_activity(actor, data: dict) -> tuple[AgriculturalActivity, bool]:
     rules.ensure_type_allowed(data["activity_type"])
     description = rules.clean_description(data["activity_type"], data.get("other_description"))
     rules.ensure_not_past(data["scheduled_date"])
-    assignee = rules.assignee_for(plot.farm.producer_id, data["assignee_id"])
+    assignee = rules.assignee_for(actor, plot, data["assignee_id"])
 
     activity = AgriculturalActivity(
         plot=plot,
@@ -68,7 +68,8 @@ def _existing(activity_id) -> AgriculturalActivity | None:
 
 
 def _resent(existing: AgriculturalActivity, actor, data: dict) -> AgriculturalActivity:
-    if not owns(actor, existing.plot.farm.producer_id):
+    farm = existing.plot.farm
+    if not (owns(actor, farm.producer_id) and reaches_farm(actor, farm.pk)):
         raise ActivityIdConflict()
     sent = {
         "plot_id": str(data["plot_id"]),

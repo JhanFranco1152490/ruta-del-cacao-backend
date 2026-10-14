@@ -10,7 +10,8 @@ from apps.accounts.tests.role_helpers import (
     make_delegate,
     make_producer_owner,
 )
-from apps.inputs.models import AgriculturalInput, AgriculturalInputAuditEvent
+from apps.farms.tests.factories import FarmFactory
+from apps.inputs.models import AgriculturalInput, AgriculturalInputAuditEvent, InputStock
 from apps.producers.models import Producer
 from apps.producers.tests.factories import ProducerFactory
 
@@ -32,13 +33,21 @@ def owner(producer):
 
 
 @pytest.fixture
-def foreman(producer):
-    return grant_role(UserFactory(producer=producer), get_system_role(FOREMAN))
+def farm(producer):
+    return FarmFactory(producer=producer)
 
 
 @pytest.fixture
-def item(producer):
-    return AgriculturalInputFactory(producer=producer, name="Urea", name_normalized="urea")
+def foreman(producer, farm):
+    return grant_role(UserFactory(producer=producer, farm=farm), get_system_role(FOREMAN))
+
+
+@pytest.fixture
+def item(producer, farm):
+    # En la finca del capataz: un empleado solo alcanza los insumos de la finca en la que trabaja.
+    urea = AgriculturalInputFactory(producer=producer, name="Urea", name_normalized="urea")
+    InputStock.objects.create(input=urea, farm=farm)
+    return urea
 
 
 def detail(item) -> str:
@@ -81,9 +90,9 @@ def test_the_foreman_registers_and_edits_but_cannot_delete(auth_client, foreman,
     assert client.delete(f"{detail(item)}?expected_version=2").status_code == 403
 
 
-def test_a_delegate_with_the_delete_permission_can_delete(auth_client, producer, item):
+def test_a_delegate_with_the_delete_permission_can_delete(auth_client, producer, farm, item):
     delegate = make_delegate(
-        producer, ["inputs.view_agriculturalinput", "inputs.delete_agriculturalinput"]
+        producer, ["inputs.view_agriculturalinput", "inputs.delete_agriculturalinput"], farm=farm
     )
 
     response = auth_client(delegate).delete(f"{detail(item)}?expected_version=1")

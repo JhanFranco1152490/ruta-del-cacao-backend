@@ -55,6 +55,31 @@ class InputUnitLocked(ApiError):
         super().__init__(fields={field: [self.default_detail]})
 
 
+class InputShared(ApiError):
+    # El catálogo es uno por productor: cambiar un insumo que está en varias fincas cambia lo que
+    # ven las demás, y eso lo decide quien las ve todas.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Este insumo también está en otra finca: solo el productor lo edita, desactiva o elimina."
+    )
+    default_code = "input_shared"
+
+
+class UnitChangeNotAllowed(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Solo el productor cambia la unidad de un insumo."
+    default_code = "permission_denied"
+
+    def __init__(self):
+        super().__init__(fields={"unit": [self.default_detail]})
+
+
+class FarmRequired(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Tu cuenta no tiene una finca asignada."
+    default_code = "permission_denied"
+
+
 class ProducerInactive(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El productor está inactivo."

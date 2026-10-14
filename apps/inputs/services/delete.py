@@ -8,6 +8,7 @@ from ..exceptions import InputHasRecords, InputNotFound, StaleInputVersion
 from ..models import AgriculturalInput, AgriculturalInputAuditEvent
 from ..usage import is_used
 from .audit import record_input_audit_event
+from .farm_scope import ensure_can_change
 
 
 @transaction.atomic
@@ -20,6 +21,7 @@ def delete_input(actor, input_id, expected_version: int) -> None:
         )
     except AgriculturalInput.DoesNotExist:
         raise InputNotFound() from None
+    ensure_can_change(actor, item)
     check_expected_version(item, expected_version, stale=lambda: _stale(item))
     remove_input(item, actor)
 
@@ -33,6 +35,8 @@ def remove_input(item: AgriculturalInput, actor) -> None:
         item=item, actor=actor, action=AgriculturalInputAuditEvent.Action.DELETED
     )
     try:
+        # Sin movimientos, sus existencias solo decían en qué fincas estaba: se van con él.
+        item.stocks.all().delete()
         item.delete()
     except ProtectedError:
         # Un registro que apunta al insumo apareció entre la revisión y el borrado: la base es

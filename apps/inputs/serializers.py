@@ -49,6 +49,25 @@ class AgriculturalInputListSerializer(serializers.Serializer):
     results = AgriculturalInputSerializer(many=True)
 
 
+class CatalogInputSerializer(serializers.ModelSerializer):
+    # Un insumo del catálogo del productor tal como lo encuentra quien va a registrarle una
+    # entrada: lo necesario para reconocerlo y capturar la cantidad. Sin existencias.
+
+    class Meta:
+        model = AgriculturalInput
+        fields = ["id", "name", "input_type", "unit", "package_type", "package_size"]
+        read_only_fields = fields
+
+
+@extend_schema_serializer(many=False)
+class CatalogInputListSerializer(serializers.Serializer):
+    results = CatalogInputSerializer(many=True)
+
+
+class CatalogSearchQuerySerializer(serializers.Serializer):
+    search = serializers.CharField(max_length=NAME_MAX_LENGTH)
+
+
 class AgriculturalInputWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     # El mínimo lo revisa el modelo (`clean`), que ve el nombre ya recortado.
     name = serializers.CharField(max_length=NAME_MAX_LENGTH)
@@ -69,6 +88,8 @@ class AgriculturalInputCreateSerializer(AgriculturalInputWriteSerializer):
     # Solo lo manda la cuenta técnica, que no tiene un productor propio. Para cualquier otra
     # cuenta es el de la sesión y mandarlo es un error (ver `create_input`).
     producer_id = serializers.UUIDField(required=False)
+    # La finca en la que queda: obligatoria para un empleado que trabaja en varias.
+    farm_id = serializers.UUIDField(required=False)
 
 
 class AgriculturalInputUpdateSerializer(
@@ -91,6 +112,7 @@ class AgriculturalInputDeleteSerializer(serializers.Serializer):
 
 class AgriculturalInputListQuerySerializer(serializers.Serializer):
     producer = serializers.UUIDField(required=False)
+    farm = serializers.UUIDField(required=False)
 
 
 class ExistingInputSerializer(serializers.Serializer):

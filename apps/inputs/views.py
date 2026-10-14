@@ -2,6 +2,7 @@ from django.urls import reverse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -18,8 +19,18 @@ from .serializers import (
     AgriculturalInputListSerializer,
     AgriculturalInputSerializer,
     AgriculturalInputUpdateSerializer,
+    CatalogInputListSerializer,
+    CatalogInputSerializer,
+    CatalogSearchQuerySerializer,
 )
-from .services import create_input, delete_input, get_input, list_inputs, update_input
+from .services import (
+    create_input,
+    delete_input,
+    get_input,
+    list_inputs,
+    search_catalog,
+    update_input,
+)
 
 
 @extend_schema_view(
@@ -33,7 +44,12 @@ from .services import create_input, delete_input, get_input, list_inputs, update
                 "producer",
                 OpenApiTypes.UUID,
                 description="Solo la cuenta técnica: el productor cuyo catálogo se quiere ver.",
-            )
+            ),
+            OpenApiParameter(
+                "farm",
+                OpenApiTypes.UUID,
+                description="Solo los insumos que están en esta finca.",
+            ),
         ],
         responses={200: AgriculturalInputListSerializer, **error_responses(400, 401, 403)},
     ),
@@ -95,6 +111,9 @@ class AgriculturalInputViewSet(GenericViewSet):
     action_permissions = {
         "list": "inputs.view_agriculturalinput",
         "retrieve": "inputs.view_agriculturalinput",
+        # Lo usa quien registra entradas: es el único momento en que hace falta ver más allá de
+        # los insumos de la propia finca.
+        "catalog": "inputs.manage_inputstock",
         "create": "inputs.add_agriculturalinput",
         "partial_update": "inputs.change_agriculturalinput",
         "destroy": "inputs.delete_agriculturalinput",
@@ -106,8 +125,29 @@ class AgriculturalInputViewSet(GenericViewSet):
     def list(self, request):
         query = AgriculturalInputListQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        inputs = list_inputs(request.user, producer=query.validated_data.get("producer"))
+        inputs = list_inputs(
+            request.user,
+            producer=query.validated_data.get("producer"),
+            farm=query.validated_data.get("farm"),
+        )
         return Response({"results": AgriculturalInputSerializer(inputs, many=True).data})
+
+    @extend_schema(
+        description=(
+            "Busca por nombre en todo el catálogo activo del productor, para registrar la "
+            "entrada de un insumo que todavía no está en la finca de quien pregunta. Hasta 20 "
+            "resultados, con `search` de 2 caracteres o más. Solo los datos del insumo: nunca "
+            "las existencias de otras fincas."
+        ),
+        parameters=[CatalogSearchQuerySerializer],
+        responses={200: CatalogInputListSerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="catalog")
+    def catalog(self, request):
+        query = CatalogSearchQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        found = search_catalog(request.user, query.validated_data["search"])
+        return Response({"results": CatalogInputSerializer(found, many=True).data})
 
     def retrieve(self, request, pk):
         return Response(AgriculturalInputSerializer(get_input(request.user, pk)).data)

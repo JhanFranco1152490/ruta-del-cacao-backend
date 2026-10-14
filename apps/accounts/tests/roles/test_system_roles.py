@@ -130,6 +130,15 @@ def test_only_the_association_can_delete_producers():
     assert granted == {ADMINISTRATOR}
 
 
+def test_only_the_producer_can_manage_roles():
+    granted = {
+        code
+        for code, definition in SYSTEM_ROLES.items()
+        if "accounts.roles_manage" in definition["permissions"]
+    }
+    assert granted == {PRODUCER}
+
+
 def test_deleting_a_producer_requires_seeing_them():
     assert PERMISSION_DEPENDENCIES["producers.delete"] == "producers.view"
 

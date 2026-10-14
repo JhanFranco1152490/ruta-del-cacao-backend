@@ -14,6 +14,7 @@ PROFILE_FIELDS = {
     "identity_document",
     "phone",
     "producer",
+    "farms",
 }
 
 pytestmark = pytest.mark.django_db
@@ -48,6 +49,8 @@ def test_profile_of_a_producer_account_names_its_producer(auth_client):
             "first_name": "Ana",
             "last_name": "Ejemplo",
         },
+        # El Productor no está limitado a una finca.
+        "farms": [],
     }
 
 

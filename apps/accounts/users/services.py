@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.common.validators import strip_document_separators
 
-from ..access import get_producer_model, is_association_admin
+from ..access import get_producer_model, is_association_admin, roles_of
 from ..auth.services import revoke_all_sessions
 from ..authorization import (
     ACCOUNT_KIND_ADMINISTRATOR,
@@ -40,6 +40,10 @@ from ..models import (
 from ..scope import visible_roles, visible_users
 from ..system_roles import ADMINISTRATOR, PRODUCER, get_system_role
 from .activation import send_activation
+from .farm_assignment import change_farms, farms_for, farms_for_new_account
+
+# Las fincas no se enviaron: distinto de enviarlas vacías, que las quita.
+FARM_NOT_SENT = object()
 
 PERSONAL_FIELDS = ("document_type", "identity_document", "first_name", "last_name")
 # Nombre que Django genera solo, para el `unique=True` de `EmailField` (previo a HU-03, sensible
@@ -55,8 +59,15 @@ class CreatedAccount(NamedTuple):
 
 def _optimized(queryset: QuerySet) -> QuerySet:
     """`select_related`/`prefetch_related` para servir cuentas sin una consulta por fila."""
+    # Los permisos de cada rol también: con ellos se sabe si a la cuenta le falta la finca.
     return queryset.select_related("producer").prefetch_related(
-        Prefetch("groups", queryset=Group.objects.select_related("role"))
+        "farms",
+        Prefetch(
+            "groups",
+            queryset=Group.objects.select_related("role").prefetch_related(
+                "permissions__content_type"
+            ),
+        ),
     )
 
 
@@ -164,12 +175,12 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
     producer_id = data.get("producer_id")
 
     if account_kind == ACCOUNT_KIND_ADMINISTRATOR:
-        _forbid(data, "producer_id")
+        _forbid(data, "producer_id", "farm_ids")
         _require(data, *PERSONAL_FIELDS)
         target_producer_id = None
     elif account_kind == ACCOUNT_KIND_PRODUCER:
         _require(data, "producer_id")
-        _forbid(data, *PERSONAL_FIELDS)
+        _forbid(data, *PERSONAL_FIELDS, "farm_ids")
         target_producer_id = producer_id
     else:
         if is_association_admin(actor) or actor.is_superuser:
@@ -193,6 +204,11 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
     ensure_can_assign_roles(
         actor, roles, target_producer_id=target_producer_id, account_kind=account_kind
     )
+    farms = (
+        farms_for_new_account(actor, target_producer_id, roles, data.get("farm_ids"))
+        if account_kind == ACCOUNT_KIND_EMPLOYEE
+        else []
+    )
 
     with transaction.atomic():
         if account_kind == ACCOUNT_KIND_PRODUCER:
@@ -213,6 +229,7 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
                 producer_id=target_producer_id,
             )
         _save_new_account(user)
+        user.farms.set(farms)
         user.groups.set(role.group for role in roles)
         record_account_event(
             AccountManagementEvent.EventType.ACCOUNT_CREATED,
@@ -235,6 +252,11 @@ def update_account(actor, user_id, data: dict, request_id) -> User:
         data["identity_document"] = strip_document_separators(data["identity_document"])
 
     email_changed = "email" in data and data["email"] != user.email
+    new_farms = (
+        change_farms(actor, user, roles_of(user), data.pop("farm_ids"))
+        if "farm_ids" in data
+        else None
+    )
 
     with transaction.atomic():
         for field, value in data.items():
@@ -245,10 +267,15 @@ def update_account(actor, user_id, data: dict, request_id) -> User:
             # Un correo nuevo también sirve para iniciar sesión; las sesiones abiertas con el
             # anterior no deben seguir sirviendo.
             revoke_all_sessions(user)
+        if new_farms is not None:
+            user.farms.set(new_farms)
+            _record_farm_change(actor, user, request_id)
     return user
 
 
-def set_account_roles(actor, user_id, role_ids, request_id) -> User:
+def set_account_roles(actor, user_id, role_ids, request_id, farm_ids=FARM_NOT_SENT) -> User:
+    """Reemplaza los roles de un empleado. `farm_ids` deja dar las fincas en la misma operación
+    en que la cuenta gana permisos de campo, que sin finca no alcanzarían nada."""
     user = _managed_account(actor, user_id)
 
     if user.groups.filter(role__code__in=(ADMINISTRATOR, PRODUCER)).exists():
@@ -258,6 +285,13 @@ def set_account_roles(actor, user_id, role_ids, request_id) -> User:
     ensure_can_assign_roles(
         actor, roles, target_producer_id=user.producer_id, account_kind=ACCOUNT_KIND_EMPLOYEE
     )
+    if farm_ids is FARM_NOT_SENT:
+        # Sin enviarlas, las que ya tiene deben alcanzar para los roles nuevos.
+        current = {farm.pk for farm in user.farms.all()}
+        farms_for(user.producer_id, roles, current, current=current)
+        new_farms = None
+    else:
+        new_farms = change_farms(actor, user, roles, farm_ids)
 
     with transaction.atomic():
         user.groups.set(role.group for role in roles)
@@ -267,7 +301,19 @@ def set_account_roles(actor, user_id, role_ids, request_id) -> User:
             actor=actor,
             target_user=user,
         )
+        if new_farms is not None:
+            user.farms.set(new_farms)
+            _record_farm_change(actor, user, request_id)
     return user
+
+
+def _record_farm_change(actor, user: User, request_id) -> None:
+    record_account_event(
+        AccountManagementEvent.EventType.ACCOUNT_FARM_CHANGED,
+        request_id,
+        actor=actor,
+        target_user=user,
+    )
 
 
 def set_account_status(actor, user_id, status: str, request_id) -> User:

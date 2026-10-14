@@ -151,7 +151,7 @@ def test_deleting_a_producer_requires_seeing_them():
         ("producers.view", False),
         ("producers.delete", False),
         ("farms.view_farm", True),
-        ("farms.add_farm", True),
+        ("farms.add_farm", False),
         ("farms.change_farm", True),
         ("farms.delete_farm", True),
         ("plots.view_plot", True),

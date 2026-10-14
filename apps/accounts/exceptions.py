@@ -139,6 +139,25 @@ class AccountHasActivity(ApiError):
     default_code = "account_has_activity"
 
 
+class AccountHasPendingWork(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La cuenta tiene labores por hacer en las fincas que deja."
+    default_code = "account_has_pending_work"
+
+    def __init__(self, pending: int, overdue: int):
+        labors = "actividad" if pending == 1 else "actividades"
+        message = (
+            f"Tiene {pending} {labors} por hacer en las fincas que deja: reasígnalas o "
+            "regístralas como realizadas antes de quitarle esas fincas."
+        )
+        if overdue:
+            message += f" Las vencidas ({overdue}) se quedan a su nombre."
+        # Cuántas, para que la pantalla lo diga; nunca cuáles.
+        super().__init__(
+            message, fields={"farm_ids": [message]}, extra={"pending": pending, "overdue": overdue}
+        )
+
+
 class NotActivationPending(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "La cuenta ya está activada."

@@ -47,10 +47,24 @@ def test_users_delete_is_delegable_and_needs_the_view_permission():
     assert registry.area_of("accounts.users_delete") == "users"
 
 
-def test_every_permission_of_the_producer_role_can_be_delegated():
+def test_the_producer_role_delegates_everything_but_registering_farms():
     # Por eso la cuenta Productor se protege con una regla explícita (`ensure_can_manage_account`)
-    # y no con un permiso que solo ella tenga: un empleado puede llegar a tener todos los suyos.
-    assert all(is_delegable(code) for code in SYSTEM_ROLES[PRODUCER]["permissions"])
+    # y no con un permiso que solo ella tenga: un empleado puede llegar a tener casi todos los
+    # suyos. Registrar fincas es lo único que se queda en el Productor: decide cómo está hecha su
+    # unidad productiva.
+    kept = {code for code in SYSTEM_ROLES[PRODUCER]["permissions"] if not is_delegable(code)}
+
+    assert kept == {"farms.add_farm"}
+
+
+def test_field_permissions_are_the_delegable_ones_of_what_hangs_from_a_farm():
+    assert registry.is_field_permission("plots.view_plot")
+    assert registry.is_field_permission("activities.complete_agriculturalactivity")
+    assert registry.is_field_permission("inputs.manage_inputstock")
+    # De cuentas y roles, o de la asociación: no cuelgan de ninguna finca.
+    assert not registry.is_field_permission("accounts.users_view")
+    assert not registry.is_field_permission("crops.manage_cacaovariety")
+    assert not registry.is_field_permission("producers.view")
 
 
 def test_input_actions_bring_the_permission_to_see_the_catalog():

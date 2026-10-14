@@ -35,6 +35,11 @@ class User(AbstractUser):
         blank=True,
         related_name="accounts",
     )
+    # Las fincas en las que trabaja un empleado (puede atender varias vecinas del mismo productor):
+    # solo alcanza lo de ellas. Vacías en el Productor (alcanza todas las suyas), en el
+    # Administrador y en el empleado sin tareas de campo. Que haya al menos una según los roles, y
+    # que sean del mismo productor, lo aplica el servicio.
+    farms = models.ManyToManyField("farms.Farm", blank=True, related_name="accounts")
     objects = UserManager()
 
     USERNAME_FIELD = "email"
@@ -190,6 +195,7 @@ class AccountManagementEvent(models.Model):
         ACCOUNT_REACTIVATED = "account_reactivated", "Cuenta reactivada"
         ACCOUNT_DELETED = "account_deleted", "Cuenta eliminada"
         ACCOUNT_ROLES_CHANGED = "account_roles_changed", "Roles de la cuenta cambiados"
+        ACCOUNT_FARM_CHANGED = "account_farm_changed", "Fincas de la cuenta cambiadas"
         ROLE_CREATED = "role_created", "Rol creado"
         ROLE_UPDATED = "role_updated", "Rol actualizado"
         ROLE_DELETED = "role_deleted", "Rol borrado"

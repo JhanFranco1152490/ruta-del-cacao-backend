@@ -12,7 +12,8 @@ from apps.accounts.models import AccountManagementEvent, User
 from apps.accounts.system_roles import ADMINISTRATOR, FOREMAN, PRODUCER, get_system_role
 from apps.accounts.tests.factories import RoleFactory, UserFactory
 from apps.accounts.tests.helpers import csrf_client, open_session
-from apps.accounts.tests.role_helpers import make_administrator, make_delegate, make_producer_owner
+from apps.accounts.tests.role_helpers import make_administrator, make_producer_owner
+from apps.farms.tests.factories import FarmFactory
 from apps.producers.models import Producer
 from apps.producers.tests.factories import ProducerFactory
 
@@ -38,6 +39,7 @@ def test_a_producer_creates_an_employee_with_a_predefined_role(auth_client):
             "first_name": "Luis",
             "last_name": "Gómez",
             "role_ids": [str(foreman.id)],
+            "farm_ids": [str(FarmFactory(producer=producer).id)],
         },
         format="json",
     )
@@ -57,10 +59,10 @@ def test_a_producer_creates_an_employee_with_a_predefined_role(auth_client):
 
 def test_an_employee_created_by_a_non_administrator_cannot_send_producer_id(auth_client):
     producer = ProducerFactory()
-    delegate = make_delegate(producer, ["accounts.users_create"])
+    owner = make_producer_owner(producer)
     foreman = get_system_role(FOREMAN)
 
-    response = auth_client(delegate).post(
+    response = auth_client(owner).post(
         USERS_URL,
         {
             "email": "x@example.com",
@@ -114,6 +116,7 @@ def test_the_superuser_creates_an_employee_for_any_producer(auth_client):
             "last_name": "B",
             "role_ids": [str(foreman.id)],
             "producer_id": str(producer.id),
+            "farm_ids": [str(FarmFactory(producer=producer).id)],
         },
         format="json",
     )
@@ -430,6 +433,7 @@ def test_duplicate_email_with_different_case_and_spaces_is_rejected(auth_client)
             "first_name": "Otra",
             "last_name": "Persona",
             "role_ids": [str(foreman.id)],
+            "farm_ids": [str(FarmFactory(producer=producer).id)],
         },
         format="json",
     )
@@ -453,6 +457,7 @@ def test_duplicate_document_is_rejected_without_identifiers(auth_client):
             "first_name": "X",
             "last_name": "Y",
             "role_ids": [str(foreman.id)],
+            "farm_ids": [str(FarmFactory(producer=producer).id)],
         },
         format="json",
     )
@@ -517,6 +522,7 @@ def test_activation_email_failure_still_creates_the_account(auth_client):
             "first_name": "A",
             "last_name": "B",
             "role_ids": [str(foreman.id)],
+            "farm_ids": [str(FarmFactory(producer=producer).id)],
         },
         format="json",
     )

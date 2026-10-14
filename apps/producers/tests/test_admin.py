@@ -1,9 +1,10 @@
 import pytest
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.tests.factories import UserFactory
-from apps.producers.models import Producer
+from apps.producers.models import Producer, ProducerAuditEvent
 
 from .factories import ProducerFactory
 
@@ -66,15 +67,50 @@ def test_list_shows_document_and_municipality_name_and_searches_without_accents(
     assert "Cúcuta" in body
 
 
-def test_nobody_can_add_or_delete_producers_from_the_admin(api_client):
+def delete_url(producer):
+    return reverse("admin:producers_producer_delete", args=[producer.pk])
+
+
+def test_nobody_can_add_producers_from_the_admin():
+    assert (
+        staff_client(superuser=True).get(reverse("admin:producers_producer_add")).status_code
+        == 403
+    )
+
+
+def test_a_producer_created_by_mistake_is_deleted_through_the_service_and_leaves_its_trace():
     producer = ProducerFactory()
+    admin_user = UserFactory(is_staff=True, is_superuser=True)
+    client = Client()
+    client.force_login(admin_user)
+
+    response = client.post(delete_url(producer), {"post": "yes"})
+
+    assert response.status_code == 302
+    assert not Producer.objects.filter(pk=producer.pk).exists()
+    event = ProducerAuditEvent.objects.get(member_code=producer.member_code)
+    assert (event.action, event.actor) == (ProducerAuditEvent.Action.DELETED, admin_user)
+
+
+def test_a_producer_with_records_is_not_deleted_and_the_admin_says_why():
+    producer = ProducerFactory(email="duena@example.com")
+    owner = producer.accounts.get()
+    owner.last_login = timezone.now()
+    owner.save(update_fields=["last_login"])
     client = staff_client(superuser=True)
 
-    assert client.get(reverse("admin:producers_producer_add")).status_code == 403
-    deletion = client.post(
-        reverse("admin:producers_producer_delete", args=[producer.pk]), {"post": "yes"}
-    )
-    assert deletion.status_code == 403
+    response = client.post(delete_url(producer), {"post": "yes"}, follow=True)
+
+    assert Producer.objects.filter(pk=producer.pk).exists()
+    assert "ya inició sesión" in response.content.decode()
+    assert response.redirect_chain[-1][0] == change_url(producer)
+
+
+def test_deleting_needs_the_delete_permission():
+    producer = ProducerFactory()
+    client = staff_client("producers.view", "producers.update")
+
+    assert client.post(delete_url(producer), {"post": "yes"}).status_code == 403
     assert Producer.objects.filter(pk=producer.pk).exists()
 
 
@@ -218,9 +254,26 @@ def test_status_actions_need_the_change_status_permission():
     assert "deactivate" not in client.get(changelist_url()).content.decode()
 
 
-def test_the_delete_action_is_not_offered():
+def test_the_bulk_delete_action_is_not_offered():
     ProducerFactory()
 
     body = staff_client(superuser=True).get(changelist_url()).content.decode()
 
     assert "delete_selected" not in body
+
+
+def test_the_deletion_trace_is_read_only_and_only_for_the_superuser():
+    producer = ProducerFactory()
+    client = staff_client(superuser=True)
+    client.post(delete_url(producer), {"post": "yes"})
+    event = ProducerAuditEvent.objects.get()
+    changelist = reverse("admin:producers_producerauditevent_changelist")
+    url = reverse("admin:producers_producerauditevent_change", args=[event.pk])
+
+    assert client.get(changelist).status_code == 200
+    assert producer.member_code in client.get(url).content.decode()
+    assert client.get(reverse("admin:producers_producerauditevent_add")).status_code == 403
+    assert client.post(url, {}).status_code == 403
+    deletion = reverse("admin:producers_producerauditevent_delete", args=[event.pk])
+    assert client.post(deletion, {"post": "yes"}).status_code == 403
+    assert staff_client("producers.view").get(changelist).status_code == 403

@@ -325,14 +325,49 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 
 ## Admin de Django
 
+Cada modelo del dominio tiene su admin y una prueba (`apps/common/tests/test_admin.py`) falla si
+uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
+
+- **Toda escritura pasa por `services`**, con `request.user` como actor, para tener las mismas
+  validaciones, bloqueos, `version` y auditoría que la API. Nunca `save_model` guardando el modelo
+  directo. El formulario hereda de `VersionedAdminForm` (lleva `expected_version`, y si otra persona
+  cambió el registro antes, no se guarda) y el admin usa `ServiceAdminMixin`.
+- **Los errores de un servicio** (`ApiError`, validaciones) se llaman con `run_service(...)`: el admin
+  vuelve a la ficha del registro con el motivo como mensaje, en vez de una página de error.
+- **Eliminar es por registro** (ficha del registro, confirmación estándar) y pasa por el servicio
+  (`delete_farm`, `delete_plot`, `delete_input`, `delete_producer`, `delete_account`), que solo
+  permite lo creado por error. Estos admins no ofrecen «Eliminar seleccionados».
+- **Sin alta** de usuarios, fincas, parcelas ni insumos: llevan cosas que el admin no captura bien
+  (rol, productor y activación; georreferenciación con mapa; productor dueño). Se crean desde la
+  aplicación o la API.
+- **Solo lectura:** `ReadOnlyAdminMixin`; con `SuperuserReadOnlyAdminMixin` además solo lo ve un
+  superusuario, porque el admin no filtra por productor. Es el caso de todos los historiales,
+  de las fichas con sus siembras, del inventario (existencias y movimientos) y de las actividades
+  con sus insumos (`ReadOnlyInlineMixin` para lo que cuelga de su ficha). Los admins editables
+  filtran por productor a quien no es la cuenta técnica (`owner_filter`).
+
 - Usuarios, roles y eventos (autenticación y de cuentas) en `apps/accounts/admin.py`;
-  productores en `apps/producers/admin.py`.
+  productores en `apps/producers/admin.py`; fincas, parcelas, fichas, insumos y actividades, en el
+  `admin.py` de cada app.
+- **Usuarios:** los permisos siguen a los de la API (`users_view`, `users_update`, `users_delete`).
+  Sin alta ni borrado directo. Nombres, correo y documento se guardan con `update_account`; el
+  estado (`is_active`), con `set_account_status` (revoca las sesiones y protege al último
+  administrador); eliminar, con `delete_account` (solo una cuenta que nunca inició sesión, por lo
+  que `last_login` no se edita). Una contraseña nueva desde el admin revoca las sesiones. Los datos
+  personales de una cuenta Productor van de solo lectura, como en la API. `is_staff`, `is_superuser`
+  y los permisos sueltos son banderas técnicas que solo toca un superusuario. Las cuentas de
+  superusuario están fuera del modelo de negocio (los servicios no las ven): se editan directo y no
+  se eliminan.
 - **Productores:** los permisos siguen a los de la API (`producers.view`, `producers.update`,
-  `producers.change_status`, `producers.delete`), no a los que Django genera. No se puede crear ni
-  borrar desde el admin (el alta asigna el código de asociado y detecta el documento repetido; al
-  productor se le cambia el estado, y solo la API elimina uno creado por error). Se editan nombre, teléfono, correo, municipio y fecha de
-  ingreso; el documento, el código y el estado no. El estado cambia con las acciones "Activar" y
-  "Desactivar".
+  `producers.change_status`, `producers.delete`), no a los que Django genera. No se puede crear
+  desde el admin (el alta asigna el código de asociado y detecta el documento repetido). Se editan
+  nombre, teléfono, correo, municipio y fecha de ingreso; el documento, el código y el estado no. El
+  estado cambia con las acciones "Activar" y "Desactivar"; un productor creado por error se elimina
+  con `delete_producer` y deja `ProducerAuditEvent`.
+- **Fincas, parcelas e insumos:** se editan (incluido activar y desactivar) con `update_farm`,
+  `update_plot` y `update_input`. De la finca se ve el área ya repartida en parcelas; el contorno
+  de la parcela es de solo lectura (se dibuja con el mapa); la unidad de un insumo con movimientos no
+  cambia. Se buscan por nombre sin tildes y por productor.
 - **`Role` reemplaza a `Group`** en el admin (HU-03): `Group` se da de baja y `Role` entra de
   solo lectura, porque crear, editar o borrar un rol pasa por sus propias invariantes
   (`role_services.py`) y el admin las saltaría. La ficha de usuario muestra el productor
@@ -348,8 +383,6 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `productor@example.com`, la misma que muestra la pantalla de inicio de sesión del frontend).
   Es idempotente: no toca un productor que ya existe y restablece las dos cuentas. No envía
   correos. Nunca se corre en un despliegue con datos reales.
-- Todo cambio desde el admin pasa por `services` y sube `version`: la ficha lleva la versión con
-  la que se abrió y, si otra persona la cambió antes, no se guarda.
 - **Variedades de cacao** (`apps/crops/admin.py`): con `crops.manage_cacaovariety`. Alta, edición
   y borrado pasan por los servicios, que normalizan el nombre y dejan el historial. Solo se borra
   una variedad que ninguna ficha usa (registrada por error); el historial sobrevive y registra el

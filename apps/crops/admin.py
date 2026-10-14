@@ -1,10 +1,16 @@
 from django import forms
 from django.contrib import admin
 
-from apps.common.admin import ReadOnlyAdminMixin
+from apps.common.admin import ReadOnlyInlineMixin, SuperuserReadOnlyAdminMixin
 
 from .exceptions import DuplicateVarietyName
-from .models import CacaoVariety, PlotCharacterizationAuditEvent
+from .models import (
+    CacaoVariety,
+    CacaoVarietyAuditEvent,
+    PlotCharacterization,
+    PlotCharacterizationAuditEvent,
+    PlotPlanting,
+)
 from .services import create_variety, delete_variety, name_taken, update_variety
 
 EDITABLE_FIELDS = ("name", "common_names", "description", "is_active")
@@ -71,7 +77,7 @@ class CacaoVarietyAdmin(admin.ModelAdmin):
 
 
 @admin.register(PlotCharacterizationAuditEvent)
-class PlotCharacterizationAuditEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+class PlotCharacterizationAuditEventAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
     """El historial de las fichas con los valores de cada versión, de solo lectura."""
 
     list_display = ("plot", "version", "action", "actor", "occurred_at")
@@ -87,8 +93,31 @@ class PlotCharacterizationAuditEventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
         "occurred_at",
     )
 
-    # Solo superusuarios: el admin no filtra por productor, así que con el permiso de la API
-    # (`plots.view_plot`) un empleado de un productor vería las fichas de todos, y la asociación
-    # no lee fichas.
-    def has_view_permission(self, request, obj=None):
-        return request.user.is_superuser
+
+class PlotPlantingInline(ReadOnlyInlineMixin, admin.TabularInline):
+    model = PlotPlanting
+    fields = ("variety", "planting_date", "tree_count", "propagation", "stage")
+    readonly_fields = fields
+
+
+@admin.register(PlotCharacterization)
+class PlotCharacterizationAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
+    """La ficha vigente de cada parcela con sus siembras, de solo lectura: se corrige desde la
+    pantalla, que aplica los avisos de coherencia y de densidad."""
+
+    list_display = ("plot", "management_system", "shade_type", "version", "updated_at")
+    list_filter = ("management_system", "shade_type")
+    list_select_related = ("plot__farm",)
+    search_fields = ("plot__code", "plot__farm__name__unaccent")
+    inlines = [PlotPlantingInline]
+
+
+@admin.register(CacaoVarietyAuditEvent)
+class CacaoVarietyAuditEventAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
+    """El historial del catálogo de variedades, de solo lectura; sobrevive a la variedad
+    eliminada."""
+
+    list_display = ("variety_name", "action", "actor", "occurred_at")
+    list_filter = ("action",)
+    list_select_related = ("actor",)
+    search_fields = ("variety_name",)

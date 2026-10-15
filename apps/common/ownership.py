@@ -1,17 +1,44 @@
 from rest_framework.exceptions import ValidationError
 
 from .exceptions import ProducerRequired
+from .roles import is_employee
 
 
-def owner_filter(actor, field: str = "producer_id") -> dict:
+def reaches_all_farms(actor) -> bool:
+    """Si `actor` alcanza todas las fincas de su productor, también las que se registren después:
+    la cuenta Productor, la técnica y el empleado a quien se le marcó "todas las fincas". Otro
+    empleado solo alcanza las fincas en las que trabaja."""
+    return not is_employee(actor) or actor.all_farms
+
+
+def own_farms(actor):
+    """Los ids de las fincas en las que trabaja `actor`, como subconsulta: quien la usa en un
+    filtro no paga una consulta aparte."""
+    return actor.farms.values("pk")
+
+
+def reaches_farm(actor, farm_id) -> bool:
+    """Si `actor` alcanza la finca `farm_id`, que ya se sabe de su productor."""
+    return reaches_all_farms(actor) or actor.farms.filter(pk=farm_id).exists()
+
+
+def owner_filter(actor, field: str = "producer_id", *, farm: str | None = None) -> dict:
     """La restricción de productor para buscar algo que ya existe, lista para `**`.
 
     El productor y su gente alcanzan lo suyo. La cuenta técnica (superusuario) alcanza lo de
     cualquiera: el recurso ya dice de quién es, así que no necesita elegir un productor aparte.
+
+    `farm` es la ruta desde el recurso hasta el id de su finca (`"farm_id"` en una parcela,
+    `"plot__farm_id"` en lo que cuelga de ella, `"id"` en la finca misma). Todo lo que cuelga de
+    una finca la indica: así un empleado queda limitado a las suyas, y uno sin finca asignada no
+    alcanza nada (la lista de sus fincas está vacía y no encuentra filas).
     """
     if actor.is_superuser:
         return {}
-    return {field: actor.producer_id}
+    scope = {field: actor.producer_id}
+    if farm is not None and not reaches_all_farms(actor):
+        scope[f"{farm}__in"] = own_farms(actor)
+    return scope
 
 
 def owns(actor, producer_id) -> bool:

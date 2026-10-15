@@ -38,6 +38,7 @@ def complete_activity(actor, activity_id, data: dict) -> tuple[AgriculturalActiv
     """
     sent = _sent_inputs(data.get("inputs") or [])
     activity = queries.lock_activity(actor, activity_id)
+    queries.ensure_can_complete(actor, activity)
     if activity.status == ActivityStatus.DONE:
         if activity.done_date == data["done_date"] and _used_inputs(activity) == sent:
             return activity, False

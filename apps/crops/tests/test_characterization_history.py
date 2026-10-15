@@ -116,7 +116,9 @@ def test_the_event_names_who_saved_it(client, plot, edited_three_times):
 
 
 def test_a_deleted_account_leaves_the_version_without_a_name(client, producer, plot, ccn51, owner):
-    employee = make_delegate(producer, ["crops.change_plotcharacterization", "plots.view_plot"])
+    employee = make_delegate(
+        producer, ["crops.change_plotcharacterization", "plots.view_plot"], farm=plot.farm
+    )
     save_characterization(employee, plot.pk, None, content(ccn51))
     employee.delete()
 
@@ -173,7 +175,7 @@ def test_the_history_requires_a_session(api_client, plot):
 def test_an_employee_who_can_see_plots_reads_the_history(
     auth_client, producer, plot, edited_three_times
 ):
-    employee = make_delegate(producer, ["plots.view_plot"])
+    employee = make_delegate(producer, ["plots.view_plot"], farm=plot.farm)
 
     response = auth_client(employee).get(history_url(plot))
 

@@ -98,14 +98,36 @@ def test_deleting_requires_csrf(anonymous_client, producer):
     assert Farm.objects.filter(pk=farm.id).exists()
 
 
-def test_an_employee_deletes_when_the_producer_delegated_it(auth_client, producer):
-    employee = make_delegate(producer, ["farms.delete_farm"])
+def test_a_farm_with_assigned_employees_is_not_deleted(client, producer):
     farm = FarmFactory(producer=producer)
+    make_delegate(producer, ["farms.view_farm"], farm=farm)
+    make_delegate(producer, ["farms.view_farm"], farm=farm)
+
+    response = delete(client, farm)
+
+    assert response.status_code == 409
+    assert response.data["code"] == "farm_has_accounts"
+    assert response.data["accounts"] == 2
+    assert Farm.objects.filter(pk=farm.id).exists()
+
+
+def test_an_employee_cannot_delete_the_farm_it_works_in(auth_client, producer):
+    # Aunque su rol traiga el permiso: él mismo está asignado a la finca.
+    farm = FarmFactory(producer=producer)
+    employee = make_delegate(producer, ["farms.delete_farm"], farm=farm)
 
     response = delete(auth_client(employee), farm)
 
-    assert response.status_code == 204
-    assert not Farm.objects.filter(pk=farm.id).exists()
+    assert response.status_code == 409
+    assert response.data["code"] == "farm_has_accounts"
+
+
+def test_an_employee_does_not_reach_another_farm_to_delete_it(auth_client, producer):
+    farm = FarmFactory(producer=producer)
+    employee = make_delegate(producer, ["farms.delete_farm"], farm=FarmFactory(producer=producer))
+
+    assert delete(auth_client(employee), farm).status_code == 404
+    assert Farm.objects.filter(pk=farm.id).exists()
 
 
 def test_the_association_cannot_delete_farms(auth_client, producer):

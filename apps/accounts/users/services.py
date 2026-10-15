@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.common.validators import strip_document_separators
 
-from ..access import get_producer_model, is_association_admin
+from ..access import get_producer_model, is_association_admin, roles_of
 from ..auth.services import revoke_all_sessions
 from ..authorization import (
     ACCOUNT_KIND_ADMINISTRATOR,
@@ -40,6 +40,10 @@ from ..models import (
 from ..scope import visible_roles, visible_users
 from ..system_roles import ADMINISTRATOR, PRODUCER, get_system_role
 from .activation import send_activation
+from .farm_assignment import change_scope, keeps_scope_for, scope_for_new_account
+
+# El alcance no se envió: distinto de enviarlo vacío, que lo quita.
+SCOPE_NOT_SENT = object()
 
 PERSONAL_FIELDS = ("document_type", "identity_document", "first_name", "last_name")
 # Nombre que Django genera solo, para el `unique=True` de `EmailField` (previo a HU-03, sensible
@@ -55,8 +59,15 @@ class CreatedAccount(NamedTuple):
 
 def _optimized(queryset: QuerySet) -> QuerySet:
     """`select_related`/`prefetch_related` para servir cuentas sin una consulta por fila."""
+    # Los permisos de cada rol también: con ellos se sabe si a la cuenta le falta la finca.
     return queryset.select_related("producer").prefetch_related(
-        Prefetch("groups", queryset=Group.objects.select_related("role"))
+        "farms",
+        Prefetch(
+            "groups",
+            queryset=Group.objects.select_related("role").prefetch_related(
+                "permissions__content_type"
+            ),
+        ),
     )
 
 
@@ -164,12 +175,12 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
     producer_id = data.get("producer_id")
 
     if account_kind == ACCOUNT_KIND_ADMINISTRATOR:
-        _forbid(data, "producer_id")
+        _forbid(data, "producer_id", "farm_ids", "all_farms")
         _require(data, *PERSONAL_FIELDS)
         target_producer_id = None
     elif account_kind == ACCOUNT_KIND_PRODUCER:
         _require(data, "producer_id")
-        _forbid(data, *PERSONAL_FIELDS)
+        _forbid(data, *PERSONAL_FIELDS, "farm_ids", "all_farms")
         target_producer_id = producer_id
     else:
         if is_association_admin(actor) or actor.is_superuser:
@@ -193,6 +204,13 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
     ensure_can_assign_roles(
         actor, roles, target_producer_id=target_producer_id, account_kind=account_kind
     )
+    all_farms, farms = (
+        scope_for_new_account(
+            actor, target_producer_id, roles, data.get("farm_ids"), bool(data.get("all_farms"))
+        )
+        if account_kind == ACCOUNT_KIND_EMPLOYEE
+        else (False, [])
+    )
 
     with transaction.atomic():
         if account_kind == ACCOUNT_KIND_PRODUCER:
@@ -211,8 +229,10 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
                 last_name=data["last_name"],
                 phone=data.get("phone"),
                 producer_id=target_producer_id,
+                all_farms=all_farms,
             )
         _save_new_account(user)
+        user.farms.set(farms)
         user.groups.set(role.group for role in roles)
         record_account_event(
             AccountManagementEvent.EventType.ACCOUNT_CREATED,
@@ -235,6 +255,7 @@ def update_account(actor, user_id, data: dict, request_id) -> User:
         data["identity_document"] = strip_document_separators(data["identity_document"])
 
     email_changed = "email" in data and data["email"] != user.email
+    new_scope = _scope_change(actor, user, roles_of(user), data)
 
     with transaction.atomic():
         for field, value in data.items():
@@ -245,10 +266,36 @@ def update_account(actor, user_id, data: dict, request_id) -> User:
             # Un correo nuevo también sirve para iniciar sesión; las sesiones abiertas con el
             # anterior no deben seguir sirviendo.
             revoke_all_sessions(user)
+        _apply_scope(actor, user, new_scope, request_id)
     return user
 
 
-def set_account_roles(actor, user_id, role_ids, request_id) -> User:
+def _scope_change(actor, user, roles, data: dict):
+    """El alcance nuevo si la petición trae `farm_ids` o `all_farms` (los quita de `data`), o
+    `None` si no lo toca o queda igual. Enviar solo uno de los dos deja el otro como «no»."""
+    if "farm_ids" not in data and "all_farms" not in data:
+        return None
+    farm_ids = data.pop("farm_ids", None)
+    all_farms = bool(data.pop("all_farms", False))
+    return change_scope(actor, user, roles, farm_ids, all_farms)
+
+
+def _apply_scope(actor, user: User, new_scope, request_id) -> None:
+    if new_scope is None:
+        return
+    all_farms, farms = new_scope
+    if user.all_farms != all_farms:
+        user.all_farms = all_farms
+        user.save(update_fields=["all_farms"])
+    user.farms.set(farms)
+    _record_farm_change(actor, user, request_id)
+
+
+def set_account_roles(
+    actor, user_id, role_ids, request_id, farm_ids=SCOPE_NOT_SENT, all_farms=SCOPE_NOT_SENT
+) -> User:
+    """Reemplaza los roles de un empleado. `farm_ids` y `all_farms` dejan dar el alcance en la
+    misma operación en que los roles nuevos lo exigen: sin alcance no alcanzarían nada."""
     user = _managed_account(actor, user_id)
 
     if user.groups.filter(role__code__in=(ADMINISTRATOR, PRODUCER)).exists():
@@ -258,6 +305,18 @@ def set_account_roles(actor, user_id, role_ids, request_id) -> User:
     ensure_can_assign_roles(
         actor, roles, target_producer_id=user.producer_id, account_kind=ACCOUNT_KIND_EMPLOYEE
     )
+    if farm_ids is SCOPE_NOT_SENT and all_farms is SCOPE_NOT_SENT:
+        # Sin enviarlo, el alcance que ya tiene debe cumplir lo que piden los roles nuevos.
+        keeps_scope_for(roles, user)
+        new_scope = None
+    else:
+        new_scope = change_scope(
+            actor,
+            user,
+            roles,
+            None if farm_ids is SCOPE_NOT_SENT else farm_ids,
+            False if all_farms is SCOPE_NOT_SENT else bool(all_farms),
+        )
 
     with transaction.atomic():
         user.groups.set(role.group for role in roles)
@@ -267,7 +326,17 @@ def set_account_roles(actor, user_id, role_ids, request_id) -> User:
             actor=actor,
             target_user=user,
         )
+        _apply_scope(actor, user, new_scope, request_id)
     return user
+
+
+def _record_farm_change(actor, user: User, request_id) -> None:
+    record_account_event(
+        AccountManagementEvent.EventType.ACCOUNT_FARM_CHANGED,
+        request_id,
+        actor=actor,
+        target_user=user,
+    )
 
 
 def set_account_status(actor, user_id, status: str, request_id) -> User:

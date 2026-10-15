@@ -39,8 +39,8 @@ def owner(producer):
 
 
 @pytest.fixture
-def foreman(producer):
-    return grant_role(UserFactory(producer=producer), get_system_role(FOREMAN))
+def foreman(producer, farm):
+    return grant_role(UserFactory(producer=producer, farm=farm), get_system_role(FOREMAN))
 
 
 @pytest.fixture
@@ -110,7 +110,7 @@ def test_the_foreman_registers_movements(auth_client, foreman, item, farm):
 def test_a_delegate_with_the_stock_permission_registers_movements(
     auth_client, producer, item, farm
 ):
-    delegate = make_delegate(producer, ["inputs.manage_inputstock"])
+    delegate = make_delegate(producer, ["inputs.manage_inputstock"], farm=farm)
 
     assert (
         auth_client(delegate).post(MOVEMENTS, body(item, farm), format="json").status_code == 201

@@ -1,5 +1,7 @@
 from django.db.models import Q, QuerySet
 
+from apps.common.ownership import own_farms, reaches_all_farms
+
 from .access import is_association_admin
 from .models import Role, User
 from .system_roles import ADMINISTRATOR, PRODUCER
@@ -21,7 +23,18 @@ def visible_users(actor) -> QuerySet[User]:
         # asociación no opera en el espacio de un productor.
         return base.filter(groups__role__code__in=[ADMINISTRATOR, PRODUCER]).distinct()
     if actor.producer_id is not None:
-        return base.filter(producer_id=actor.producer_id)
+        accounts = base.filter(producer_id=actor.producer_id)
+        if reaches_all_farms(actor):
+            return accounts
+        # Un empleado con fincas solo alcanza a la gente que trabaja en alguna de ellas (y a
+        # quien trabaja en todas, que también trabaja en las suyas). Uno sin alcance solo ve su
+        # propia cuenta: antes veía las del productor, un hueco.
+        if not actor.farms.exists():
+            return accounts.filter(pk=actor.pk)
+        shared = User.objects.filter(Q(farms__in=own_farms(actor)) | Q(all_farms=True)).values(
+            "pk"
+        )
+        return accounts.filter(pk__in=shared)
     # Ni superusuario, ni Administrador, ni ligada a un productor: no hay alcance que darle.
     return base.none()
 

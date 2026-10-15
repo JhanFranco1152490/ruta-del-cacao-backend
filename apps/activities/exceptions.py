@@ -113,9 +113,21 @@ class InputInactive(ApiError):
         )
 
 
+class CompletionNotAllowed(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = (
+        "Esta actividad está a nombre de otra persona: la registra ella, quien programa labores "
+        "en la finca o el productor."
+    )
+    default_code = "permission_denied"
+
+
 class AssigneeNotAvailable(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    default_detail = "El responsable debe ser una cuenta activa del productor de la parcela."
+    default_detail = (
+        "El responsable debe ser una persona activa de la finca de la parcela que pueda "
+        "registrar labores."
+    )
     default_code = "assignee_not_available"
 
     def __init__(self):

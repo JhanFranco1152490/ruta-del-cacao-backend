@@ -426,10 +426,16 @@ def test_the_assignees_of_the_producer(client, owner, producer):
     response = client.get(f"{URL}/assignees")
 
     assert response.status_code == 200
-    assert response.json()["results"] == [
-        {"id": response.json()["results"][0]["id"], "full_name": "Luis Gómez", "is_active": False},
-        {"id": str(owner.pk), "full_name": "Ana Zapata", "is_active": True},
+    listed = [
+        (row["full_name"], row["is_active"], row["farm_ids"], row["assignable"])
+        for row in response.json()["results"]
     ]
+    assert listed == [
+        # Sin permiso de registrar labores no se le asignan.
+        ("Luis Gómez", False, [], False),
+        ("Ana Zapata", True, [], True),
+    ]
+    assert response.json()["results"][1]["id"] == str(owner.pk)
 
 
 # --- Sesión y permisos --------------------------------------------------------------------------

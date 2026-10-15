@@ -13,6 +13,7 @@ from ..models import AgriculturalInput, AgriculturalInputAuditEvent
 from ..usage import is_used
 from .audit import record_input_audit_event
 from .create import CONTENT_FIELDS, NAME_UNIQUE_CONSTRAINT, duplicate_error
+from .farm_scope import ensure_can_change
 
 # Cambiarla cambiaría lo que significan las cantidades ya registradas. La presentación no: solo
 # cambia cómo se muestran y se capturan.
@@ -29,6 +30,7 @@ def update_input(actor, input_id, expected_version: int, data: dict) -> Agricult
         )
     except AgriculturalInput.DoesNotExist:
         raise InputNotFound() from None
+    ensure_can_change(actor, item)
 
     if check_expected_version(
         item,
@@ -45,6 +47,7 @@ def update_input(actor, input_id, expected_version: int, data: dict) -> Agricult
     changed = [name for name in CONTENT_FIELDS if getattr(item, name) != before[name]]
     if not changed:
         return _with_usage(item)
+    ensure_can_change(actor, item, changed)
 
     used = is_used(item)
     for name in LOCKED_WHEN_USED:

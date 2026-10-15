@@ -64,8 +64,8 @@ def ensure_not_past(scheduled_date: date) -> None:
         raise InvalidActivity("scheduled_date", "La fecha debe ser actual o futura.")
 
 
-def assignee_for(producer_id, account_id):
-    account = queries.assignable_account(producer_id, account_id)
+def assignee_for(actor, plot, account_id):
+    account = queries.assignable_account(actor, plot, account_id)
     if account is None:
         raise AssigneeNotAvailable()
     return account

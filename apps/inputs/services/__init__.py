@@ -4,7 +4,7 @@ from .create import create_input
 from .delete import delete_input, remove_input
 from .inventory_queries import list_movements, list_stocks
 from .movements import record_consumption, register_movement
-from .queries import get_input, list_inputs
+from .queries import get_input, list_inputs, search_catalog
 from .update import update_input
 
 __all__ = [
@@ -17,5 +17,6 @@ __all__ = [
     "record_consumption",
     "register_movement",
     "remove_input",
+    "search_catalog",
     "update_input",
 ]

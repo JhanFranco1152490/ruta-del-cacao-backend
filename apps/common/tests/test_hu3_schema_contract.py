@@ -12,7 +12,10 @@ class AccountSchemaContractTests(SimpleTestCase):
         for name in ("SessionUser", "Account"):
             role = self.schemas[name]["properties"]["roles"]["items"]
             self.assertEqual(role["$ref"], "#/components/schemas/AccountRole")
-        self.assertEqual(set(self.schemas["AccountRole"]["properties"]), {"id", "code", "name"})
+        self.assertEqual(
+            set(self.schemas["AccountRole"]["properties"]),
+            {"id", "code", "name", "farm_scope"},
+        )
 
     def test_producer_detail_allows_empty_contact_email(self):
         detail = self.schemas["ProducerDetail"]["properties"]

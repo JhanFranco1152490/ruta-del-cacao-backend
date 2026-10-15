@@ -14,5 +14,12 @@ class ActivitiesConfig(AppConfig):
         from .plot_dependent import activities_dependent
 
         register_dependent(activities_dependent)
+
+        # Cómo responde otra app (sanidad) cuando devuelve una actividad.
+        from apps.common.activity_representation import register_activity_serializer
+
+        from .serializers import AgriculturalActivitySerializer
+
+        register_activity_serializer(AgriculturalActivitySerializer)
         # Lo que impide cambiar de finca a quien tiene labores por hacer en ella.
         register_guard("activities", pending_activities)

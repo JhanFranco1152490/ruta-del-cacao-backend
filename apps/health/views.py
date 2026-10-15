@@ -2,12 +2,15 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
-from apps.common.permissions import ActionPermission
+from apps.common.activity_representation import activity_serializer
+from apps.common.permissions import ActionPermission, HasPermission
 from apps.common.schema import error_responses
 
 from .serializers import (
+    MonitoringResultSerializer,
     PestDiseaseCreateSerializer,
     PestDiseaseListQuerySerializer,
     PestDiseaseListSerializer,
@@ -15,6 +18,7 @@ from .serializers import (
     PestDiseaseUpdateSerializer,
 )
 from .services.catalog import create_pest_disease, list_pests_diseases, update_pest_disease
+from .services.monitoring import record_monitoring
 
 MANAGE_PERMISSION = "health.manage_pestdisease"
 
@@ -97,3 +101,34 @@ class PestDiseaseViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         pest = update_pest_disease(pk, serializer.validated_data)
         return Response(PestDiseaseSerializer(pest).data)
+
+
+class MonitoringResultView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission]
+    required_permission = "activities.complete_agriculturalactivity"
+
+    @extend_schema(
+        operation_id="agricultural_activities_monitoring_create",
+        description=(
+            "Registra el resultado de un monitoreo (unidades evaluadas y, por cada plaga o "
+            "enfermedad, las afectadas; o sin presencia) y lo marca realizado. La incidencia la "
+            "calcula el servidor. Lo registra el responsable, quien programa labores en la finca "
+            "o el Productor (403 si no). El mismo resultado reenviado responde 200 sin cambios; "
+            "otro resultado sobre uno ya registrado, 409 `activity_already_done`. Una plaga "
+            "inexistente es 400 en `detections`, no 404; una inactiva, 422 "
+            "`pest_disease_inactive` con las afectadas en `pest_disease_ids`. Otra actividad "
+            "responde 422 `not_a_monitoring`."
+        ),
+        request=MonitoringResultSerializer,
+        responses={
+            200: activity_serializer(),
+            201: activity_serializer(),
+            **error_responses(400, 401, 403, 404, 409, 422),
+        },
+    )
+    def post(self, request, pk):
+        serializer = MonitoringResultSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        activity, created = record_monitoring(request.user, pk, serializer.validated_data)
+        data = activity_serializer()(activity).data
+        return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

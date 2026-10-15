@@ -12,7 +12,7 @@ pytestmark = pytest.mark.django_db
 def schema(tmp_path):
     path = tmp_path / "schema.yml"
     call_command("spectacular", "--validate", "--fail-on-warn", "--file", str(path))
-    return yaml.safe_load(path.read_text())
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def test_schema_is_valid_and_documents_the_api(schema):
@@ -161,6 +161,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/pests-diseases"),
     ("post", "/api/pests-diseases"),
     ("patch", "/api/pests-diseases/{id}"),
+    ("post", "/api/agricultural-activities/{id}/monitoring"),
     ("get", "/api/plot-characterizations"),
     ("get", "/api/plot-characterizations/{id}"),
     ("get", "/api/plot-characterizations/{id}/history"),

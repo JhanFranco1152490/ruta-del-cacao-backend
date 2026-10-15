@@ -1,0 +1,193 @@
+from decimal import ROUND_HALF_UP, Decimal
+
+from django.db import transaction
+
+from apps.common.locks import lock_aggregate_root
+from apps.common.ownership import owner_filter
+from apps.common.text import normalize_catalog_name
+
+from ..exceptions import (
+    InvalidResult,
+    MonitoringAlreadyRecorded,
+    MonitoringNotFound,
+    NotAMonitoring,
+    PestDiseaseInactive,
+)
+from ..models import Detection, PestDisease, PhytosanitaryMonitoring
+
+# La actividad se toma de la relación y no de su app: ninguna app importa de otra.
+AgriculturalActivity = PhytosanitaryMonitoring._meta.get_field("activity").related_model
+
+MONITORING_TYPE = "phytosanitary_monitoring"
+DONE = "done"
+PERCENT_PLACES = Decimal("0.01")
+REPEATED = "Esta plaga o enfermedad ya está en la lista. Modifica la detección existente."
+
+
+@transaction.atomic
+def record_monitoring(actor, activity_id, data: dict):
+    """Registra el resultado de un monitoreo y lo marca realizado. Devuelve `(actividad, creado)`.
+
+    Llega desde la cola del dispositivo: el mismo resultado reenviado (también con las detecciones
+    en otro orden) responde sin escribir nada; otro resultado sobre uno ya registrado es un
+    conflicto, porque un monitoreo registrado no se corrige.
+    """
+    activity, _ = lock_aggregate_root(
+        AgriculturalActivity,
+        activity_id,
+        root="plot__farm",
+        scope=owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id"),
+        not_found=MonitoringNotFound,
+    )
+    if activity.activity_type != MONITORING_TYPE:
+        raise NotAMonitoring()
+    activity.ensure_completable_by(actor)
+
+    detections = _clean_detections(data)
+    if activity.status == DONE:
+        if _stored_result(activity) == _sent_result(data, detections):
+            return activity, False
+        raise MonitoringAlreadyRecorded()
+
+    pests = _active_pests(detections)
+    _ensure_new_ids(detections)
+    monitoring = PhytosanitaryMonitoring.objects.create(
+        activity=activity,
+        sampling_unit=data["sampling_unit"],
+        evaluated_units=data["evaluated_units"],
+        sampling_method=data["sampling_method"],
+        notes=_clean_text(data["notes"]),
+        no_presence=data["no_presence"],
+    )
+    Detection.objects.bulk_create(
+        [
+            Detection(
+                id=row["id"],
+                monitoring=monitoring,
+                pest_disease=pests.get(row["pest_disease_id"]),
+                other_description=row["other_description"],
+                normalized_other=row["normalized_other"],
+                affected_units=row["affected_units"],
+                incidence=incidence(row["affected_units"], data["evaluated_units"]),
+            )
+            for row in detections
+        ]
+    )
+    activity.complete_with_result(actor, data["done_date"], data["captured_at"])
+    return activity, True
+
+
+def incidence(affected: int, evaluated: int) -> Decimal:
+    """Unidades afectadas ÷ evaluadas × 100, con dos decimales y la mitad hacia arriba, como se
+    redondea a mano: 0,125 % es 0,13 % y no 0,12 %."""
+    return (Decimal(affected) * 100 / Decimal(evaluated)).quantize(
+        PERCENT_PLACES, rounding=ROUND_HALF_UP
+    )
+
+
+def _clean_detections(data: dict) -> list[dict]:
+    """Las detecciones validadas, con "Otra" recortada y normalizada."""
+    evaluated = data["evaluated_units"]
+    if evaluated <= 0:
+        raise InvalidResult("evaluated_units", "Indica cuántas unidades evaluaste.")
+    rows = data["detections"]
+    if data["no_presence"] and rows:
+        raise InvalidResult(
+            "detections",
+            "Un monitoreo sin presencia de plagas ni enfermedades no lleva detecciones.",
+        )
+    if not data["no_presence"] and not rows:
+        raise InvalidResult("detections", "Agrega al menos una detección o marca Sin presencia.")
+
+    cleaned, ids, pests, others = [], set(), set(), set()
+    for row in rows:
+        other = _clean_text(row["other_description"])
+        pest_id = row["pest_disease_id"]
+        if (pest_id is None) == (other is None):
+            raise InvalidResult(
+                "detections", "Cada detección lleva una plaga o enfermedad del catálogo u Otra."
+            )
+        if row["affected_units"] <= 0:
+            raise InvalidResult("detections", "Indica las unidades afectadas.")
+        if row["affected_units"] > evaluated:
+            raise InvalidResult(
+                "detections",
+                f"Las unidades afectadas no pueden superar las evaluadas ({evaluated}).",
+            )
+        if row["id"] in ids:
+            raise InvalidResult("detections", "Dos detecciones tienen el mismo identificador.")
+        normalized_other = normalize_catalog_name(other) if other is not None else None
+        if pest_id is not None and pest_id in pests:
+            raise InvalidResult("detections", REPEATED)
+        if normalized_other is not None and normalized_other in others:
+            raise InvalidResult("detections", REPEATED)
+        ids.add(row["id"])
+        pests.add(pest_id)
+        others.add(normalized_other)
+        cleaned.append(
+            {
+                "id": row["id"],
+                "pest_disease_id": pest_id,
+                "other_description": other,
+                "normalized_other": normalized_other,
+                "affected_units": row["affected_units"],
+            }
+        )
+    return cleaned
+
+
+def _active_pests(detections: list[dict]) -> dict:
+    ids = {row["pest_disease_id"] for row in detections if row["pest_disease_id"] is not None}
+    pests = {pest.pk: pest for pest in PestDisease.objects.filter(pk__in=ids)}
+    if len(pests) != len(ids):
+        # Un 400 y no un 404: la cola leería un 404 como un monitoreo eliminado y descartaría el
+        # registro. Así llega a la bandeja y la persona elige otra.
+        raise InvalidResult("detections", "La plaga o enfermedad no existe en el catálogo.")
+    inactive = sorted((pk for pk, pest in pests.items() if not pest.is_active), key=str)
+    if inactive:
+        raise PestDiseaseInactive(inactive)
+    return pests
+
+
+def _ensure_new_ids(detections: list[dict]) -> None:
+    # Un `id` que ya usa la detección de otro monitoreo. Las de este todavía no existen: un
+    # reenvío del mismo resultado ya se respondió antes.
+    if Detection.objects.filter(pk__in=[row["id"] for row in detections]).exists():
+        raise InvalidResult("detections", "Ya existe una detección con este identificador.")
+
+
+def _stored_result(activity) -> dict | None:
+    monitoring = PhytosanitaryMonitoring.objects.filter(activity=activity).first()
+    if monitoring is None:
+        return None
+    return {
+        "done_date": activity.done_date,
+        "sampling_unit": monitoring.sampling_unit,
+        "evaluated_units": monitoring.evaluated_units,
+        "sampling_method": monitoring.sampling_method,
+        "notes": monitoring.notes,
+        "no_presence": monitoring.no_presence,
+        "detections": {
+            (row.pk, row.pest_disease_id, row.normalized_other, row.affected_units)
+            for row in monitoring.detections.all()
+        },
+    }
+
+
+def _sent_result(data: dict, detections: list[dict]) -> dict:
+    return {
+        "done_date": data["done_date"],
+        "sampling_unit": data["sampling_unit"],
+        "evaluated_units": data["evaluated_units"],
+        "sampling_method": data["sampling_method"],
+        "notes": _clean_text(data["notes"]),
+        "no_presence": data["no_presence"],
+        "detections": {
+            (row["id"], row["pest_disease_id"], row["normalized_other"], row["affected_units"])
+            for row in detections
+        },
+    }
+
+
+def _clean_text(text: str | None) -> str | None:
+    return (text or "").strip() or None

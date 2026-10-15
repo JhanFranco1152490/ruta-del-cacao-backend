@@ -104,6 +104,13 @@ class AgriculturalActivity(models.Model):
     # finca de la parcela y revisó que quien actúa pueda hacerlo; aquí se aplican las reglas de la
     # actividad, su versión y su historial.
 
+    def ensure_completable_by(self, actor):
+        """Lanza `permission_denied` si `actor` no puede registrar esta actividad: la registra el
+        responsable, quien programa labores en la finca o el Productor."""
+        from .services.queries import ensure_can_complete
+
+        ensure_can_complete(actor, self)
+
     def complete_with_result(self, actor, done_date, captured_at):
         """Marca realizado este monitoreo; su resultado lo guarda sanidad."""
         from .services.linked import complete_monitoring

@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from apps.common.serializers import RejectUnknownFieldsMixin, RequireSomeFieldMixin
 
-from .choices import PestDiseaseKind
+from .choices import PestDiseaseKind, SamplingMethod, SamplingUnit
 from .models import PestDisease
 
 
@@ -54,3 +54,36 @@ class PestDiseaseUpdateSerializer(
     scientific_name = scientific_name_field()
     description = description_field(required=False)
     is_active = serializers.BooleanField(required=False)
+
+
+# --- Resultado del monitoreo --------------------------------------------------------------------
+# Los serializers solo revisan tipos y largos; las reglas (unidades mayores que cero, afectadas
+# hasta las evaluadas, sin repetir) las aplica el servicio, con el mensaje de cada regla.
+
+
+class DetectionWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # Lo genera el dispositivo: el control de una detección que sigue en la cola se programa con
+    # este `id`.
+    id = serializers.UUIDField()
+    pest_disease_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+    # Lo que escribió el capataz al elegir "Otra".
+    other_description = serializers.CharField(
+        max_length=100, required=False, allow_null=True, allow_blank=True, default=None
+    )
+    affected_units = serializers.IntegerField()
+
+
+class MonitoringResultSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    done_date = serializers.DateField()
+    sampling_unit = serializers.ChoiceField(choices=SamplingUnit.choices)
+    evaluated_units = serializers.IntegerField()
+    sampling_method = serializers.ChoiceField(
+        choices=SamplingMethod.choices, required=False, allow_null=True, default=None
+    )
+    notes = serializers.CharField(
+        max_length=500, required=False, allow_null=True, allow_blank=True, default=None
+    )
+    no_presence = serializers.BooleanField(required=False, default=False)
+    detections = DetectionWriteSerializer(many=True, required=False, default=list)
+    # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
+    captured_at = serializers.DateTimeField(required=False, allow_null=True, default=None)

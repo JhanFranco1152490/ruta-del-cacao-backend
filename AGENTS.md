@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y los puntos de encuentro de la representación de una actividad (`activity_details.py`, `activity_representation.py`) |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -54,6 +54,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/activities/` | Actividades agrícolas de cada parcela: programar, editar, reprogramar, eliminar lo programado por error, registrar la realización (también desde la cola sin conexión) y consultar por periodo, con su historial de valores anterior y nuevo. Los estados retrasada y vencida se calculan con la fecha (`state.py`); todo su alcance pasa por `services/queries.py` |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
+| `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -81,7 +82,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 
 - **Solo JSON.** No hay API navegable ni se aceptan formularios: un cuerpo que no es JSON
   responde `415` (`unsupported_media_type`) y un `Accept` que no admite JSON, `406`
-  (`not_acceptable`).
+  (`not_acceptable`). **La única excepción** es subir una foto de evidencia
+  (`POST /api/agricultural-activities/{id}/evidence`), que recibe `multipart/form-data` con
+  `MultiPartParser` solo en esa vista: una foto en base64 pesaría un tercio más y se cargaría
+  entera en memoria. Y la única respuesta que no es JSON es el archivo de una foto
+  (`GET /api/evidence/{id}/file`).
 - **Rutas sin barra final:** `/api/producers`, `/api/producers/{id}`, `/api/auth/login`.
 - **Todo error tiene la forma** `{"detail": str, "code": str, "fields": {campo: [str]}}`;
   `fields` es `{}` si el error no es de un campo, y algunos errores agregan claves
@@ -101,13 +106,16 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
   `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
   `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
-  `input_shared` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `input_shared`, `duplicate_pest_disease_name`, `evidence_requires_done`,
+  `evidence_limit_reached` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
-  `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
+  `payload_too_large`, `evidence_too_large` (413); `unsupported_media_type`,
+  `evidence_format_not_allowed` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
   `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive`,
-  `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive` (422);
+  `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive`,
+  `pest_disease_inactive`, `not_a_monitoring`, `evidence_not_allowed` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en
@@ -245,10 +253,12 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   - **Programar** (`POST`, `id` del cliente, reenvío idéntico `200`) solo en parcela y finca
     activas; `phytosanitary_control` es `422 activity_type_not_allowed` (se crea desde un
     monitoreo). **Editar** (`PATCH` con `expected_version`) valida la fecha, el responsable y el
-    tipo solo si cambian.
+    tipo solo si cambian. El tipo de un control no cambia (`422 activity_type_not_allowed`):
+    quedaría unido a la detección sin atenderla.
   - **Registrar la realización** (`POST …/{id}/completion`) llega desde la cola: no pide versión,
     el mismo envío responde `200` sin cambios y otra fecha sobre una realizada es
-    `activity_already_done`. Un monitoreo es `422 monitoring_requires_result`.
+    `activity_already_done`. Un monitoreo es `422 monitoring_requires_result`: se registra con su
+    resultado en `POST …/{id}/monitoring` (sanidad).
   - **Insumos de la realización** (`inputs`: ninguno, uno o varios, sin repetir): cada uno se
     descuenta del inventario de la finca con `record_consumption`, en la misma transacción, con la
     nota `{labor} · {código de la parcela}` que muestra Insumos ("Fertilización · P-03"; con Otro,
@@ -265,6 +275,58 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     elimina (`account_has_activity`).
   - El historial guarda `changes` con el valor anterior y el nuevo de cada campo
     (`field_changes`, `apps/common/audit.py`); una persona va por su id, nunca por su nombre.
+  - **Lo que otra app hace sobre una actividad** pasa por métodos del modelo, como
+    `record_consumption` de insumos, sin importar `activities`: `ensure_completable_by(actor)`,
+    `complete_with_result` (cerrar un monitoreo), `schedule_control` y `record_done_control`
+    (crear un control), `with_representation(queryset)` (las precargas para listarlas) y
+    `state_today()`. Lo que hacen está en `services/linked.py`.
+  - **La representación crece sin que `activities` conozca a quien la amplía:** otra app registra
+    en `apps/common/activity_details.py` sus campos (una función que crea un serializer leído de
+    la actividad) y sus rutas de precarga; el serializer los suma en `get_fields()`, y así el
+    esquema los documenta tipados. Sanidad agrega `monitoring` y `control_of`. En la otra
+    dirección, `activities` registra su serializer en `apps/common/activity_representation.py`
+    para que sanidad responda con la actividad completa.
+- **Sanidad** (`apps/health`):
+  - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
+    sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
+    `health.manage_pestdisease`, que no es delegable (es de toda la asociación). El nombre se
+    compara sin mayúsculas, tildes, espacios ni guiones, y la búsqueda incluye el nombre
+    científico. Sin historial. No se elimina por la API; desde el admin, solo una que ningún
+    monitoreo usa.
+  - **Resultado del monitoreo** (`POST /api/agricultural-activities/{id}/monitoring`): tipo de
+    muestreo (árboles o mazorcas), unidades evaluadas, método, observaciones y detecciones (una
+    plaga del catálogo u Otra con texto, con el `id` del dispositivo), o sin presencia. La
+    incidencia la calcula el servidor (`ROUND_HALF_UP`, dos decimales). Lo registra quien puede
+    registrar la realización. Cada detección puede traer su control (`mode: done`, con la fecha
+    del monitoreo y a nombre de quien registra; o `scheduled`, que pide el permiso de programar).
+    Todo en una transacción. El reenvío idéntico (también con las detecciones en otro orden)
+    responde `200`; otro resultado, `409 activity_already_done`. Una plaga inexistente es `400` en
+    `detections`, no `404`.
+  - **Controles** desde una detección (`POST /api/phytosanitary-detections/{id}/controls`): el
+    control es una actividad `phytosanitary_control` y `PhytosanitaryTreatment` guarda solo el
+    vínculo con la detección, qué se hizo (`method`) y el insumo previsto, que no descuenta. Uno
+    realizado no puede ser futuro ni anterior al monitoreo; sus insumos se descuentan como en la
+    realización. Una detección tiene varios.
+  - **Historial** (`GET /api/plots/{id}/phytosanitary-history`) y **detecciones sin control**
+    (`GET /api/phytosanitary-detections/without-control`, solo para quien programa): sin paginar.
+    El resumen del historial compara la última incidencia con la anterior **del mismo tipo de
+    muestreo**.
+  - **Evidencia** (`/api/agricultural-activities/{id}/evidence`, `/api/evidence/{id}` y
+    `/api/evidence/{id}/file`): solo JPG o PNG, revisados por los primeros bytes; hasta 5 MB y 5
+    por registro; solo en un monitoreo o un control realizados. Una tabla por padre
+    (`PhytosanitaryMonitoringEvidence`, `PhytosanitaryTreatmentEvidence`) sobre un modelo
+    abstracto. El límite del cuerpo se revisa en `initial()` de la vista, **antes de autenticar**,
+    porque la revisión de CSRF lee el cuerpo. La transacción bloquea la finca, revisa y después
+    guarda la foto (milisegundos: la subida ya terminó). El archivo se entrega solo por la vista,
+    que revisa el alcance, con `nosniff`; no hay URL pública. La elimina quien la subió, quien
+    programa en la finca o el Productor, y el archivo se borra del almacenamiento con
+    `transaction.on_commit`. `HealthEvidenceAuditEvent` registra quién adjuntó o eliminó cada una.
+- **Los archivos subidos van a PostgreSQL** (`STORAGES["default"]` es
+  `apps.common.storage.DatabaseStorage`): el disco del servidor se borra en cada despliegue. Los
+  modelos usan `FileField` sin saber dónde queda el archivo; cambiar de almacenamiento es cambiar
+  `STORAGES` y copiar los archivos una vez. `MEDIA_ROOT` no se usa. En las pruebas, el
+  almacenamiento es el de memoria de Django y `FILE_UPLOAD_MAX_MEMORY_SIZE` sube a 10 MB (ver
+  `conftest.py`).
 - **Esquema OpenAPI** con `drf-spectacular`: `GET /api/schema` y Swagger en `/api/docs`, **solo
   con `DEBUG=True`**. Las vistas declaran sus respuestas de error con `error_responses(...)`
   (`apps/common/schema.py`) para que el esquema traiga la forma estándar. El frontend debe
@@ -453,6 +515,11 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   nuevo de cada campo cambiado.
 - **Historial de las actividades** (`AgriculturalActivityAuditEvent`): igual, de solo lectura y
   solo para superusuarios, con el valor anterior y el nuevo de cada cambio.
+- **Plagas y enfermedades** (`apps/health/admin.py`): con `health.manage_pestdisease`, por los
+  servicios, como variedades. **Resultados de monitoreo y controles**, con sus detecciones y los
+  datos de sus fotos (sin el archivo), y el **historial de la evidencia**: de solo lectura y solo
+  para superusuarios. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
+  solo guarda bytes.
 
 ## Variables de entorno
 

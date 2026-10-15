@@ -5,15 +5,22 @@ se hacen con un empleado de la finca A, uno sin finca y el Productor, contra dat
 recurso nuevo que cuelgue de una finca agrega aquí su caso.
 """
 
+import uuid
 from datetime import timedelta
 
 import pytest
 
 from apps.accounts.tests.role_helpers import make_delegate, make_producer_owner
+from apps.activities.choices import ActivityType
 from apps.activities.state import today_in_bogota
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.crops.tests.factories import CacaoVarietyFactory
 from apps.farms.tests.factories import FarmFactory
+from apps.health.tests.factories import (
+    DetectionFactory,
+    PhytosanitaryMonitoringFactory,
+    done_monitoring,
+)
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
 
@@ -280,3 +287,88 @@ def test_the_producer_writes_in_any_of_its_farms(auth_client, world):
 
     assert schedule(client, world.plot_a, world.owner).status_code == 201
     assert schedule(client, world.plot_b, world.owner).status_code == 201
+
+
+# --- Sanidad ---
+
+
+def recorded_monitoring(plot, assignee):
+    """Un monitoreo de `plot` ya registrado, con una detección sin control."""
+    monitoring = PhytosanitaryMonitoringFactory(
+        activity=done_monitoring(plot=plot, assignee=assignee)
+    )
+    return DetectionFactory(monitoring=monitoring)
+
+
+def test_an_employee_sees_the_health_of_its_farm_only(auth_client, world):
+    own = recorded_monitoring(world.plot_a, world.owner)
+    foreign = recorded_monitoring(world.plot_b, world.owner)
+    client = auth_client(world.employee)
+
+    waiting = ids(client.get("/api/phytosanitary-detections/without-control"))
+    history = "/api/plots/{}/phytosanitary-history"
+
+    assert waiting == {str(own.pk)}
+    assert str(foreign.pk) not in waiting
+    assert client.get(history.format(world.plot_a.pk)).status_code == 200
+    assert client.get(history.format(world.plot_b.pk)).status_code == 404
+
+
+def test_an_employee_without_a_farm_sees_no_health_record(auth_client, world):
+    recorded_monitoring(world.plot_a, world.owner)
+    client = auth_client(world.unassigned)
+
+    assert ids(client.get("/api/phytosanitary-detections/without-control")) == set()
+    assert client.get(f"/api/plots/{world.plot_a.pk}/phytosanitary-history").status_code == 404
+
+
+def test_the_producer_sees_the_health_of_every_farm(auth_client, world):
+    own = recorded_monitoring(world.plot_a, world.owner)
+    foreign = recorded_monitoring(world.plot_b, world.owner)
+
+    waiting = ids(auth_client(world.owner).get("/api/phytosanitary-detections/without-control"))
+
+    assert waiting == {str(own.pk), str(foreign.pk)}
+
+
+def test_an_employee_records_monitorings_and_controls_only_in_its_farm(auth_client, world):
+    def monitoring_in(plot):
+        return AgriculturalActivityFactory(
+            plot=plot,
+            activity_type=ActivityType.PHYTOSANITARY_MONITORING,
+            scheduled_date=today_in_bogota(),
+            assignee=world.employee,
+        )
+
+    def result():
+        return {
+            "done_date": str(today_in_bogota()),
+            "sampling_unit": "trees",
+            "evaluated_units": 50,
+            "no_presence": True,
+        }
+
+    def control():
+        return {
+            "id": str(uuid.uuid4()),
+            "mode": "scheduled",
+            "scheduled_date": str(today_in_bogota() + timedelta(days=2)),
+            "assignee_id": str(world.employee.pk),
+        }
+
+    client = auth_client(world.employee)
+    record = "/api/agricultural-activities/{}/monitoring"
+    controls = "/api/phytosanitary-detections/{}/controls"
+    detection_a = recorded_monitoring(world.plot_a, world.owner)
+    detection_b = recorded_monitoring(world.plot_b, world.owner)
+
+    own = client.post(record.format(monitoring_in(world.plot_a).pk), result(), format="json")
+    foreign = client.post(record.format(monitoring_in(world.plot_b).pk), result(), format="json")
+
+    assert (own.status_code, foreign.status_code) == (201, 404)
+    assert (
+        client.post(controls.format(detection_a.pk), control(), format="json").status_code == 201
+    )
+    assert (
+        client.post(controls.format(detection_b.pk), control(), format="json").status_code == 404
+    )

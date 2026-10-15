@@ -58,3 +58,22 @@ class CollectorNotAvailable(ApiError):
 
     def __init__(self):
         super().__init__(fields={"collector_id": [self.default_detail]})
+
+
+class HarvestInLot(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Esta cosecha forma un lote: ya no se puede modificar."
+    default_code = "harvest_in_lot"
+
+
+class StaleHarvestVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Otra persona cambió esta cosecha. Revisa los datos actuales antes de guardar."
+    )
+    default_code = "stale_version"
+
+    def __init__(self, current_harvest):
+        # La vista la envía en `current` para que el formulario cargue los valores vigentes.
+        super().__init__()
+        self.current_harvest = current_harvest

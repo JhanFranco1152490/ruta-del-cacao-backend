@@ -1,6 +1,11 @@
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireVersionedChangeMixin,
+    full_name,
+)
 
 from .models import Harvest
 
@@ -102,6 +107,21 @@ class HarvestCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     collector_id = serializers.UUIDField()
     # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
     captured_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class HarvestUpdateSerializer(
+    RequireVersionedChangeMixin, RejectUnknownFieldsMixin, serializers.Serializer
+):
+    # La parcela no está: una cosecha no cambia de parcela.
+    harvest_date = serializers.DateField(required=False)
+    green_weight_kg = serializers.DecimalField(max_digits=7, decimal_places=1, required=False)
+    variety_id = serializers.UUIDField(required=False)
+    collector_id = serializers.UUIDField(required=False)
+    expected_version = serializers.IntegerField(min_value=1, write_only=True)
+
+
+class HarvestDeleteQuerySerializer(serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
 
 
 class HarvestConflictErrorSerializer(ApiErrorSerializer):

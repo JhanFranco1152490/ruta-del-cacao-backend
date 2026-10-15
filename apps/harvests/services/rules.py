@@ -10,6 +10,7 @@ from apps.common.assignable import assignable_person
 
 from ..exceptions import (
     CollectorNotAvailable,
+    HarvestInLot,
     InvalidHarvest,
     PlotNotCharacterized,
     VarietyNotInPlot,
@@ -70,11 +71,12 @@ def max_green_weight(plot) -> Decimal:
 
 
 def check_date(harvest_date: date, planting) -> None:
-    """No futura y no anterior a la siembra más antigua de la variedad. La siembra se guarda el
-    día 1 de su mes, así que una cosecha del mismo mes de la siembra no se rechaza."""
+    """No futura y no anterior a la siembra más antigua de la variedad (`planting`; sin ella, solo
+    lo primero). La siembra se guarda el día 1 de su mes, así que una cosecha del mismo mes de la
+    siembra no se rechaza."""
     if harvest_date > timezone.localdate():
         raise InvalidHarvest("harvest_date", "La fecha no puede ser futura.")
-    if harvest_date < planting.planting_date:
+    if planting is not None and harvest_date < planting.planting_date:
         month = MONTHS[planting.planting_date.month - 1]
         raise InvalidHarvest(
             "harvest_date",
@@ -93,3 +95,10 @@ def check_weight(plot, green_weight_kg: Decimal) -> None:
             f"El peso supera lo que puede dar una parcela de {plot.area_hectares.normalize():f} "
             f"ha en una recolección ({maximum.normalize():f} kg). Revisa la cifra.",
         )
+
+
+def ensure_not_in_lot(harvest) -> None:
+    """Una cosecha que forma un lote se congela: su peso es el del lote y su fecha forma parte de
+    su código. El lote se alcanza por la relación inversa, sin importar la app que lo define."""
+    if getattr(harvest, "lot", None) is not None:
+        raise HarvestInLot()

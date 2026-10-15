@@ -71,3 +71,17 @@ def lock_plot(actor, plot_id):
     )
     plot.farm = farm
     return plot
+
+
+def lock_harvest(actor, harvest_id) -> Harvest:
+    """La cosecha, con la finca de su parcela bloqueada hasta el final de la transacción."""
+    harvest, farm = lock_aggregate_root(
+        Harvest,
+        harvest_id,
+        root="plot__farm",
+        scope=owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id"),
+        not_found=HarvestNotFound,
+    )
+    harvest.plot = Plot.objects.get(pk=harvest.plot_id)
+    harvest.plot.farm = farm
+    return harvest

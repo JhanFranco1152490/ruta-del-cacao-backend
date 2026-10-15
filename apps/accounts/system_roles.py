@@ -65,6 +65,10 @@ SYSTEM_ROLES = {
             "activities.change_agriculturalactivity",
             "activities.complete_agriculturalactivity",
             "activities.delete_agriculturalactivity",
+            "harvests.view_harvest",
+            "harvests.add_harvest",
+            "harvests.change_harvest",
+            "harvests.delete_harvest",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -87,6 +91,9 @@ SYSTEM_ROLES = {
             "activities.add_agriculturalactivity",
             "activities.change_agriculturalactivity",
             "activities.complete_agriculturalactivity",
+            "harvests.view_harvest",
+            "harvests.add_harvest",
+            "harvests.change_harvest",
         ],
     },
     QUALITY_MANAGER: {

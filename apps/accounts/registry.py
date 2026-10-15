@@ -57,12 +57,17 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "activities.change_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.complete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.delete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "harvests.view_harvest": PermissionInfo(area="harvests", delegable=True),
+    # Quien lo tiene puede ser nombrado recolector de una cosecha.
+    "harvests.add_harvest": PermissionInfo(area="harvests", delegable=True),
+    "harvests.change_harvest": PermissionInfo(area="harvests", delegable=True),
+    "harvests.delete_harvest": PermissionInfo(area="harvests", delegable=True),
 }
 
 
 # Las áreas de lo que cuelga de una finca. Un empleado con algún permiso de estas necesita una
 # finca asignada: sin ella no alcanza nada de lo que el permiso le deja hacer.
-FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities"})
+FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities", "harvests"})
 
 
 def is_field_permission(code: str) -> bool:
@@ -124,6 +129,11 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "activities.change_agriculturalactivity": "activities.view_agriculturalactivity",
     "activities.complete_agriculturalactivity": "activities.view_agriculturalactivity",
     "activities.delete_agriculturalactivity": "activities.view_agriculturalactivity",
+    # Las cosechas se registran y se consultan desde una parcela.
+    "harvests.view_harvest": "plots.view_plot",
+    "harvests.add_harvest": "harvests.view_harvest",
+    "harvests.change_harvest": "harvests.view_harvest",
+    "harvests.delete_harvest": "harvests.view_harvest",
 }
 
 

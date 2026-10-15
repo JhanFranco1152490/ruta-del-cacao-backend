@@ -239,6 +239,8 @@ SPECTACULAR_SETTINGS = {
         "StatusEnum": "apps.producers.models.Producer.Status",
         "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
         "PestDiseaseKindEnum": "apps.health.choices.PestDiseaseKind",
+        "ControlMethodEnum": "apps.health.choices.ControlMethod",
+        "ControlModeEnum": "apps.health.choices.ControlMode",
     },
 }
 

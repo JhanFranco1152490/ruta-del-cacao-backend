@@ -29,3 +29,11 @@ class ControlMethod(models.TextChoices):
     SANITARY_PRUNING = "sanitary_pruning", "Poda sanitaria"
     PRODUCT_APPLICATION = "product_application", "Aplicación de producto"
     OTHER = "other", "Otro"
+
+
+class ControlMode(models.TextChoices):
+    """Cómo llega un control: para hacerse después o ya hecho. No se guarda: lo dice el estado de
+    la actividad."""
+
+    SCHEDULED = "scheduled", "Programado"
+    DONE = "done", "Realizado"

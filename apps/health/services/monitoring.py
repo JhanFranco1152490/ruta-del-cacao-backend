@@ -13,7 +13,8 @@ from ..exceptions import (
     NotAMonitoring,
     PestDiseaseInactive,
 )
-from ..models import Detection, PestDisease, PhytosanitaryMonitoring
+from ..models import Detection, PestDisease, PhytosanitaryMonitoring, PhytosanitaryTreatment
+from .controls import add_control, clean_control, treatment_values
 
 # La actividad se toma de la relación y no de su app: ninguna app importa de otra.
 AgriculturalActivity = PhytosanitaryMonitoring._meta.get_field("activity").related_model
@@ -31,6 +32,10 @@ def record_monitoring(actor, activity_id, data: dict):
     Llega desde la cola del dispositivo: el mismo resultado reenviado (también con las detecciones
     en otro orden) responde sin escribir nada; otro resultado sobre uno ya registrado es un
     conflicto, porque un monitoreo registrado no se corrige.
+
+    Cada detección puede traer su control: hecho en el momento (con la fecha del monitoreo, a
+    nombre de quien registra) o programado para después. Todo va en la misma transacción: si un
+    control no es válido, no se guarda el monitoreo.
     """
     activity, _ = lock_aggregate_root(
         AgriculturalActivity,
@@ -45,7 +50,7 @@ def record_monitoring(actor, activity_id, data: dict):
 
     detections = _clean_detections(data)
     if activity.status == DONE:
-        if _stored_result(activity) == _sent_result(data, detections):
+        if _same_result(activity, data, detections):
             return activity, False
         raise MonitoringAlreadyRecorded()
 
@@ -59,7 +64,7 @@ def record_monitoring(actor, activity_id, data: dict):
         notes=_clean_text(data["notes"]),
         no_presence=data["no_presence"],
     )
-    Detection.objects.bulk_create(
+    created = Detection.objects.bulk_create(
         [
             Detection(
                 id=row["id"],
@@ -74,7 +79,30 @@ def record_monitoring(actor, activity_id, data: dict):
         ]
     )
     activity.complete_with_result(actor, data["done_date"], data["captured_at"])
+    for row, detection in zip(detections, created, strict=True):
+        if row["control"] is not None:
+            add_control(
+                actor,
+                detection,
+                activity,
+                _with_monitoring_data(row["control"], actor, activity, data),
+            )
     return activity, True
+
+
+def _with_monitoring_data(control: dict, actor, activity, data: dict) -> dict:
+    """Un control hecho en el momento toma la fecha del monitoreo y queda a nombre de quien lo
+    registra. La cuenta técnica nunca es responsable de una labor: con ella queda el responsable
+    del monitoreo."""
+    if control["mode"] != "done":
+        return control
+    assignee_id = activity.assignee_id if actor.is_superuser else actor.pk
+    return {
+        **control,
+        "done_date": data["done_date"],
+        "assignee_id": assignee_id,
+        "captured_at": data["captured_at"],
+    }
 
 
 def incidence(affected: int, evaluated: int) -> Decimal:
@@ -100,6 +128,7 @@ def _clean_detections(data: dict) -> list[dict]:
         raise InvalidResult("detections", "Agrega al menos una detección o marca Sin presencia.")
 
     cleaned, ids, pests, others = [], set(), set(), set()
+    control_ids = set()
     for row in rows:
         other = _clean_text(row["other_description"])
         pest_id = row["pest_disease_id"]
@@ -121,6 +150,11 @@ def _clean_detections(data: dict) -> list[dict]:
             raise InvalidResult("detections", REPEATED)
         if normalized_other is not None and normalized_other in others:
             raise InvalidResult("detections", REPEATED)
+        control = clean_control(row["control"]) if row["control"] is not None else None
+        if control is not None:
+            if control["id"] in control_ids:
+                raise InvalidResult("detections", "Dos controles tienen el mismo identificador.")
+            control_ids.add(control["id"])
         ids.add(row["id"])
         pests.add(pest_id)
         others.add(normalized_other)
@@ -131,6 +165,7 @@ def _clean_detections(data: dict) -> list[dict]:
                 "other_description": other,
                 "normalized_other": normalized_other,
                 "affected_units": row["affected_units"],
+                "control": control,
             }
         )
     return cleaned
@@ -156,11 +191,14 @@ def _ensure_new_ids(detections: list[dict]) -> None:
         raise InvalidResult("detections", "Ya existe una detección con este identificador.")
 
 
-def _stored_result(activity) -> dict | None:
+def _same_result(activity, data: dict, detections: list[dict]) -> bool:
+    """Si lo enviado es el resultado ya registrado. Los controles se comparan por lo propio de
+    cada uno (detección y qué se hizo), que no cambia: después del registro un control se puede
+    reprogramar o realizar, y la detección puede ganar otros controles desde su detalle."""
     monitoring = PhytosanitaryMonitoring.objects.filter(activity=activity).first()
     if monitoring is None:
-        return None
-    return {
+        return False
+    stored = {
         "done_date": activity.done_date,
         "sampling_unit": monitoring.sampling_unit,
         "evaluated_units": monitoring.evaluated_units,
@@ -172,10 +210,7 @@ def _stored_result(activity) -> dict | None:
             for row in monitoring.detections.all()
         },
     }
-
-
-def _sent_result(data: dict, detections: list[dict]) -> dict:
-    return {
+    sent = {
         "done_date": data["done_date"],
         "sampling_unit": data["sampling_unit"],
         "evaluated_units": data["evaluated_units"],
@@ -187,6 +222,23 @@ def _sent_result(data: dict, detections: list[dict]) -> dict:
             for row in detections
         },
     }
+    if stored != sent:
+        return False
+    treatments = {
+        treatment.pk: treatment_values(treatment)
+        for treatment in PhytosanitaryTreatment.objects.filter(detection__monitoring=monitoring)
+    }
+    return all(
+        treatments.get(row["control"]["id"])
+        == (
+            row["id"],
+            row["control"]["method"],
+            row["control"]["method_description"],
+            row["control"]["planned_input_id"],
+        )
+        for row in detections
+        if row["control"] is not None
+    )
 
 
 def _clean_text(text: str | None) -> str | None:

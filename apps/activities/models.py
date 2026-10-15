@@ -104,6 +104,12 @@ class AgriculturalActivity(models.Model):
     # finca de la parcela y revisó que quien actúa pueda hacerlo; aquí se aplican las reglas de la
     # actividad, su versión y su historial.
 
+    def state_today(self) -> str:
+        """El estado que se muestra hoy (programada, retrasada, vencida o realizada)."""
+        from .state import activity_state, today_in_bogota
+
+        return activity_state(self, today_in_bogota())[0]
+
     def ensure_completable_by(self, actor):
         """Lanza `permission_denied` si `actor` no puede registrar esta actividad: la registra el
         responsable, quien programa labores en la finca o el Productor."""

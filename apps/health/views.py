@@ -10,6 +10,7 @@ from apps.common.permissions import ActionPermission, HasPermission
 from apps.common.schema import error_responses
 
 from .serializers import (
+    DetectionControlSerializer,
     MonitoringResultSerializer,
     PestDiseaseCreateSerializer,
     PestDiseaseListQuerySerializer,
@@ -18,6 +19,7 @@ from .serializers import (
     PestDiseaseUpdateSerializer,
 )
 from .services.catalog import create_pest_disease, list_pests_diseases, update_pest_disease
+from .services.controls import create_control_from_detection
 from .services.monitoring import record_monitoring
 
 MANAGE_PERMISSION = "health.manage_pestdisease"
@@ -130,5 +132,38 @@ class MonitoringResultView(APIView):
         serializer = MonitoringResultSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         activity, created = record_monitoring(request.user, pk, serializer.validated_data)
+        data = activity_serializer()(activity).data
+        return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class DetectionControlsView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission]
+    required_permission = "activities.add_agriculturalactivity"
+
+    @extend_schema(
+        operation_id="phytosanitary_detections_controls_create",
+        description=(
+            "Crea un control desde una detección: programado (`mode: scheduled`, con fecha desde "
+            "hoy, responsable y, si se sabe, qué se va a hacer y el insumo previsto, que no "
+            "descuenta) o ya realizado (`mode: done`, con fecha no futura ni anterior al "
+            "monitoreo, qué se hizo y los insumos, que se descuentan del inventario de la finca). "
+            "Programar pide el permiso de programar; registrarlo realizado, además el de "
+            "registrar la realización. `id` lo genera el dispositivo: el mismo control reenviado "
+            "responde 200; un `id` que ya usa otra actividad es 400 en `fields.id`. Un monitoreo "
+            "sin presencia no tiene detecciones a las que pedir un control."
+        ),
+        request=DetectionControlSerializer,
+        responses={
+            200: activity_serializer(),
+            201: activity_serializer(),
+            **error_responses(400, 401, 403, 404, 422),
+        },
+    )
+    def post(self, request, pk):
+        serializer = DetectionControlSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        activity, created = create_control_from_detection(
+            request.user, pk, serializer.validated_data
+        )
         data = activity_serializer()(activity).data
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

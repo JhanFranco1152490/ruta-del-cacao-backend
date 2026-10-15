@@ -69,3 +69,47 @@ class PestDiseaseInactive(ApiError):
             fields={"detections": [self.default_detail]},
             extra={"pest_disease_ids": [str(pest_id) for pest_id in pest_disease_ids]},
         )
+
+
+class DetectionNotFound(ApiError):
+    # También cubre la detección de otro productor o de otra finca, y un monitoreo sin presencia,
+    # que no tiene detecciones.
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "Esta detección ya no existe."
+    default_code = "not_found"
+
+
+class ScheduleNotAllowed(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "No tienes permiso para programar controles."
+    default_code = "permission_denied"
+
+
+class DoneControlNotAllowed(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "No tienes permiso para registrar controles realizados."
+    default_code = "permission_denied"
+
+
+class ControlIdConflict(ApiError):
+    # Un `id` que ya usa otro control con otro contenido, u otra actividad. No se dice cuál de los
+    # dos, para no confirmar que existe.
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Ya existe una actividad con este identificador."
+    default_code = "validation_error"
+
+    def __init__(self):
+        super().__init__(fields={"id": [self.default_detail]})
+
+
+class PlannedInputInactive(ApiError):
+    # Mismo código que usa la app de insumos.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "Este insumo ya no está disponible. Elige otro del catálogo."
+    default_code = "input_inactive"
+
+    def __init__(self, input_id):
+        super().__init__(
+            fields={"planned_input_id": [self.default_detail]},
+            extra={"input_ids": [str(input_id)]},
+        )

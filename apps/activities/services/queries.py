@@ -6,6 +6,7 @@ empleado lo de la finca en la que trabaja, y la cuenta técnica lo de cualquiera
 
 from django.db.models import QuerySet
 
+from apps.common.activity_details import activity_detail_prefetch
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter, reaches_all_farms
 from apps.common.roles import is_employee
@@ -24,13 +25,15 @@ SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
 
 
 def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
-    # Los insumos usados se precargan con su insumo: el listado no hace una consulta por fila.
+    # Los insumos usados se precargan con su insumo, y lo que otras apps agregan a la
+    # representación (el resultado de un monitoreo) con lo que ellas piden: el listado no hace una
+    # consulta por fila.
     return (
         AgriculturalActivity.objects.filter(
             **owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id")
         )
         .select_related("plot__farm", "assignee", "completed_by")
-        .prefetch_related("inputs__input")
+        .prefetch_related("inputs__input", *activity_detail_prefetch())
     )
 
 

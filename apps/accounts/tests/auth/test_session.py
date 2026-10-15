@@ -98,7 +98,13 @@ def test_me_returns_roles_as_objects_and_the_producer_id(auth_client):
 
     assert response.status_code == 200
     assert response.data["user"]["roles"] == [
-        {"id": str(get_system_role(PRODUCER).id), "code": PRODUCER, "name": "Productor"}
+        {
+            "id": str(get_system_role(PRODUCER).id),
+            "code": PRODUCER,
+            "name": "Productor",
+            # El Productor no lleva fincas: su rol no dice alcance.
+            "farm_scope": None,
+        }
     ]
     assert str(response.data["user"]["producer_id"]) == str(producer.id)
 

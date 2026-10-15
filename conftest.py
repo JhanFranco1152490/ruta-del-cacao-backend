@@ -14,6 +14,16 @@ def _clear_cache():
     cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def _files_in_memory(settings):
+    # Los archivos subidos en las pruebas quedan en memoria y no en la base ni en el disco. Las
+    # pruebas del almacenamiento en la base lo instancian directamente.
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    }
+
+
 @pytest.fixture
 def anonymous_client():
     return APIClient(enforce_csrf_checks=True)

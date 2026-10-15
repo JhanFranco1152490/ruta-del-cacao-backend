@@ -287,7 +287,9 @@ STATIC_URL = "static/"
 # collectstatic junta aquí todo (admin incluido) para que WhiteNoise lo sirva.
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Los archivos subidos (fotos de evidencia) van a la base de datos: el disco del servidor se
+    # borra en cada despliegue.
+    "default": {"BACKEND": "apps.common.storage.DatabaseStorage"},
     # Comprime y versiona (hash en el nombre) los estáticos en producción.
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }

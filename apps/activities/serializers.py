@@ -4,15 +4,12 @@ from apps.common.serializers import (
     ApiErrorSerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
+    full_name,
 )
 
 from .choices import ActivityStatus, ActivityType
 from .models import AgriculturalActivity
 from .state import ActivityState, activity_state, today_in_bogota
-
-
-def full_name(account) -> str:
-    return account.get_full_name() or account.email
 
 
 class ActivityFarmSerializer(serializers.Serializer):

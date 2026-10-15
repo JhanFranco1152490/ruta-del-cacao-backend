@@ -17,6 +17,7 @@ def full_name(account) -> str:
 
 class ActivityFarmSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    code = serializers.CharField()
     name = serializers.CharField()
     is_active = serializers.BooleanField()
 

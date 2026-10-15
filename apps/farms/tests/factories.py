@@ -3,6 +3,7 @@ from decimal import Decimal
 import factory
 from factory.django import DjangoModelFactory
 
+from apps.common.codes import next_number
 from apps.common.text import normalize_name
 from apps.farms.models import Farm
 from apps.producers.tests.factories import ProducerFactory
@@ -21,6 +22,14 @@ class FarmFactory(DjangoModelFactory):
     altitude_masl = 950
     latitude = Decimal("7.8234567")
     longitude = Decimal("-72.5123456")
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        # El número lo asigna el servidor; la fábrica lo toma del mismo contador.
+        if "number" not in kwargs:
+            producer_model = model_class._meta.get_field("producer").related_model
+            kwargs["number"] = next_number(producer_model, kwargs["producer"].pk, "farm_sequence")
+        return super()._create(model_class, *args, **kwargs)
 
 
 def farm_data(**overrides) -> dict:

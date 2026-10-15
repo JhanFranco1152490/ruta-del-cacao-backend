@@ -167,6 +167,7 @@ def test_create_returns_the_farm_in_the_contract_shape(client, owner):
     body = response.json()
     assert body == {
         "id": str(client_id),
+        "code": "F01",
         "name": "La Esperanza",
         "producer": {
             "id": str(owner.producer_id),

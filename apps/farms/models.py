@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.common.audit import AuditEventBase
+from apps.common.codes import format_code
 from apps.common.territorial import (
     InvalidDepartmentCode,
     InvalidMunicipalityCode,
@@ -29,6 +30,8 @@ class Farm(models.Model):
         on_delete=models.PROTECT,
         related_name="farms",
     )
+    # Consecutivo de la finca dentro de su productor, que asigna el servidor y nunca cambia.
+    number = models.PositiveIntegerField(editable=False)
     name = models.CharField(max_length=200)
     name_normalized = models.CharField(max_length=200, editable=False)
     department_code = models.CharField(max_length=2)
@@ -65,6 +68,10 @@ class Farm(models.Model):
                 fields=["producer", "name_normalized"],
                 name="farms_producer_name_normalized_unique",
             ),
+            models.UniqueConstraint(
+                fields=["producer", "number"],
+                name="farms_producer_number_unique",
+            ),
             models.CheckConstraint(
                 condition=models.Q(area_hectares__gt=0),
                 name="farms_area_hectares_positive",
@@ -88,6 +95,10 @@ class Farm(models.Model):
             ("change_farm", "Puede editar, activar y desactivar fincas"),
             ("delete_farm", "Puede eliminar fincas creadas por error"),
         ]
+
+    @property
+    def code(self) -> str:
+        return format_code("F", self.number)
 
     def clean(self):
         errors = {}

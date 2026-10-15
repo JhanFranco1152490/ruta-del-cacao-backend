@@ -47,6 +47,7 @@ class VertexInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 
 class PlotFarmSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    code = serializers.CharField()
     name = serializers.CharField()
     # Una finca inactiva congela sus parcelas y sus fichas: la lista general lo necesita para no
     # ofrecer cambios que el servidor rechazaría.

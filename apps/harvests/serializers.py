@@ -108,3 +108,54 @@ class HarvestConflictErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
     # `stale_version`.
     current = HarvestSerializer(required=False)
+
+
+MAX_PERIOD_DAYS = 92
+
+
+class HarvestListQuerySerializer(serializers.Serializer):
+    # Un mes por petición es lo habitual (la copia del dispositivo es por mes); 92 días dejan pedir
+    # un trimestre sin abrir la puerta a años enteros sin paginar.
+
+    def get_fields(self):
+        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+        return {
+            "from": serializers.DateField(),
+            "to": serializers.DateField(),
+            "farm": serializers.UUIDField(required=False),
+            "plot": serializers.UUIDField(required=False),
+            "producer": serializers.UUIDField(required=False),
+        }
+
+    def validate(self, attrs):
+        if attrs["to"] < attrs["from"]:
+            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
+        if (attrs["to"] - attrs["from"]).days + 1 > MAX_PERIOD_DAYS:
+            raise serializers.ValidationError(
+                {"to": [f"El periodo no puede pasar de {MAX_PERIOD_DAYS} días."]}
+            )
+        return attrs
+
+
+class HarvestListSerializer(serializers.Serializer):
+    results = HarvestSerializer(many=True)
+
+
+class CollectorQuerySerializer(serializers.Serializer):
+    producer = serializers.UUIDField(required=False)
+
+
+class CollectorOptionSerializer(serializers.Serializer):
+    # Una cuenta de la lista de recolectores. `farm_ids` son las fincas en las que trabaja (vacía
+    # en el Productor y en quien trabaja en todas) y `assignable`, si quien pregunta puede
+    # nombrarla recolectora.
+    id = serializers.UUIDField()
+    full_name = serializers.CharField()
+    is_active = serializers.BooleanField()
+    farm_ids = serializers.ListField(child=serializers.UUIDField())
+    all_farms = serializers.BooleanField()
+    assignable = serializers.BooleanField()
+
+
+class CollectorListSerializer(serializers.Serializer):
+    results = CollectorOptionSerializer(many=True)

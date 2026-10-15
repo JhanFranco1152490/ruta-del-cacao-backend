@@ -69,6 +69,9 @@ SYSTEM_ROLES = {
             "harvests.add_harvest",
             "harvests.change_harvest",
             "harvests.delete_harvest",
+            "lots.view_lot",
+            "lots.add_lot",
+            "lots.delete_lot",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -94,6 +97,8 @@ SYSTEM_ROLES = {
             "harvests.view_harvest",
             "harvests.add_harvest",
             "harvests.change_harvest",
+            "lots.view_lot",
+            "lots.add_lot",
         ],
     },
     QUALITY_MANAGER: {

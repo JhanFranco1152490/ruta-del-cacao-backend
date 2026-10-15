@@ -27,5 +27,7 @@ class HealthConfig(AppConfig):
                 "phytosanitary_treatment__detection__pest_disease",
                 "phytosanitary_treatment__detection__monitoring__activity",
                 "phytosanitary_treatment__planned_input",
+                "phytosanitary_monitoring__evidence",
+                "phytosanitary_treatment__evidence",
             ],
         )

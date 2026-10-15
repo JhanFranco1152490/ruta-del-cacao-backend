@@ -22,6 +22,10 @@ def _files_in_memory(settings):
         **settings.STORAGES,
         "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
     }
+    # Una subida grande queda en memoria y no en un archivo temporal: el almacenamiento en memoria
+    # borra ese archivo mientras sigue abierto, y en Windows eso falla. El almacenamiento en la
+    # base no lo borra; su prueba con un archivo temporal está en `test_storage.py`.
+    settings.FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 
 @pytest.fixture

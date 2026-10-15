@@ -4,6 +4,8 @@ from rest_framework.routers import SimpleRouter
 from .views import (
     DetectionControlsView,
     DetectionsWithoutControlView,
+    EvidenceFileView,
+    EvidenceView,
     MonitoringResultView,
     PestDiseaseViewSet,
     PlotHistoryView,
@@ -33,5 +35,11 @@ urlpatterns = [
         PlotHistoryView.as_view(),
         name="plot-phytosanitary-history",
     ),
+    path(
+        "agricultural-activities/<uuid:pk>/evidence",
+        EvidenceView.as_view(),
+        name="activity-evidence",
+    ),
+    path("evidence/<uuid:pk>/file", EvidenceFileView.as_view(), name="evidence-file"),
     *router.urls,
 ]

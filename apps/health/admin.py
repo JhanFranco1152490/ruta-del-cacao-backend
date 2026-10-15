@@ -9,7 +9,15 @@ from apps.common.admin import (
 )
 
 from .exceptions import DuplicatePestDiseaseName
-from .models import Detection, PestDisease, PhytosanitaryMonitoring, PhytosanitaryTreatment
+from .models import (
+    Detection,
+    HealthEvidenceAuditEvent,
+    PestDisease,
+    PhytosanitaryMonitoring,
+    PhytosanitaryMonitoringEvidence,
+    PhytosanitaryTreatment,
+    PhytosanitaryTreatmentEvidence,
+)
 from .services.catalog import (
     EDITABLE_FIELDS,
     create_pest_disease,
@@ -80,6 +88,22 @@ class DetectionInline(ReadOnlyInlineMixin, admin.TabularInline):
     readonly_fields = fields
 
 
+EVIDENCE_FIELDS = ("file_name", "content_type", "size", "uploaded_by", "uploaded_at")
+
+
+class MonitoringEvidenceInline(ReadOnlyInlineMixin, admin.TabularInline):
+    # Solo los datos de la foto: el archivo se ve desde la aplicación, que revisa el alcance.
+    model = PhytosanitaryMonitoringEvidence
+    fields = EVIDENCE_FIELDS
+    readonly_fields = fields
+
+
+class TreatmentEvidenceInline(ReadOnlyInlineMixin, admin.TabularInline):
+    model = PhytosanitaryTreatmentEvidence
+    fields = EVIDENCE_FIELDS
+    readonly_fields = fields
+
+
 @admin.register(PhytosanitaryMonitoring)
 class PhytosanitaryMonitoringAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
     """El resultado de los monitoreos con sus detecciones, de solo lectura: un monitoreo
@@ -98,7 +122,7 @@ class PhytosanitaryMonitoringAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin
         "no_presence",
         "created_at",
     )
-    inlines = [DetectionInline]
+    inlines = [DetectionInline, MonitoringEvidenceInline]
 
 
 @admin.register(PhytosanitaryTreatment)
@@ -110,3 +134,14 @@ class PhytosanitaryTreatmentAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin)
     list_filter = ("method",)
     list_select_related = ("activity__plot", "detection__pest_disease")
     readonly_fields = ("activity", "detection", "planned_input", "method", "method_description")
+    inlines = [TreatmentEvidenceInline]
+
+
+@admin.register(HealthEvidenceAuditEvent)
+class HealthEvidenceAuditEventAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
+    """Quién adjuntó o eliminó cada foto, de solo lectura; sobrevive a la foto."""
+
+    list_display = ("evidence_ref", "action", "actor", "occurred_at")
+    list_filter = ("action",)
+    list_select_related = ("actor",)
+    readonly_fields = ("evidence_ref", "activity_ref", "action", "actor", "occurred_at")

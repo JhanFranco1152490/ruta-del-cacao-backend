@@ -1,6 +1,6 @@
 import pytest
 from django.core.files.base import ContentFile
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.uploadedfile import SimpleUploadedFile, TemporaryUploadedFile
 from django.db import transaction
 
 from apps.common.models import StoredFile
@@ -100,3 +100,18 @@ def test_the_tests_keep_files_in_memory():
 
     assert isinstance(default_storage._wrapped, InMemoryStorage)
     assert not StoredFile.objects.exists()
+
+
+def test_a_big_upload_kept_in_a_temporary_file_is_saved_whole(storage):
+    # Django deja en un archivo temporal las subidas de más de 2,5 MB.
+    content = PHOTO + b"x" * (3 * 1024 * 1024)
+    uploaded = TemporaryUploadedFile("grande.jpg", "image/jpeg", len(content), None)
+    uploaded.write(content)
+    uploaded.seek(0)
+
+    name = storage.save("evidence/grande.jpg", uploaded)
+    uploaded.close()
+
+    with storage.open(name) as stored:
+        assert stored.read() == content
+    assert storage.size(name) == len(content)

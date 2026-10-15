@@ -121,3 +121,64 @@ class PlotNotFound(ApiError):
     status_code = status.HTTP_404_NOT_FOUND
     default_detail = "La parcela no existe."
     default_code = "not_found"
+
+
+# --- Evidencia ---
+
+
+class EvidenceTargetNotFound(ApiError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "Este registro ya no existe."
+    default_code = "not_found"
+
+
+class EvidenceNotFound(ApiError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "Esta foto ya no existe."
+    default_code = "not_found"
+
+
+class EvidenceNotAllowed(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "Solo se adjuntan fotos a un monitoreo o a un control fitosanitario."
+    default_code = "evidence_not_allowed"
+
+
+class EvidenceRequiresDone(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La evidencia se adjunta cuando el registro ya está realizado."
+    default_code = "evidence_requires_done"
+
+
+class EvidenceTooLarge(ApiError):
+    status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    default_detail = "El archivo supera el tamaño máximo de 5 MB."
+    default_code = "evidence_too_large"
+
+    def __init__(self):
+        super().__init__(fields={"file": [self.default_detail]})
+
+
+class EvidenceFormatNotAllowed(ApiError):
+    status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+    default_detail = "Formato no permitido. Puedes adjuntar fotos JPG o PNG."
+    default_code = "evidence_format_not_allowed"
+
+    def __init__(self):
+        super().__init__(fields={"file": [self.default_detail]})
+
+
+class EvidenceLimitReached(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya tiene 5 fotos, el máximo."
+    default_code = "evidence_limit_reached"
+
+
+class EvidenceIdConflict(ApiError):
+    # Un `id` que ya usa otra foto de otro registro. No se dice de cuál.
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Ya existe una foto con este identificador."
+    default_code = "validation_error"
+
+    def __init__(self):
+        super().__init__(fields={"id": [self.default_detail]})

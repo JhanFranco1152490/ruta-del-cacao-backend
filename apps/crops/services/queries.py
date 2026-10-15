@@ -21,7 +21,7 @@ def list_characterizations(actor, farm_id=None, plot_ids=None) -> QuerySet:
     del productor de la sesión. Lo ajeno no da error: simplemente no tiene fichas que mostrar."""
     characterizations = PlotCharacterization.objects.filter(
         **owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id")
-    ).order_by("plot__code_normalized", "plot_id")
+    ).order_by("plot__number", "plot_id")
     if farm_id is not None:
         characterizations = characterizations.filter(plot__farm_id=farm_id)
     if plot_ids is not None:

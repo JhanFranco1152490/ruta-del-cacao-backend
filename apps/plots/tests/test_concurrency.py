@@ -43,7 +43,7 @@ def test_two_plots_that_together_exceed_the_farm_area_cannot_both_be_saved(owner
 
     results = run_in_parallel(
         lambda code: attempt(
-            lambda: create_plot(owner, plot_data(farm, code=code, area_hectares=Decimal("3.00")))
+            lambda: create_plot(owner, plot_data(farm, name=code, area_hectares=Decimal("3.00")))
         ),
         ["P-01", "P-02"],
     )
@@ -61,7 +61,7 @@ def test_two_overlapping_plots_cannot_both_be_saved(owner):
         vertices = boundaries[code]
         area = measured_area_hectares(to_polygon(validate_boundary(vertices).vertices))
         data = plot_data(
-            farm, code=code, boundary=vertices, area_hectares=area.quantize(Decimal("0.01"))
+            farm, name=code, boundary=vertices, area_hectares=area.quantize(Decimal("0.01"))
         )
         return attempt(lambda: create_plot(owner, data))
 
@@ -93,7 +93,7 @@ def test_shrinking_the_farm_while_a_plot_arrives_never_leaves_it_overallocated(o
         if which == "shrink":
             return attempt(lambda: update_farm(owner, farm.pk, 1, {"area_hectares": Decimal("4")}))
         return attempt(
-            lambda: create_plot(owner, plot_data(farm, code="Nueva", area_hectares=Decimal("3")))
+            lambda: create_plot(owner, plot_data(farm, name="Nueva", area_hectares=Decimal("3")))
         )
 
     results = run_in_parallel(act, ["shrink", "plot"])
@@ -115,7 +115,7 @@ def test_deleting_and_editing_the_same_plot_at_once_never_fails_unexpectedly(own
     def act(which):
         if which == "delete":
             return attempt(lambda: delete_plot(owner, plot.pk, 1))
-        return attempt(lambda: update_plot(owner, plot.pk, 1, {"code": "Editada"}))
+        return attempt(lambda: update_plot(owner, plot.pk, 1, {"name": "Editada"}))
 
     results = run_in_parallel(act, ["delete", "edit"])
 

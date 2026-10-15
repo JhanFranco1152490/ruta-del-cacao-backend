@@ -66,6 +66,7 @@ class PlotSerializer(serializers.ModelSerializer):
             "id",
             "farm",
             "code",
+            "name",
             "area_hectares",
             "measured_area_hectares",
             "boundary",
@@ -80,7 +81,9 @@ class PlotSerializer(serializers.ModelSerializer):
 
 
 class PlotWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
-    code = serializers.CharField(max_length=50)
+    # El código (`P05`) lo asigna el servidor y no se edita. El nombre es opcional: vacío o nulo
+    # deja la parcela sin nombre.
+    name = serializers.CharField(max_length=60, required=False, allow_null=True, allow_blank=True)
     area_hectares = serializers.DecimalField(max_digits=10, decimal_places=2)
     # La lista completa de vértices; `null` deja la parcela sin contorno.
     boundary = VertexInputSerializer(many=True, allow_null=True, required=False)
@@ -92,10 +95,19 @@ class PlotCreateSerializer(PlotWriteSerializer):
     farm_id = serializers.UUIDField()
     # Hora del dispositivo al capturar; informativa, así que no se valida contra la del servidor.
     captured_at = serializers.DateTimeField(required=False, allow_null=True)
+    # Solo para una cola guardada por una versión anterior de la app, cuando el código era el
+    # texto que el productor escribía: sin `name`, ese texto se guarda como nombre; con `name`,
+    # se ignora.
+    code = serializers.CharField(max_length=50, required=False, write_only=True)
+
+    def validate(self, attrs):
+        legacy_code = attrs.pop("code", None)
+        if legacy_code is not None and attrs.get("name") is None:
+            attrs["name"] = legacy_code
+        return attrs
 
 
 class PlotUpdateSerializer(RequireVersionedChangeMixin, PlotWriteSerializer):
-    code = serializers.CharField(max_length=50, required=False)
     area_hectares = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     is_active = serializers.BooleanField(required=False)
     expected_version = serializers.IntegerField(min_value=1, write_only=True)

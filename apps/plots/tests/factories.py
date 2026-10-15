@@ -41,8 +41,10 @@ class PlotFactory(DjangoModelFactory):
         model = Plot
 
     farm = factory.SubFactory(FarmFactory)
-    code = factory.Sequence(lambda n: f"P-{n:02d}")
-    code_normalized = factory.LazyAttribute(lambda plot: normalize_name(plot.code))
+    name = factory.Sequence(lambda n: f"Parcela {n:03d}")
+    name_normalized = factory.LazyAttribute(
+        lambda plot: normalize_name(plot.name) if plot.name else None
+    )
     area_hectares = Decimal("1.00")
 
     @classmethod
@@ -60,7 +62,7 @@ def plot_data(farm, **overrides) -> dict:
     """Datos válidos de creación, con los nombres de campo del modelo."""
     data = {
         "farm_id": farm.pk,
-        "code": "P1 · El Mango",
+        "name": "P1 · El Mango",
         "area_hectares": Decimal("1.00"),
         "boundary": None,
     }

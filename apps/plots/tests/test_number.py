@@ -30,27 +30,27 @@ def numbers_of(farm):
 
 
 def test_plots_of_a_farm_get_consecutive_numbers(owner, farm):
-    first, _ = create_plot(owner, plot_data(farm, code="Uno"))
-    second, _ = create_plot(owner, plot_data(farm, code="Dos"))
+    first, _ = create_plot(owner, plot_data(farm, name="Uno"))
+    second, _ = create_plot(owner, plot_data(farm, name="Dos"))
 
     assert (first.number, second.number) == (1, 2)
 
 
 def test_each_farm_counts_its_own_plots(owner, farm):
     other = FarmFactory(producer=owner.producer, area_hectares=100)
-    create_plot(owner, plot_data(farm, code="Uno"))
+    create_plot(owner, plot_data(farm, name="Uno"))
 
-    plot, _ = create_plot(owner, plot_data(other, code="Uno"))
+    plot, _ = create_plot(owner, plot_data(other, name="Uno"))
 
     assert plot.number == 1
 
 
 def test_a_deleted_plot_does_not_free_its_number(owner, farm):
-    create_plot(owner, plot_data(farm, code="Uno"))
-    mistaken, _ = create_plot(owner, plot_data(farm, code="Dos"))
+    create_plot(owner, plot_data(farm, name="Uno"))
+    mistaken, _ = create_plot(owner, plot_data(farm, name="Dos"))
     delete_plot(owner, mistaken.pk, mistaken.version)
 
-    plot, _ = create_plot(owner, plot_data(farm, code="Tres"))
+    plot, _ = create_plot(owner, plot_data(farm, name="Tres"))
 
     assert plot.number == 3
 
@@ -60,18 +60,18 @@ def test_a_resent_plot_does_not_use_another_number(owner, farm):
     create_plot(owner, dict(data))
 
     _, created = create_plot(owner, dict(data))
-    plot, _ = create_plot(owner, plot_data(farm, code="Otra"))
+    plot, _ = create_plot(owner, plot_data(farm, name="Otra"))
 
     assert created is False
     assert plot.number == 2
 
 
 def test_a_rejected_plot_does_not_use_a_number(owner, farm):
-    create_plot(owner, plot_data(farm, code="Uno"))
+    create_plot(owner, plot_data(farm, name="Uno"))
 
     with pytest.raises(Exception):  # noqa: B017 - código repetido
-        create_plot(owner, plot_data(farm, code="uno"))
-    plot, _ = create_plot(owner, plot_data(farm, code="Dos"))
+        create_plot(owner, plot_data(farm, name="uno"))
+    plot, _ = create_plot(owner, plot_data(farm, name="Dos"))
 
     assert plot.number == 2
 
@@ -85,7 +85,7 @@ def test_the_factory_takes_the_number_from_the_same_counter(farm):
 def test_simultaneous_plots_of_a_farm_get_different_numbers(owner):
     farm = FarmFactory(producer=owner.producer, area_hectares=100)
 
-    run_in_parallel(lambda n: create_plot(owner, plot_data(farm, code=f"P{n}")), [1, 2, 3, 4])
+    run_in_parallel(lambda n: create_plot(owner, plot_data(farm, name=f"P{n}")), [1, 2, 3, 4])
 
     assert numbers_of(farm) == [1, 2, 3, 4]
     farm.refresh_from_db()

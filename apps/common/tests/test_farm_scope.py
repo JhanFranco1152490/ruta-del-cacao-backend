@@ -41,8 +41,8 @@ class World:
         self.producer = ProducerFactory()
         self.farm_a = FarmFactory(producer=self.producer, name="A")
         self.farm_b = FarmFactory(producer=self.producer, name="B")
-        self.plot_a = PlotFactory(farm=self.farm_a, code="A-1")
-        self.plot_b = PlotFactory(farm=self.farm_b, code="B-1")
+        self.plot_a = PlotFactory(farm=self.farm_a, name="A-1")
+        self.plot_b = PlotFactory(farm=self.farm_b, name="B-1")
         soon = today_in_bogota() + timedelta(days=3)
         self.owner = make_producer_owner(self.producer)
         self.activity_a = AgriculturalActivityFactory(

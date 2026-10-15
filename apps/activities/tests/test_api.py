@@ -50,7 +50,7 @@ def client(auth_client, owner):
 
 @pytest.fixture
 def plot(producer):
-    return PlotFactory(farm__producer=producer, code="P-03", farm__name="La Esperanza")
+    return PlotFactory(farm__producer=producer, name="P-03", farm__name="La Esperanza")
 
 
 @pytest.fixture

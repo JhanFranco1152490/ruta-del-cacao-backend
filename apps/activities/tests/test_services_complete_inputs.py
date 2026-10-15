@@ -25,7 +25,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def plot():
-    return PlotFactory(code="P-03")
+    return PlotFactory(name="P-03")
 
 
 @pytest.fixture

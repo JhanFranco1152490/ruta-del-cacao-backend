@@ -45,8 +45,8 @@ def test_the_characterization_shows_its_plantings_and_nothing_can_be_edited(clie
 
 
 def test_the_characterization_list_searches_by_plot_code_and_farm(client):
-    mine = PlotCharacterizationFactory(plot__code="P-BUSCADA")
-    PlotCharacterizationFactory(plot__code="P-OTRA")
+    mine = PlotCharacterizationFactory(plot__name="P-BUSCADA")
+    PlotCharacterizationFactory(plot__name="P-OTRA")
 
     body = client.get(
         reverse("admin:crops_plotcharacterization_changelist"), {"q": "P-BUSCADA"}

@@ -6,7 +6,7 @@ from apps.common.serializers import RejectUnknownFieldsMixin, RequireSomeFieldMi
 
 from ..access import roles_of
 from ..models import User
-from ..system_roles import PRODUCER
+from ..system_roles import ADMINISTRATOR, PRODUCER
 from .farm_assignment import needs_farm
 
 
@@ -27,6 +27,12 @@ class AccountRoleSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     code = serializers.CharField(allow_null=True)
     name = serializers.CharField()
+    # Qué alcance admite el rol: con él el formulario de la cuenta sabe qué ofrecer sin pedir los
+    # roles aparte. Vacío en Productor y Administrador.
+    farm_scope = serializers.SerializerMethodField()
+
+    def get_farm_scope(self, role) -> str | None:
+        return None if role.code in (ADMINISTRATOR, PRODUCER) else role.farm_scope
 
 
 class AccountFarmSerializer(serializers.Serializer):

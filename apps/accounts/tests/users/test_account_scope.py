@@ -349,3 +349,12 @@ def test_the_producer_account_reaches_all_the_farms_without_the_mark(producer):
     assert owner.all_farms is False
     sales = get_system_role(SALES_MANAGER)
     assert sales.farm_scope == Role.FarmScope.MANY
+
+
+def test_the_roles_of_an_account_say_what_scope_they_admit(auth_client, owner, producer, farm):
+    foreman = grant_role(UserFactory(producer=producer, farm=farm), get_system_role(FOREMAN))
+    client = auth_client(owner)
+
+    assert client.get(user_url(foreman)).data["roles"][0]["farm_scope"] == "one"
+    # El Productor no lleva fincas: su rol no dice alcance.
+    assert client.get(user_url(owner)).data["roles"][0]["farm_scope"] is None

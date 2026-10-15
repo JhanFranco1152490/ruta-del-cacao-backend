@@ -40,6 +40,11 @@ class User(AbstractUser):
     # Administrador y en el empleado sin tareas de campo. Que haya al menos una según los roles, y
     # que sean del mismo productor, lo aplica el servicio.
     farms = models.ManyToManyField("farms.Farm", blank=True, related_name="accounts")
+    # Que el empleado alcanza todas las fincas de su productor, también las que se registren
+    # después: una lista con todas las de hoy no lo expresa. Es un campo y no "lista vacía =
+    # todas" porque vacía significa ninguna, y eso es lo que hace fallar cerrado el alcance.
+    # Excluyente con `farms`; el servicio lo aplica. Siempre falso en el Productor.
+    all_farms = models.BooleanField(default=False)
     objects = UserManager()
 
     USERNAME_FIELD = "email"
@@ -103,6 +108,16 @@ class Role(models.Model):
     )
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=255, blank=True, default="")
+
+    class FarmScope(models.TextChoices):
+        ALL = "all", "Siempre todas las fincas"
+        ONE = "one", "Una sola finca"
+        MANY = "many", "Una o varias fincas"
+
+    # Qué alcance admiten las cuentas que tienen el rol: es un límite y no el valor, que lo tiene
+    # la cuenta. Sin sentido en Productor y Administrador (no llevan fincas); ahí queda en el
+    # valor por defecto y la API lo muestra vacío.
+    farm_scope = models.CharField(max_length=4, choices=FarmScope.choices, default=FarmScope.MANY)
 
     class Meta:
         constraints = [

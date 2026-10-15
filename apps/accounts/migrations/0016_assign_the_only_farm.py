@@ -2,17 +2,12 @@ from collections import defaultdict
 
 from django.db import migrations
 
-# Las apps de lo que cuelga de una finca, como estaban al escribir esta migración: una migración
-# no lee el registro de permisos del código, que puede cambiar después. El único permiso de estas
-# apps que no es de una finca (el catálogo de variedades) lo tiene la asociación, cuyas cuentas no
-# tienen productor y por eso no entran aquí.
-FIELD_APPS = ("farms", "plots", "crops", "inputs", "activities")
-
 
 def assign_the_only_farm(apps, schema_editor):
-    """Los empleados con permisos de campo quedan en la finca de su productor cuando solo tiene
-    una. Con varias no hay cómo saber en cuál trabaja cada uno: quedan sin finca hasta que el
-    productor los asigne."""
+    """Los empleados cuyo rol admite una sola finca quedan en la finca de su productor cuando solo
+    tiene una. Con varias no hay cómo saber en cuál trabaja cada uno, y un rol que admite varias
+    (o todas) puede ser el de un administrador de confianza al que una finca limitaría sin que
+    nadie lo decida: quedan sin alcance hasta que el productor los asigne."""
     farms_by_producer = defaultdict(list)
     for producer_id, farm_id in apps.get_model("farms", "Farm").objects.values_list(
         "producer_id", "pk"
@@ -29,9 +24,10 @@ def assign_the_only_farm(apps, schema_editor):
         apps.get_model("accounts", "User")
         .objects.filter(
             farms__isnull=True,
+            all_farms=False,
             is_superuser=False,
             producer_id__in=only_farm,
-            groups__permissions__content_type__app_label__in=FIELD_APPS,
+            groups__role__farm_scope="one",
         )
         .exclude(groups__role__code="producer")
         .distinct()
@@ -47,7 +43,7 @@ def release_farms(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("accounts", "0014_user_farms"),
+        ("accounts", "0015_all_farms_and_role_farm_scope"),
         ("farms", "0005_farm_deletion_and_surviving_audit"),
     ]
 

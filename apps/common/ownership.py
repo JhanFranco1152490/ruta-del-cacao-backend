@@ -5,9 +5,10 @@ from .roles import is_employee
 
 
 def reaches_all_farms(actor) -> bool:
-    """Si `actor` alcanza todas las fincas de su productor: la cuenta Productor y la técnica. Un
+    """Si `actor` alcanza todas las fincas de su productor, también las que se registren después:
+    la cuenta Productor, la técnica y el empleado a quien se le marcó "todas las fincas". Otro
     empleado solo alcanza las fincas en las que trabaja."""
-    return not is_employee(actor)
+    return not is_employee(actor) or actor.all_farms
 
 
 def own_farms(actor):

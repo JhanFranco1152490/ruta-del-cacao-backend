@@ -37,7 +37,7 @@ class Field:
     def __init__(self, variety=None):
         self.producer = ProducerFactory()
         self.farm = FarmFactory(producer=self.producer)
-        self.variety = variety or CacaoVarietyFactory(name="CCN-51")
+        self.variety = variety or CacaoVarietyFactory(name="Clon de campo")
         self.plot = characterized_plot(
             variety=self.variety,
             planting_date=date(2019, 5, 1),
@@ -109,7 +109,11 @@ def test_the_response_has_the_contract_shape(client, field):
         },
     }
     assert body["producer_id"] == str(field.producer.pk)
-    assert body["variety"] == {"id": str(field.variety.pk), "name": "CCN-51", "is_active": True}
+    assert body["variety"] == {
+        "id": str(field.variety.pk),
+        "name": "Clon de campo",
+        "is_active": True,
+    }
     assert body["collector"]["id"] == str(field.foreman.pk)
     assert body["registered_by"]["id"] == str(field.foreman.pk)
     assert body["green_weight_kg"] == "120.5"
@@ -180,7 +184,7 @@ def test_the_date_cannot_precede_the_planting_of_the_variety(client, field):
 
     assert response.status_code == 400
     assert response.data["fields"]["harvest_date"] == [
-        "La fecha es anterior a la siembra de CCN-51 en esta parcela (mayo de 2019)."
+        "La fecha es anterior a la siembra de Clon de campo en esta parcela (mayo de 2019)."
     ]
 
 
@@ -200,7 +204,7 @@ def test_the_oldest_planting_of_the_variety_sets_the_earliest_date(client, field
 
 
 def test_the_date_is_checked_against_the_planting_of_the_chosen_variety(client, field):
-    other = CacaoVarietyFactory(name="ICS-95")
+    other = CacaoVarietyFactory(name="Otro clon de campo")
     PlotPlantingFactory(
         characterization=field.plot.characterization,
         variety=other,

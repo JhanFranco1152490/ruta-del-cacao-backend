@@ -19,9 +19,10 @@ Plot = Harvest._meta.get_field("plot").related_model
 
 
 def visible_harvests(actor) -> QuerySet[Harvest]:
+    # El lote es de otra app: se alcanza por la relación inversa, sin importarla.
     return Harvest.objects.filter(
         **owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id")
-    ).select_related("plot__farm", "variety", "collector", "registered_by")
+    ).select_related("plot__farm", "variety", "collector", "registered_by", "lot")
 
 
 def list_harvests(

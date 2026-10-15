@@ -33,6 +33,7 @@ urlpatterns = [
     path("api/", include("apps.crops.urls")),
     path("api/", include("apps.inputs.urls")),
     path("api/", include("apps.activities.urls")),
+    path("api/", include("apps.health.urls")),
     path("api/", include("apps.common.urls")),
 ]
 

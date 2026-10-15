@@ -238,6 +238,7 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "StatusEnum": "apps.producers.models.Producer.Status",
         "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
+        "PestDiseaseKindEnum": "apps.health.choices.PestDiseaseKind",
     },
 }
 

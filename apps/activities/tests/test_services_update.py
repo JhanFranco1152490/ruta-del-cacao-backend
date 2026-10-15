@@ -165,6 +165,18 @@ def test_a_control_created_elsewhere_can_be_rescheduled():
     assert updated.scheduled_date == days_from_today(4)
 
 
+def test_a_control_cannot_become_another_activity():
+    control = AgriculturalActivityFactory(
+        activity_type=ActivityType.PHYTOSANITARY_CONTROL, scheduled_date=days_from_today(2)
+    )
+
+    with pytest.raises(ActivityTypeNotAllowed):
+        update_activity(colleague(control), control.pk, 1, {"activity_type": ActivityType.PRUNING})
+
+    control.refresh_from_db()
+    assert control.activity_type == ActivityType.PHYTOSANITARY_CONTROL
+
+
 def test_a_done_activity_cannot_be_edited():
     done = AgriculturalActivityFactory(
         status=ActivityStatus.DONE,

@@ -100,6 +100,35 @@ class AgriculturalActivity(models.Model):
             ),
         ]
 
+    # Lo que sanidad hace sobre una actividad, sin importar esta app. Quien llama ya bloqueó la
+    # finca de la parcela y revisó que quien actúa pueda hacerlo; aquí se aplican las reglas de la
+    # actividad, su versión y su historial.
+
+    def complete_with_result(self, actor, done_date, captured_at):
+        """Marca realizado este monitoreo; su resultado lo guarda sanidad."""
+        from .services.linked import complete_monitoring
+
+        complete_monitoring(self, actor, done_date, captured_at)
+
+    @classmethod
+    def schedule_control(cls, actor, plot, control_id, scheduled_date, assignee_id):
+        """Programa un control fitosanitario en `plot` y lo devuelve."""
+        from .services.linked import schedule_control
+
+        return schedule_control(actor, plot, control_id, scheduled_date, assignee_id)
+
+    @classmethod
+    def record_done_control(
+        cls, actor, plot, control_id, done_date, not_before, assignee_id, inputs, captured_at
+    ):
+        """Crea un control fitosanitario ya realizado, descuenta sus insumos y lo devuelve.
+        `not_before` es la fecha del monitoreo que atiende."""
+        from .services.linked import record_done_control
+
+        return record_done_control(
+            actor, plot, control_id, done_date, not_before, assignee_id, inputs, captured_at
+        )
+
 
 class AgriculturalActivityInput(models.Model):
     """Un insumo que se gastó en una labor, con su cantidad en la unidad del insumo. Se registra

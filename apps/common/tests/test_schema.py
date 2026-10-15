@@ -38,6 +38,7 @@ def test_producer_list_documents_filters_and_pagination(schema):
         "/api/plot-characterizations",
         "/api/agricultural-inputs",
         "/api/input-stocks",
+        "/api/pests-diseases",
     ],
 )
 def test_unpaginated_lists_document_an_object_with_results(schema, path):
@@ -157,6 +158,9 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/cacao-varieties"),
     ("post", "/api/cacao-varieties"),
     ("patch", "/api/cacao-varieties/{id}"),
+    ("get", "/api/pests-diseases"),
+    ("post", "/api/pests-diseases"),
+    ("patch", "/api/pests-diseases/{id}"),
     ("get", "/api/plot-characterizations"),
     ("get", "/api/plot-characterizations/{id}"),
     ("get", "/api/plot-characterizations/{id}/history"),

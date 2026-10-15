@@ -46,6 +46,32 @@ class LotCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     harvest_id = serializers.UUIDField()
 
 
+class LotListQuerySerializer(serializers.Serializer):
+    # Los filtros del listado paginado; `page` y `page_size` los lee la paginación.
+    status = serializers.ChoiceField(choices=LotStatus.choices, required=False)
+    farm = serializers.UUIDField(required=False)
+    plot = serializers.UUIDField(required=False)
+    variety = serializers.UUIDField(required=False)
+    search = serializers.CharField(required=False, allow_blank=True, max_length=40)
+    producer = serializers.UUIDField(required=False)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+        fields["from"] = serializers.DateField(required=False)
+        fields["to"] = serializers.DateField(required=False)
+        return fields
+
+    def validate(self, attrs):
+        if "from" in attrs and "to" in attrs and attrs["to"] < attrs["from"]:
+            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
+        return attrs
+
+
+class LotDeleteQuerySerializer(serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+
+
 class LotConflictErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
     # `harvest_already_in_lot` (el lote que ya existe) y con `stale_version`.

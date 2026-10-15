@@ -24,11 +24,14 @@ from .serializers import (
     PestDiseaseSerializer,
     PestDiseaseUpdateSerializer,
     PestSummarySerializer,
+    WaitingDetectionListSerializer,
+    WaitingQuerySerializer,
 )
 from .services.catalog import create_pest_disease, list_pests_diseases, update_pest_disease
 from .services.controls import create_control_from_detection
 from .services.history import pest_summary, plot_history
 from .services.monitoring import record_monitoring
+from .services.waiting import detections_without_control
 
 MANAGE_PERMISSION = "health.manage_pestdisease"
 
@@ -217,3 +220,26 @@ class PlotHistoryView(APIView):
         ).data
         summary = PestSummarySerializer(pest_summary(activities, keep), many=True).data
         return Response({"results": results, "summary": summary})
+
+
+class DetectionsWithoutControlView(APIView):
+    # Solo quien puede programar controles: es quien puede resolver lo que el aviso señala.
+    permission_classes = [IsAuthenticated, HasPermission]
+    required_permission = "activities.add_agriculturalactivity"
+
+    @extend_schema(
+        operation_id="phytosanitary_detections_without_control_list",
+        description=(
+            "Las detecciones que no tienen ningún control, programado o realizado, del monitoreo "
+            "más antiguo al más reciente, en las fincas que alcanza la cuenta. Sin fecha mínima "
+            "ni paginar: son las que esperan que alguien decida su control. Pide el permiso de "
+            "programar. La cuenta técnica puede acotar con `producer`."
+        ),
+        parameters=[OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")],
+        responses={200: WaitingDetectionListSerializer, **error_responses(400, 401, 403)},
+    )
+    def get(self, request):
+        query = WaitingQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        detections = detections_without_control(request.user, query.validated_data.get("producer"))
+        return Response(WaitingDetectionListSerializer({"results": detections}).data)

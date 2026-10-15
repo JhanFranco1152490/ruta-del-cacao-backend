@@ -299,3 +299,54 @@ class PestSummarySerializer(serializers.Serializer):
     # La del monitoreo anterior que contó lo mismo (árboles o mazorcas); `null` si no hay.
     previous_incidence = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True)
     latest_date = serializers.DateField()
+
+
+# --- Detecciones sin control --------------------------------------------------------------------
+
+
+class WaitingMonitoringSerializer(serializers.Serializer):
+    id = serializers.UUIDField(source="pk")
+    done_date = serializers.DateField(source="activity.done_date")
+
+
+class WaitingFarmSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class WaitingPlotSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    code = serializers.CharField()
+    farm = WaitingFarmSerializer()
+
+
+class WaitingDetectionSerializer(serializers.ModelSerializer):
+    pest_disease = PestDiseaseRefSerializer(allow_null=True)
+    sampling_unit = serializers.ChoiceField(
+        source="monitoring.sampling_unit", choices=SamplingUnit.choices
+    )
+    monitoring = WaitingMonitoringSerializer()
+    plot = WaitingPlotSerializer(source="monitoring.activity.plot")
+
+    class Meta:
+        model = Detection
+        fields = [
+            "id",
+            "pest_disease",
+            "other_description",
+            "affected_units",
+            "incidence",
+            "sampling_unit",
+            "monitoring",
+            "plot",
+        ]
+        read_only_fields = fields
+
+
+@extend_schema_serializer(many=False)
+class WaitingDetectionListSerializer(serializers.Serializer):
+    results = WaitingDetectionSerializer(many=True)
+
+
+class WaitingQuerySerializer(serializers.Serializer):
+    producer = serializers.UUIDField(required=False)

@@ -3,6 +3,7 @@ from rest_framework.routers import SimpleRouter
 
 from .views import (
     DetectionControlsView,
+    DetectionsWithoutControlView,
     MonitoringResultView,
     PestDiseaseViewSet,
     PlotHistoryView,
@@ -16,6 +17,11 @@ urlpatterns = [
         "agricultural-activities/<uuid:pk>/monitoring",
         MonitoringResultView.as_view(),
         name="monitoring-result",
+    ),
+    path(
+        "phytosanitary-detections/without-control",
+        DetectionsWithoutControlView.as_view(),
+        name="detections-without-control",
     ),
     path(
         "phytosanitary-detections/<uuid:pk>/controls",

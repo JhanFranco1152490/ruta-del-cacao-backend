@@ -39,6 +39,7 @@ def test_producer_list_documents_filters_and_pagination(schema):
         "/api/agricultural-inputs",
         "/api/input-stocks",
         "/api/pests-diseases",
+        "/api/phytosanitary-detections/without-control",
     ],
 )
 def test_unpaginated_lists_document_an_object_with_results(schema, path):
@@ -164,6 +165,7 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/agricultural-activities/{id}/monitoring"),
     ("post", "/api/phytosanitary-detections/{id}/controls"),
     ("get", "/api/plots/{id}/phytosanitary-history"),
+    ("get", "/api/phytosanitary-detections/without-control"),
     ("get", "/api/plot-characterizations"),
     ("get", "/api/plot-characterizations/{id}"),
     ("get", "/api/plot-characterizations/{id}/history"),

@@ -182,3 +182,9 @@ class EvidenceIdConflict(ApiError):
 
     def __init__(self):
         super().__init__(fields={"id": [self.default_detail]})
+
+
+class EvidenceDeleteNotAllowed(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = "Esta foto la elimina quien la subió, el capataz de la finca o el productor."
+    default_code = "permission_denied"

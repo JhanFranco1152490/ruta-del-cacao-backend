@@ -4,6 +4,7 @@ from rest_framework.routers import SimpleRouter
 from .views import (
     DetectionControlsView,
     DetectionsWithoutControlView,
+    EvidenceDetailView,
     EvidenceFileView,
     EvidenceView,
     MonitoringResultView,
@@ -40,6 +41,7 @@ urlpatterns = [
         EvidenceView.as_view(),
         name="activity-evidence",
     ),
+    path("evidence/<uuid:pk>", EvidenceDetailView.as_view(), name="evidence-detail"),
     path("evidence/<uuid:pk>/file", EvidenceFileView.as_view(), name="evidence-file"),
     *router.urls,
 ]

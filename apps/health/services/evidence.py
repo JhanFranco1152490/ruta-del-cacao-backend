@@ -4,8 +4,10 @@ from django.db import transaction
 
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
+from apps.common.roles import is_employee
 
 from ..exceptions import (
+    EvidenceDeleteNotAllowed,
     EvidenceFormatNotAllowed,
     EvidenceIdConflict,
     EvidenceLimitReached,
@@ -26,6 +28,7 @@ from ..models import (
 # La actividad se toma de la relación y no de su app: ninguna app importa de otra.
 AgriculturalActivity = PhytosanitaryMonitoring._meta.get_field("activity").related_model
 
+SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
 MAX_BYTES = 5 * 1024 * 1024
 MAX_PER_RECORD = 5
 NAME_MAX = 100
@@ -139,6 +142,46 @@ def visible_evidence(actor, evidence_id):
     if evidence is None:
         raise EvidenceNotFound()
     return evidence
+
+
+@transaction.atomic
+def delete_evidence(actor, evidence_id) -> None:
+    """Elimina una foto equivocada. La elimina quien la subió, quien programa labores en la finca
+    (el Capataz/Operario o un rol propio con ese permiso, se llame como se llame) o el Productor y
+    la cuenta técnica. El archivo se borra del almacenamiento después de confirmar la
+    transacción: si algo falla antes, la foto sigue completa."""
+    evidence = _locked_evidence(actor, evidence_id)
+    uploaded_it = evidence.uploaded_by_id is not None and evidence.uploaded_by_id == actor.pk
+    if not (uploaded_it or not is_employee(actor) or actor.has_perm(SCHEDULE_PERMISSION)):
+        raise EvidenceDeleteNotAllowed()
+
+    # El monitoreo y el control llevan el `id` de su actividad.
+    activity_ref = getattr(evidence, "monitoring_id", None) or evidence.treatment_id
+    storage, name = evidence.file.storage, evidence.file.name
+    evidence_ref = evidence.pk
+    evidence.delete()
+    HealthEvidenceAuditEvent.objects.create(
+        evidence_ref=evidence_ref,
+        activity_ref=activity_ref,
+        actor=actor,
+        action=HealthEvidenceAuditEvent.Action.DELETED,
+    )
+    transaction.on_commit(lambda: storage.delete(name))
+
+
+def _locked_evidence(actor, evidence_id):
+    """La foto, con la finca de su registro bloqueada hasta el final de la transacción."""
+    for model, farm in EVIDENCE_TABLES:
+        if model.objects.filter(pk=evidence_id).exists():
+            evidence, _ = lock_aggregate_root(
+                model,
+                evidence_id,
+                root=farm,
+                scope=owner_filter(actor, f"{farm}__producer_id", farm=f"{farm}_id"),
+                not_found=EvidenceNotFound,
+            )
+            return evidence
+    raise EvidenceNotFound()
 
 
 def _locked_activity(actor, activity_id):

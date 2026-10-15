@@ -36,7 +36,13 @@ from .serializers import (
 )
 from .services.catalog import create_pest_disease, list_pests_diseases, update_pest_disease
 from .services.controls import create_control_from_detection
-from .services.evidence import MAX_BYTES, attach_evidence, list_evidence, visible_evidence
+from .services.evidence import (
+    MAX_BYTES,
+    attach_evidence,
+    delete_evidence,
+    list_evidence,
+    visible_evidence,
+)
 from .services.history import pest_summary, plot_history
 from .services.monitoring import record_monitoring
 from .services.waiting import detections_without_control
@@ -342,6 +348,24 @@ class EvidenceFileView(APIView):
         # El navegador no adivina otro tipo que el que se revisó al subirla.
         response["X-Content-Type-Options"] = "nosniff"
         return response
+
+
+class EvidenceDetailView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission]
+    required_permission = "activities.complete_agriculturalactivity"
+
+    @extend_schema(
+        operation_id="evidence_destroy",
+        description=(
+            "Elimina una foto equivocada. La elimina quien la subió, quien programa labores en "
+            "la finca (el Capataz/Operario o un rol propio con ese permiso) o el Productor (403 "
+            "si no); el historial registra quién la eliminó."
+        ),
+        responses={204: None, **error_responses(401, 403, 404)},
+    )
+    def delete(self, request, pk):
+        delete_evidence(request.user, pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def _declared_length(request) -> int:

@@ -7,11 +7,11 @@ empleado lo de la finca en la que trabaja, y la cuenta técnica lo de cualquiera
 from django.db.models import QuerySet
 
 from apps.common.locks import lock_aggregate_root
-from apps.common.ownership import owner_filter
+from apps.common.ownership import owner_filter, reaches_all_farms
 from apps.common.roles import is_employee
 
 from ..choices import ActivityStatus
-from ..exceptions import ActivityNotFound, InvalidActivity, PlotNotFound
+from ..exceptions import ActivityNotFound, CompletionNotAllowed, InvalidActivity, PlotNotFound
 from ..models import AgriculturalActivity
 
 # Los modelos de la parcela y de la cuenta se toman de las relaciones y no de sus apps: ninguna
@@ -20,6 +20,7 @@ Plot = AgriculturalActivity._meta.get_field("plot").related_model
 User = AgriculturalActivity._meta.get_field("assignee").related_model
 
 COMPLETE_PERMISSION = "activities.complete_agriculturalactivity"
+SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
 
 
 def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
@@ -86,6 +87,20 @@ def lock_plot(actor, plot_id):
     )
     plot.farm = farm
     return plot
+
+
+def ensure_can_complete(actor, activity) -> None:
+    """Registra la realización el responsable, quien programa labores en la finca (el
+    Capataz/Operario o un rol propio con ese permiso) o el Productor y la cuenta técnica. Quien
+    solo registra lo suyo no cierra las labores de un compañero. El alcance de la finca y el
+    permiso de registrar ya los revisaron la vista y `lock_activity`."""
+    if (
+        activity.assignee_id == actor.pk
+        or reaches_all_farms(actor)
+        or actor.has_perm(SCHEDULE_PERMISSION)
+    ):
+        return
+    raise CompletionNotAllowed()
 
 
 def assignee_options(actor, producer_id=None) -> list[dict]:

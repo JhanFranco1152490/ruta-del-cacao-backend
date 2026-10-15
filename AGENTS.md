@@ -344,6 +344,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     y no por el rol, que en un rol propio puede llamarse de cualquier forma. `GET …/assignees`
     trae `farm_ids` y `assignable` (relativo a quien pregunta) para que el formulario arme la lista
     de la parcela elegida, también sin conexión.
+  - **Registrar la realización:** el responsable, quien tiene el permiso de programar
+    (`activities.add_agriculturalactivity`) en la finca, o el Productor y la cuenta técnica
+    (`ensure_can_complete`). Quien solo registra lo suyo no cierra la labor de un compañero:
+    `403 permission_denied`.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
   de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché

@@ -17,6 +17,8 @@ class Plot(models.Model):
         on_delete=models.PROTECT,
         related_name="plots",
     )
+    # Consecutivo de la parcela dentro de su finca, que asigna el servidor y nunca cambia.
+    number = models.PositiveIntegerField(editable=False)
     code = models.CharField(max_length=50)
     code_normalized = models.CharField(max_length=200, editable=False)
     # El área declarada es la que cuenta para no superar el área de la finca, tenga o no
@@ -48,6 +50,10 @@ class Plot(models.Model):
             models.UniqueConstraint(
                 fields=["farm", "code_normalized"],
                 name="plots_farm_code_normalized_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["farm", "number"],
+                name="plots_farm_number_unique",
             ),
             models.CheckConstraint(
                 condition=models.Q(area_hectares__gt=0),

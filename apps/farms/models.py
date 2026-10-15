@@ -38,6 +38,9 @@ class Farm(models.Model):
     municipality_code = models.CharField(max_length=5)
     details = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    # Último número de parcela asignado en esta finca. Solo sube: una parcela eliminada no
+    # devuelve su número.
+    plot_sequence = models.PositiveIntegerField(default=0, editable=False)
     area_hectares = models.DecimalField(
         max_digits=10,
         decimal_places=2,

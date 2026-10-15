@@ -1,8 +1,10 @@
 from decimal import Decimal
 
 import factory
+from django.db import transaction
 from factory.django import DjangoModelFactory
 
+from apps.common.codes import next_number
 from apps.common.text import normalize_name
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.geometry import measured_area_hectares, stored_vertices, validate_boundary
@@ -42,6 +44,16 @@ class PlotFactory(DjangoModelFactory):
     code = factory.Sequence(lambda n: f"P-{n:02d}")
     code_normalized = factory.LazyAttribute(lambda plot: normalize_name(plot.code))
     area_hectares = Decimal("1.00")
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        # El número lo asigna el servidor; la fábrica lo toma del mismo contador.
+        if "number" not in kwargs:
+            farm = kwargs["farm"]
+            with transaction.atomic():
+                kwargs["number"] = next_number(type(farm), farm.pk, "plot_sequence")
+                return super()._create(model_class, *args, **kwargs)
+        return super()._create(model_class, *args, **kwargs)
 
 
 def plot_data(farm, **overrides) -> dict:

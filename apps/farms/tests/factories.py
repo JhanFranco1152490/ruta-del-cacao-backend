@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import factory
+from django.db import transaction
 from factory.django import DjangoModelFactory
 
 from apps.common.codes import next_number
@@ -28,7 +29,11 @@ class FarmFactory(DjangoModelFactory):
         # El número lo asigna el servidor; la fábrica lo toma del mismo contador.
         if "number" not in kwargs:
             producer_model = model_class._meta.get_field("producer").related_model
-            kwargs["number"] = next_number(producer_model, kwargs["producer"].pk, "farm_sequence")
+            with transaction.atomic():
+                kwargs["number"] = next_number(
+                    producer_model, kwargs["producer"].pk, "farm_sequence"
+                )
+                return super()._create(model_class, *args, **kwargs)
         return super()._create(model_class, *args, **kwargs)
 
 

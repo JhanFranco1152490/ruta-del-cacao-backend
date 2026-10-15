@@ -1,5 +1,6 @@
 from django.db import transaction
 
+from apps.common.codes import next_number
 from apps.common.db import save_translating_unique
 from apps.common.ownership import owns, reaches_farm
 
@@ -42,6 +43,8 @@ def create_plot(actor, data: dict) -> tuple[Plot, bool]:
     if boundary is not None:
         rules.check_within_farm_reach(farm, boundary)
         rules.check_no_overlap(farm, boundary)
+
+    plot.number = next_number(type(farm), farm.pk, "plot_sequence")
 
     # El mismo `id` en otra finca no pasa por el mismo bloqueo: el choque llega como clave
     # primaria repetida.

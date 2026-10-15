@@ -19,10 +19,6 @@ ALLOWED: dict[str, str] = {
         "`readable_farms` devuelve todas las fincas a la cuenta técnica y a la asociación antes "
         "de llegar a la línea que filtra por el productor propio"
     ),
-    "activities/services/queries.py": (
-        "`assignee_options` atiende primero a la cuenta técnica (que elige el productor) y solo "
-        "después toma el productor propio de las demás cuentas"
-    ),
 }
 
 

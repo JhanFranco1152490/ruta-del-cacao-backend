@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import Role
-from apps.accounts.tests.factories import UserFactory
+from apps.accounts.tests.factories import RoleFactory, UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_producer_owner
 from apps.common.csrf import CSRF_FAILED_DETAIL
 from apps.farms.models import Farm, FarmAuditEvent
@@ -100,12 +100,12 @@ def test_a_producer_delegates_farm_management_to_an_employee(auth_client):
     producer = ProducerFactory()
     role = auth_client(make_producer_owner(producer)).post(
         "/api/roles",
-        {"name": "Encargado de fincas", "permission_codes": ["farms.change_farm"]},
+        {"name": "Encargado de fincas", "permission_codes": ["farms.add_farm"]},
         format="json",
     )
     assert role.status_code == 201
-    # Editar fincas sin poder consultarlas no tiene sentido: el rol recibe también la vista.
-    assert sorted(role.data["permissions"]) == ["farms.change_farm", "farms.view_farm"]
+    # Registrar fincas sin poder consultarlas no tiene sentido: el rol recibe también la vista.
+    assert sorted(role.data["permissions"]) == ["farms.add_farm", "farms.view_farm"]
 
     own_farm = FarmFactory(producer=producer)
     FarmFactory(producer=producer)
@@ -117,13 +117,41 @@ def test_a_producer_delegates_farm_management_to_an_employee(auth_client):
 
     listed = client.get("/api/farms")
     created = client.post("/api/farms", VALID_DATA, format="json")
+    listed_again = client.get("/api/farms")
 
-    # Un empleado está limitado a la finca en la que trabaja: ve solo esa. Registrar fincas no
-    # se delega: queda en el Productor.
+    # Un empleado está limitado a las fincas en las que trabaja, y la que registra pasa a ser
+    # una de ellas: si no, la perdería de vista.
     assert [farm["id"] for farm in listed.data["results"]] == [str(own_farm.id)]
-    assert created.status_code == 403
-    assert created.data["code"] == "permission_denied"
-    assert Farm.objects.filter(producer=producer).count() == 2
+    assert created.status_code == 201
+    new_farm = Farm.objects.get(pk=created.data["id"])
+    assert new_farm.producer == producer
+    assert set(employee.farms.all()) == {own_farm, new_farm}
+    assert {farm["id"] for farm in listed_again.data["results"]} == {
+        str(own_farm.id),
+        str(new_farm.id),
+    }
+
+
+def test_an_employee_cannot_resend_the_id_of_a_farm_it_does_not_work_in(auth_client):
+    producer = ProducerFactory()
+    own_farm = FarmFactory(producer=producer)
+    other = auth_client(make_producer_owner(producer)).post(
+        "/api/farms", {**VALID_DATA, "id": str(uuid.uuid4())}, format="json"
+    )
+    employee = grant_role(
+        UserFactory(producer=producer, farm=own_farm),
+        RoleFactory(producer=producer, permissions=["farms.add_farm", "farms.view_farm"]),
+    )
+
+    response = auth_client(employee).post(
+        "/api/farms", {**VALID_DATA, "id": other.data["id"]}, format="json"
+    )
+
+    # Responde como si fuera de otro productor: ni la devuelve ni confirma que es del suyo.
+    assert response.status_code == 409
+    assert response.data["code"] == "farm_id_conflict"
+    assert "current" not in response.data
+    assert list(employee.farms.all()) == [own_farm]
 
 
 # --- Crear -------------------------------------------------------------------------------

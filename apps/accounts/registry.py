@@ -35,9 +35,8 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "producers.change_status": PermissionInfo(area="producers", delegable=False),
     "producers.delete": PermissionInfo(area="producers", delegable=False),
     "farms.view_farm": PermissionInfo(area="farms", delegable=True),
-    # No delegable: registrar una finca es decidir cómo está hecha la unidad productiva, y eso lo
-    # hace solo el Productor. Editarla o eliminar una creada por error sí se delega.
-    "farms.add_farm": PermissionInfo(area="farms", delegable=False),
+    # Un empleado que lo tenga queda asignado a la finca que registra: si no, la perdería de vista.
+    "farms.add_farm": PermissionInfo(area="farms", delegable=True),
     "farms.change_farm": PermissionInfo(area="farms", delegable=True),
     "farms.delete_farm": PermissionInfo(area="farms", delegable=True),
     "plots.view_plot": PermissionInfo(area="plots", delegable=True),
@@ -68,9 +67,8 @@ FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities"})
 
 def is_field_permission(code: str) -> bool:
     """Si el permiso es de campo: actúa sobre algo que cuelga de una finca de un productor, y un
-    empleado puede tenerlo. Los no delegables de esas áreas no cuentan: o son de la asociación (el
-    catálogo de variedades) o solo los tiene el Productor (registrar fincas), que no lleva
-    finca."""
+    empleado puede tenerlo. Los no delegables de esas áreas no cuentan: son de la asociación (el
+    catálogo de variedades), cuyas cuentas no llevan finca."""
     info = PERMISSION_REGISTRY.get(code)
     return info is not None and info.delegable and info.area in FIELD_AREAS
 

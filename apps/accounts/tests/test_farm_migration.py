@@ -1,6 +1,6 @@
-"""La migración que deja a los empleados que ya existían en su finca y retira de los roles
-propios el permiso de crear cuentas. Sus funciones se prueban con el estado actual de los modelos:
-solo leen y escriben columnas que no han cambiado desde entonces."""
+"""La migración que deja a los empleados que ya existían en su finca. Sus funciones se prueban
+con el estado actual de los modelos: solo leen y escriben columnas que no han cambiado desde
+entonces."""
 
 from importlib import import_module
 
@@ -8,14 +8,14 @@ import pytest
 from django.apps import apps
 
 from apps.accounts.system_roles import FOREMAN, SALES_MANAGER, get_system_role
-from apps.accounts.tests.factories import RoleFactory, UserFactory
+from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_delegate, make_producer_owner
 from apps.farms.tests.factories import FarmFactory
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
 
-migration = import_module("apps.accounts.migrations.0015_assign_farms_and_reserve_registering")
+migration = import_module("apps.accounts.migrations.0015_assign_the_only_farm")
 
 
 def foreman_of(producer):
@@ -80,19 +80,3 @@ def test_undoing_it_releases_every_farm():
 
     employee.refresh_from_db()
     assert not employee.farms.exists()
-
-
-def test_custom_roles_lose_registering_farms_and_keep_the_rest():
-    role = RoleFactory(
-        permissions=["farms.add_farm", "farms.view_farm", "plots.add_plot", "plots.view_plot"]
-    )
-
-    migration.keep_registering_farms_with_the_producer(apps, None)
-
-    assert role.permission_codes == {"farms.view_farm", "plots.add_plot", "plots.view_plot"}
-
-
-def test_the_producer_role_keeps_registering_farms():
-    migration.keep_registering_farms_with_the_producer(apps, None)
-
-    assert "farms.add_farm" in get_system_role("producer").permission_codes

@@ -155,18 +155,15 @@ def test_a_trusted_employee_cannot_create_accounts_for_another_farm(
     assert not User.objects.filter(email="empleado@example.com").exists()
 
 
-def test_registering_farms_cannot_be_granted_to_a_role_but_plots_can(auth_client, owner):
-    def create_role(name, codes):
-        return auth_client(owner).post(
-            "/api/roles", {"name": name, "permission_codes": codes}, format="json"
-        )
+def test_registering_farms_can_be_granted_to_a_role(auth_client, owner):
+    response = auth_client(owner).post(
+        "/api/roles",
+        {"name": "Encargado de fincas", "permission_codes": ["farms.add_farm"]},
+        format="json",
+    )
 
-    farms = create_role("Encargado de fincas", ["farms.add_farm"])
-    plots = create_role("Encargado de parcelas", ["plots.add_plot"])
-
-    assert farms.status_code == 403
-    assert farms.data["code"] == "exceeds_own_permissions"
-    assert plots.status_code == 201
+    assert response.status_code == 201
+    assert sorted(response.data["permissions"]) == ["farms.add_farm", "farms.view_farm"]
 
 
 def test_the_administrator_account_takes_no_farm(auth_client, farm):

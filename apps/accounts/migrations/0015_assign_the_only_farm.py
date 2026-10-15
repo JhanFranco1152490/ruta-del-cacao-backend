@@ -7,8 +7,6 @@ from django.db import migrations
 # apps que no es de una finca (el catálogo de variedades) lo tiene la asociación, cuyas cuentas no
 # tienen productor y por eso no entran aquí.
 FIELD_APPS = ("farms", "plots", "crops", "inputs", "activities")
-# Lo que deja de poder delegarse: registrar fincas es solo del Productor.
-PRODUCER_ONLY = (("farms", "add_farm"),)
 
 
 def assign_the_only_farm(apps, schema_editor):
@@ -46,36 +44,13 @@ def release_farms(apps, schema_editor):
     apps.get_model("accounts", "User").farms.through.objects.all().delete()
 
 
-def keep_registering_farms_with_the_producer(apps, schema_editor):
-    """Registrar fincas deja de poder delegarse: se retira de los roles propios que lo
-    tenían. Los roles del sistema se vuelven a armar solos después de migrar."""
-    permission_model = apps.get_model("auth", "Permission")
-    permissions = [
-        permission
-        for app_label, codename in PRODUCER_ONLY
-        if (
-            permission := permission_model.objects.filter(
-                content_type__app_label=app_label, codename=codename
-            ).first()
-        )
-        is not None
-    ]
-    if not permissions:
-        return
-    custom_roles = apps.get_model("accounts", "Role").objects.filter(kind="custom")
-    for role in custom_roles.select_related("group"):
-        role.group.permissions.remove(*permissions)
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
         ("accounts", "0014_user_farms"),
-        ("auth", "0012_alter_user_first_name_max_length"),
         ("farms", "0005_farm_deletion_and_surviving_audit"),
     ]
 
     operations = [
         migrations.RunPython(assign_the_only_farm, release_farms),
-        migrations.RunPython(keep_registering_farms_with_the_producer, migrations.RunPython.noop),
     ]

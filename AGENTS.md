@@ -293,9 +293,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
   productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca
   `delegable=False` con la razón escrita al lado, por ejemplo que actúe sobre toda la
-  asociación (`producers.*`) o que decida cómo está hecha la unidad productiva
-  (`farms.add_farm`). La cuenta Productor no se protege con un permiso sino con una
-  regla (`ensure_can_manage_account`), porque casi todo lo que el rol Productor tiene es delegable.
+  asociación (`producers.*`). La cuenta Productor no se protege con un permiso sino con una
+  regla (`ensure_can_manage_account`), porque todo lo que el rol Productor tiene es delegable.
   Un permiso de acción declara además su dependencia de
   vista en `PERMISSION_DEPENDENCIES` (crear o editar sin poder consultar no sirve). Un código
   que no está en el registro queda no delegable, pero eso es una red contra el olvido, no la
@@ -327,8 +326,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     programadas o retrasadas en la que deja (`409 account_has_pending_work`, con `pending` y
     `overdue`; las vencidas no bloquean). Cada app que asigne trabajo en una finca lo declara con
     `register_guard` (`apps/common/farm_change_guards.py`).
-  - **Registrar fincas no se delega** (`farms.add_farm`) y una finca con empleados asignados no se elimina
-    (`409 farm_has_accounts`, con cuántos en `accounts`). Al eliminar un productor creado por error
+  - **Un empleado que registra una finca** (`farms.add_farm` en su rol) queda asignado a ella. Una
+    finca con empleados asignados no se elimina (`409 farm_has_accounts`, con cuántos en `accounts`). Al eliminar un productor creado por error
     la finca se suelta de sus cuentas antes de borrarla.
   - **Insumos por finca:** el catálogo se guarda una vez por productor, pero un empleado lista,
     consulta y edita solo los que tienen una fila de existencias en su finca (también en cero o sin

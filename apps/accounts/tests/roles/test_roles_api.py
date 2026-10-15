@@ -613,8 +613,7 @@ def test_permission_catalog_marks_what_each_permission_requires(auth_client):
     assert by_code["accounts.users_update"]["requires"] == "accounts.users_view"
     assert by_code["accounts.users_view"]["requires"] is None
     assert by_code["accounts.users_create"]["requires"] == "accounts.users_view"
-    # Registrar fincas no se ofrece: lo hace solo el Productor. Registrar parcelas sí.
-    assert "farms.add_farm" not in by_code
+    assert by_code["farms.add_farm"]["requires"] == "farms.view_farm"
     assert by_code["plots.add_plot"]["requires"] == "plots.view_plot"
 
 

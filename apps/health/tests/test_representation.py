@@ -109,6 +109,7 @@ def test_a_recorded_monitoring_brings_its_result(client, recorded):
                         "done_date": str(treatment.activity.done_date),
                     }
                 ],
+                "control_request": None,
             }
         ],
         "detections_without_control": 0,

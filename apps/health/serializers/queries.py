@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from ..choices import SamplingUnit
 from ..models import Detection
+from .people import PersonSerializer
 from .representation import PestDiseaseRefSerializer
 
 # --- Historial fitosanitario --------------------------------------------------------------------
@@ -64,6 +65,9 @@ class WaitingDetectionSerializer(serializers.ModelSerializer):
     )
     monitoring = WaitingMonitoringSerializer()
     plot = WaitingPlotSerializer(source="monitoring.activity.plot")
+    # Quién pidió que se lo programen (`null` si su cuenta se eliminó) y cuándo.
+    control_requested_by = PersonSerializer(allow_null=True)
+    control_requested_at = serializers.DateTimeField()
 
     class Meta:
         model = Detection
@@ -76,6 +80,8 @@ class WaitingDetectionSerializer(serializers.ModelSerializer):
             "sampling_unit",
             "monitoring",
             "plot",
+            "control_requested_by",
+            "control_requested_at",
         ]
         read_only_fields = fields
 

@@ -41,7 +41,9 @@ def owner_client(auth_client, producer):
 def treatment(plot):
     """Un monitoreo realizado con una detección y su control programado."""
     monitoring = PhytosanitaryMonitoringFactory(activity=done_monitoring(plot=plot))
-    return PhytosanitaryTreatmentFactory(detection=DetectionFactory(monitoring=monitoring))
+    return PhytosanitaryTreatmentFactory(
+        detection=DetectionFactory(monitoring=monitoring, requested=True)
+    )
 
 
 def test_a_plot_with_a_recorded_monitoring_is_not_deleted(owner_client, plot, treatment):

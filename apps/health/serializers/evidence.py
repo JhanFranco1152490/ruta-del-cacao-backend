@@ -3,15 +3,9 @@ from rest_framework import serializers
 
 from apps.common.serializers import RejectUnknownFieldsMixin
 
+from .people import PersonSerializer
+
 # --- Evidencia ----------------------------------------------------------------------------------
-
-
-class UploaderSerializer(serializers.Serializer):
-    id = serializers.UUIDField()
-    full_name = serializers.SerializerMethodField()
-
-    def get_full_name(self, account) -> str:
-        return account.get_full_name() or account.email
 
 
 class EvidenceSerializer(serializers.Serializer):
@@ -20,7 +14,7 @@ class EvidenceSerializer(serializers.Serializer):
     content_type = serializers.CharField()
     size = serializers.IntegerField()
     # `null` si la cuenta que la subió se eliminó.
-    uploaded_by = UploaderSerializer(allow_null=True)
+    uploaded_by = PersonSerializer(allow_null=True)
     uploaded_at = serializers.DateTimeField()
     captured_at = serializers.DateTimeField(allow_null=True)
 

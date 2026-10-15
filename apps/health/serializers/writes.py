@@ -83,6 +83,8 @@ class DetectionWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer)
     affected_units = serializers.IntegerField()
     # Ninguno por ahora, hecho en el momento o programado para después.
     control = ControlSerializer(required=False, allow_null=True, default=None)
+    # Quien no puede programar controles pide que se lo programen, en lugar de `control`.
+    control_requested = serializers.BooleanField(required=False, default=False)
 
 
 class MonitoringResultSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

@@ -299,6 +299,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     incidencia la calcula el servidor (`ROUND_HALF_UP`, dos decimales). Lo registra quien puede
     registrar la realización. Cada detección puede traer su control (`mode: done`, con la fecha
     del monitoreo y a nombre de quien registra; o `scheduled`, que pide el permiso de programar).
+    Quien no programa pide que se lo programen con `control_requested: true` (no las dos cosas):
+    la detección guarda quién lo pidió y cuándo.
     Todo en una transacción. El reenvío idéntico (también con las detecciones en otro orden)
     responde `200`; otro resultado, `409 activity_already_done`. Una plaga inexistente es `400` en
     `detections`, no `404`.
@@ -307,8 +309,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     vínculo con la detección, qué se hizo (`method`) y el insumo previsto, que no descuenta. Uno
     realizado no puede ser futuro ni anterior al monitoreo; sus insumos se descuentan como en la
     realización. Una detección tiene varios.
-  - **Historial** (`GET /api/plots/{id}/phytosanitary-history`) y **detecciones sin control**
-    (`GET /api/phytosanitary-detections/without-control`, solo para quien programa): sin paginar.
+  - **Historial** (`GET /api/plots/{id}/phytosanitary-history`) y **detecciones que esperan un
+    control** (`GET /api/phytosanitary-detections/without-control`, solo para quien programa):
+    sin paginar. El aviso lista solo las detecciones en que alguien **pidió** un control y nadie
+    lo ha atendido: salen al programar uno o con `POST …/{id}/no-control-needed` (quien programa
+    decide que no requiere control; queda quién y cuándo). "Ninguno por ahora" no avisa.
     El resumen del historial compara la última incidencia con la anterior **del mismo tipo de
     muestreo**.
   - **Evidencia** (`/api/agricultural-activities/{id}/evidence`, `/api/evidence/{id}` y

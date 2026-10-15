@@ -1,6 +1,7 @@
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
+from django.utils import timezone
 
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
@@ -56,6 +57,7 @@ def record_monitoring(actor, activity_id, data: dict):
 
     pests = _active_pests(detections)
     _ensure_new_ids(detections)
+    requested_at = timezone.now()
     monitoring = PhytosanitaryMonitoring.objects.create(
         activity=activity,
         sampling_unit=data["sampling_unit"],
@@ -74,6 +76,8 @@ def record_monitoring(actor, activity_id, data: dict):
                 normalized_other=row["normalized_other"],
                 affected_units=row["affected_units"],
                 incidence=incidence(row["affected_units"], data["evaluated_units"]),
+                control_requested_by=actor if row["control_requested"] else None,
+                control_requested_at=requested_at if row["control_requested"] else None,
             )
             for row in detections
         ]
@@ -151,6 +155,11 @@ def _clean_detections(data: dict) -> list[dict]:
         if normalized_other is not None and normalized_other in others:
             raise InvalidResult("detections", REPEATED)
         control = clean_control(row["control"]) if row["control"] is not None else None
+        if control is not None and row["control_requested"]:
+            raise InvalidResult(
+                "detections",
+                "Una detección lleva su control o pide que se lo programen, no las dos.",
+            )
         if control is not None:
             if control["id"] in control_ids:
                 raise InvalidResult("detections", "Dos controles tienen el mismo identificador.")
@@ -166,6 +175,7 @@ def _clean_detections(data: dict) -> list[dict]:
                 "normalized_other": normalized_other,
                 "affected_units": row["affected_units"],
                 "control": control,
+                "control_requested": row["control_requested"],
             }
         )
     return cleaned
@@ -206,7 +216,13 @@ def _same_result(activity, data: dict, detections: list[dict]) -> bool:
         "notes": monitoring.notes,
         "no_presence": monitoring.no_presence,
         "detections": {
-            (row.pk, row.pest_disease_id, row.normalized_other, row.affected_units)
+            (
+                row.pk,
+                row.pest_disease_id,
+                row.normalized_other,
+                row.affected_units,
+                row.control_requested_at is not None,
+            )
             for row in monitoring.detections.all()
         },
     }
@@ -218,7 +234,13 @@ def _same_result(activity, data: dict, detections: list[dict]) -> bool:
         "notes": _clean_text(data["notes"]),
         "no_presence": data["no_presence"],
         "detections": {
-            (row["id"], row["pest_disease_id"], row["normalized_other"], row["affected_units"])
+            (
+                row["id"],
+                row["pest_disease_id"],
+                row["normalized_other"],
+                row["affected_units"],
+                row["control_requested"],
+            )
             for row in detections
         },
     }

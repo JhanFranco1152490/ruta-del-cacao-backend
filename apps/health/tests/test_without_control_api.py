@@ -53,10 +53,11 @@ def client(auth_client, owner):
 
 
 def detection_on(plot, done_on, **kwargs):
+    """Una detección en la que quien registró el monitoreo pidió que le programen un control."""
     monitoring = PhytosanitaryMonitoringFactory(
         activity=done_monitoring(plot=plot, done_date=done_on)
     )
-    return DetectionFactory(monitoring=monitoring, **kwargs)
+    return DetectionFactory(monitoring=monitoring, requested=True, **kwargs)
 
 
 def listed(response) -> list[str]:
@@ -90,7 +91,14 @@ def test_it_lists_the_detections_without_control_from_the_oldest(client, plot):
             "code": plot.code,
             "farm": {"id": str(plot.farm.pk), "name": "La Esperanza"},
         },
+        "control_requested_by": {
+            "id": str(new.control_requested_by.pk),
+            "full_name": new.control_requested_by.get_full_name()
+            or new.control_requested_by.email,
+        },
+        "control_requested_at": response.json()["results"][1]["control_requested_at"],
     }
+    assert response.json()["results"][1]["control_requested_at"] is not None
 
 
 def test_a_detection_leaves_the_list_once_it_has_a_control(client, plot):
@@ -114,6 +122,13 @@ def test_programming_a_control_through_the_api_removes_it(client, plot, owner):
         },
         format="json",
     )
+
+    assert listed(client.get(URL)) == []
+
+
+def test_a_detection_nobody_asked_about_is_not_listed(client, plot):
+    monitoring = PhytosanitaryMonitoringFactory(activity=done_monitoring(plot=plot))
+    DetectionFactory(monitoring=monitoring)
 
     assert listed(client.get(URL)) == []
 

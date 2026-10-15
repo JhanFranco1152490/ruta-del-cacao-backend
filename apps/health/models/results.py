@@ -69,6 +69,18 @@ class Detection(models.Model):
     # Unidades afectadas ÷ evaluadas × 100. Se guarda y no se calcula al leer: es lo que vio el
     # capataz al registrarlo, y el historial la filtra y la compara.
     incidence = models.DecimalField(max_digits=5, decimal_places=2)
+    # Quien registró el monitoreo y no puede programar controles pide que se lo programen: el
+    # Productor y el Capataz lo ven en el aviso hasta que lo programan o deciden que no requiere
+    # control. Si la cuenta se elimina, la solicitud se conserva.
+    control_requested_by = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    control_requested_at = models.DateTimeField(null=True, blank=True)
+    # Quien decidió que no requiere control, y cuándo.
+    control_dismissed_by = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    control_dismissed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["monitoring", "id"]

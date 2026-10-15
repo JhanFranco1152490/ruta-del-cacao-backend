@@ -3,6 +3,7 @@ from drf_spectacular.utils import (
     extend_schema,
     inline_serializer,
 )
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,7 +19,7 @@ from ..serializers import (
     WaitingQuerySerializer,
 )
 from ..services.history import pest_summary, plot_history
-from ..services.waiting import detections_without_control
+from ..services.waiting import detections_without_control, dismiss_control
 
 
 class PlotHistoryView(APIView):
@@ -84,3 +85,23 @@ class DetectionsWithoutControlView(APIView):
         query.is_valid(raise_exception=True)
         detections = detections_without_control(request.user, query.validated_data.get("producer"))
         return Response(WaitingDetectionListSerializer({"results": detections}).data)
+
+
+class NoControlNeededView(APIView):
+    # Lo decide quien puede programar controles, como lo atiende.
+    permission_classes = [IsAuthenticated, HasPermission]
+    required_permission = "activities.add_agriculturalactivity"
+
+    @extend_schema(
+        operation_id="phytosanitary_detections_no_control_needed",
+        request=None,
+        description=(
+            "Decide que una detección no requiere control: sale del aviso de las que esperan uno "
+            "y queda registrado quién lo decidió. Repetirlo responde 204 sin cambiar quién lo "
+            "decidió primero. Pide el permiso de programar."
+        ),
+        responses={204: None, **error_responses(401, 403, 404)},
+    )
+    def post(self, request, pk):
+        dismiss_control(request.user, pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)

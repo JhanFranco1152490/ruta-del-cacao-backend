@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from ..choices import ControlMethod, SamplingUnit
 from ..models import Detection, PestDisease, PhytosanitaryMonitoring
+from .people import PersonSerializer
 
 # --- En la representación de la actividad -------------------------------------------------------
 # Se leen de lo que la consulta de actividades ya precargó (ver `apps.py`): nada de aquí hace
@@ -25,9 +26,20 @@ class DetectionControlRowSerializer(serializers.Serializer):
     done_date = serializers.DateField(source="activity.done_date", allow_null=True)
 
 
+class ControlRequestInfoSerializer(serializers.Serializer):
+    # Quien registró el monitoreo pidió que le programen un control. `dismissed_*` dice quién
+    # decidió después que no requiere control.
+    requested_by = PersonSerializer(source="control_requested_by", allow_null=True)
+    requested_at = serializers.DateTimeField(source="control_requested_at")
+    dismissed_by = PersonSerializer(source="control_dismissed_by", allow_null=True)
+    dismissed_at = serializers.DateTimeField(source="control_dismissed_at", allow_null=True)
+
+
 class DetectionOutputSerializer(serializers.ModelSerializer):
     pest_disease = PestDiseaseRefSerializer(allow_null=True)
     controls = serializers.SerializerMethodField()
+    # `null` si nadie pidió que le programen un control.
+    control_request = serializers.SerializerMethodField()
 
     class Meta:
         model = Detection
@@ -38,8 +50,14 @@ class DetectionOutputSerializer(serializers.ModelSerializer):
             "affected_units",
             "incidence",
             "controls",
+            "control_request",
         ]
         read_only_fields = fields
+
+    def get_control_request(self, detection) -> ControlRequestInfoSerializer(allow_null=True):
+        if detection.control_requested_at is None:
+            return None
+        return ControlRequestInfoSerializer(detection).data
 
     def get_controls(self, detection) -> DetectionControlRowSerializer(many=True):
         # En orden de fecha, como se aplicaron o se van a aplicar.

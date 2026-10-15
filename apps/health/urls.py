@@ -8,6 +8,7 @@ from .views import (
     EvidenceFileView,
     EvidenceView,
     MonitoringResultView,
+    NoControlNeededView,
     PestDiseaseViewSet,
     PlotHistoryView,
 )
@@ -25,6 +26,11 @@ urlpatterns = [
         "phytosanitary-detections/without-control",
         DetectionsWithoutControlView.as_view(),
         name="detections-without-control",
+    ),
+    path(
+        "phytosanitary-detections/<uuid:pk>/no-control-needed",
+        NoControlNeededView.as_view(),
+        name="detection-no-control-needed",
     ),
     path(
         "phytosanitary-detections/<uuid:pk>/controls",

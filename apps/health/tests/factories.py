@@ -1,8 +1,10 @@
 from decimal import Decimal
 
 import factory
+from django.utils import timezone
 from factory.django import DjangoModelFactory
 
+from apps.accounts.tests.factories import UserFactory
 from apps.activities.choices import ActivityType
 from apps.activities.tests.factories import AgriculturalActivityFactory, done_activity
 from apps.common.text import normalize_catalog_name
@@ -56,6 +58,16 @@ class DetectionFactory(DjangoModelFactory):
     pest_disease = factory.SubFactory(PestDiseaseFactory)
     affected_units = 12
     incidence = Decimal("24.00")
+
+    class Params:
+        # Quien registró el monitoreo pidió que le programen un control.
+        requested = factory.Trait(
+            control_requested_by=factory.SubFactory(
+                UserFactory,
+                producer=factory.SelfAttribute("..monitoring.activity.plot.farm.producer"),
+            ),
+            control_requested_at=factory.LazyFunction(timezone.now),
+        )
 
 
 class PhytosanitaryTreatmentFactory(DjangoModelFactory):

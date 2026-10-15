@@ -24,6 +24,8 @@ class HealthConfig(AppConfig):
             prefetch=[
                 "phytosanitary_monitoring__detections__pest_disease",
                 "phytosanitary_monitoring__detections__treatments__activity",
+                "phytosanitary_monitoring__detections__control_requested_by",
+                "phytosanitary_monitoring__detections__control_dismissed_by",
                 "phytosanitary_treatment__detection__pest_disease",
                 "phytosanitary_treatment__detection__monitoring__activity",
                 "phytosanitary_treatment__planned_input",

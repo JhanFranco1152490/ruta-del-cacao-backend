@@ -9,7 +9,6 @@ from .evidence import (
     EvidenceListSerializer,
     EvidenceSerializer,
     EvidenceUploadSerializer,
-    UploaderSerializer,
 )
 from .queries import (
     HistoryQuerySerializer,
@@ -59,7 +58,6 @@ __all__ = [
     "PestDiseaseUpdateSerializer",
     "PestSummarySerializer",
     "PlannedInputSerializer",
-    "UploaderSerializer",
     "WaitingDetectionListSerializer",
     "WaitingDetectionSerializer",
     "WaitingFarmSerializer",

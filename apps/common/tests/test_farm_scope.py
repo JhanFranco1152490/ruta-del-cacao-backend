@@ -293,11 +293,11 @@ def test_the_producer_writes_in_any_of_its_farms(auth_client, world):
 
 
 def recorded_monitoring(plot, assignee):
-    """Un monitoreo de `plot` ya registrado, con una detección sin control."""
+    """Un monitoreo de `plot` ya registrado, con una detección que espera un control."""
     monitoring = PhytosanitaryMonitoringFactory(
         activity=done_monitoring(plot=plot, assignee=assignee)
     )
-    return DetectionFactory(monitoring=monitoring)
+    return DetectionFactory(monitoring=monitoring, requested=True)
 
 
 def test_an_employee_sees_the_health_of_its_farm_only(auth_client, world):

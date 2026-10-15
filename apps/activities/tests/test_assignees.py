@@ -46,7 +46,7 @@ def test_only_what_is_needed_to_assign_is_given(producer):
     [option] = assignee_options(actor)
 
     # Ni el documento ni los roles: quien asigna no tiene por qué verlos.
-    assert set(option) == {"id", "full_name", "is_active", "farm_ids", "assignable"}
+    assert set(option) == {"id", "full_name", "is_active", "farm_ids", "all_farms", "assignable"}
     assert option["id"] == actor.pk
 
 
@@ -195,3 +195,48 @@ def test_someone_who_works_in_two_farms_is_assigned_in_both(team):
     assert assignable_account(team.owner, plot_elsewhere, both.pk) == both
     # El capataz de la primera finca lo ve: comparten una.
     assert both.pk in options_by_id(team.foreman)
+
+
+# --- Empleados con todas las fincas ---
+
+
+def test_an_employee_with_all_the_farms_is_offered_in_every_farm_without_a_list(producer):
+    farm, other = FarmFactory(producer=producer), FarmFactory(producer=producer)
+    owner = make_producer_owner(producer)
+    everywhere = make_delegate(producer, [COMPLETE], all_farms=True)
+    limited = make_delegate(producer, [COMPLETE], farm=farm)
+
+    options = {option["id"]: option for option in assignee_options(owner)}
+
+    assert options[everywhere.pk]["all_farms"] is True
+    assert options[everywhere.pk]["farm_ids"] == []
+    assert options[everywhere.pk]["assignable"] is True
+    assert options[limited.pk]["all_farms"] is False
+    assert options[limited.pk]["farm_ids"] == [farm.pk]
+    for plot_farm in (farm, other):
+        assert assignable_account(owner, PlotFactory(farm=plot_farm), everywhere.pk) == everywhere
+    assert assignable_account(owner, PlotFactory(farm=other), limited.pk) is None
+
+
+def test_a_limited_employee_is_offered_who_works_in_all_the_farms(producer):
+    farm = FarmFactory(producer=producer)
+    actor = make_delegate(producer, [COMPLETE], farm=farm)
+    everywhere = make_delegate(producer, [COMPLETE], all_farms=True)
+    elsewhere = make_delegate(producer, [COMPLETE], farm=FarmFactory(producer=producer))
+
+    ids = {option["id"] for option in assignee_options(actor)}
+
+    assert everywhere.pk in ids
+    assert elsewhere.pk not in ids
+
+
+def test_an_employee_with_all_the_farms_programs_in_any_farm_but_does_not_assign_the_producer(
+    producer,
+):
+    farm = FarmFactory(producer=producer)
+    owner = make_producer_owner(producer)
+    actor = make_delegate(producer, [COMPLETE], all_farms=True)
+    plot = PlotFactory(farm=farm)
+
+    assert assignable_account(actor, plot, actor.pk) == actor
+    assert assignable_account(actor, plot, owner.pk) is None

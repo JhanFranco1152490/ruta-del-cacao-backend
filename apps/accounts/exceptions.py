@@ -168,3 +168,37 @@ class AdministratorAlreadyExists(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Ya existe una cuenta Administrador."
     default_code = "administrator_already_exists"
+
+
+class RoleScopeConflict(ApiError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = (
+        "Estos roles piden alcances incompatibles: uno exige todas las fincas y otro una sola."
+    )
+    default_code = "role_scope_conflict"
+
+    def __init__(self):
+        super().__init__(fields={"role_ids": [self.default_detail]})
+
+
+class RoleInUseOutsideScope(ApiError):
+    status_code = status.HTTP_403_FORBIDDEN
+    default_detail = (
+        "Este rol lo tienen cuentas de fincas que no alcanzas: pide a quien alcance todas las "
+        "fincas que lo cambie."
+    )
+    default_code = "role_in_use_outside_scope"
+
+
+class RoleScopeInUse(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Hay cuentas con este rol que no cumplirían el alcance nuevo."
+    default_code = "role_scope_in_use"
+
+    def __init__(self, accounts: int):
+        noun = "cuenta" if accounts == 1 else "cuentas"
+        message = (
+            f"{accounts} {noun} con este rol no cumpliría el alcance nuevo: ajusta sus fincas "
+            "antes de cambiarlo."
+        )
+        super().__init__(message, fields={"farm_scope": [message]}, extra={"accounts": accounts})

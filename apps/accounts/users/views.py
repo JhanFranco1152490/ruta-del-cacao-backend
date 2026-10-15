@@ -25,7 +25,7 @@ from .serializers import (
     ActivationEmailSentSerializer,
 )
 from .services import (
-    FARM_NOT_SENT,
+    SCOPE_NOT_SENT,
     create_account,
     delete_account,
     get_account,
@@ -128,7 +128,8 @@ class AccountViewSet(GenericViewSet):
             pk,
             data["role_ids"],
             request_id_from(request),
-            data.get("farm_ids", FARM_NOT_SENT),
+            data.get("farm_ids", SCOPE_NOT_SENT),
+            data.get("all_farms", SCOPE_NOT_SENT),
         )
         return Response(AccountSerializer(user).data)
 

@@ -5,7 +5,7 @@ from rest_framework.exceptions import ValidationError
 
 from ..access import is_association_admin
 from ..models import User
-from .farm_assignment import employees_with_field_permissions
+from .farm_assignment import employees_without_scope
 
 
 class AccountFilter(django_filters.FilterSet):
@@ -18,7 +18,7 @@ class AccountFilter(django_filters.FilterSet):
     producer = django_filters.UUIDFilter(method="filter_producer")
     municipality = django_filters.CharFilter(field_name="producer__municipality_code")
     farm = django_filters.UUIDFilter(method="filter_farm")
-    # Los empleados a los que les falta finca: tienen permisos de campo y ninguna asignada.
+    # Los empleados a los que les falta alcance: sin fincas y sin «todas las fincas».
     without_farm = django_filters.BooleanFilter(method="filter_without_farm")
 
     class Meta:
@@ -34,10 +34,13 @@ class AccountFilter(django_filters.FilterSet):
         ]
 
     def filter_farm(self, queryset, name, value):
-        return queryset.filter(pk__in=User.objects.filter(farms=value).values("pk"))
+        # Quien trabaja en todas las fincas también trabaja en esta.
+        return queryset.filter(
+            pk__in=User.objects.filter(Q(farms=value) | Q(all_farms=True)).values("pk")
+        )
 
     def filter_without_farm(self, queryset, name, value):
-        missing = queryset.filter(farms__isnull=True, pk__in=employees_with_field_permissions())
+        missing = queryset.filter(pk__in=employees_without_scope())
         return missing if value else queryset.exclude(pk__in=missing.values("pk"))
 
     def filter_status(self, queryset, name, value):

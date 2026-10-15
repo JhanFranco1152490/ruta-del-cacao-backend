@@ -128,12 +128,14 @@ def assignee_options(actor, producer_id=None) -> list[dict]:
         .prefetch_related("farms")
         .order_by("last_name", "first_name", "id")
     )
-    actor_farms = _farm_ids(actor) if is_employee(actor) else None
+    actor_farms = None if reaches_all_farms(actor) else _farm_ids(actor)
     options = []
     for account in accounts:
         employee = is_employee(account)
-        farm_ids = sorted(_farm_ids(account), key=str) if employee else []
-        if actor_farms is not None and employee and not actor_farms & set(farm_ids):
+        # El Productor y quien trabaja en todas valen para cualquier finca: sin lista.
+        all_farms = not employee or account.all_farms
+        farm_ids = [] if all_farms else sorted(_farm_ids(account), key=str)
+        if actor_farms is not None and not all_farms and not actor_farms & set(farm_ids):
             continue
         options.append(
             {
@@ -141,6 +143,7 @@ def assignee_options(actor, producer_id=None) -> list[dict]:
                 "full_name": account.get_full_name() or account.email,
                 "is_active": account.is_active,
                 "farm_ids": farm_ids,
+                "all_farms": all_farms,
                 "assignable": _takes_work(actor, account, employee),
             }
         )
@@ -158,7 +161,7 @@ def assignable_account(actor, plot, account_id):
     if account is None:
         return None
     employee = is_employee(account)
-    if employee and plot.farm_id not in _farm_ids(account):
+    if employee and not account.all_farms and plot.farm_id not in _farm_ids(account):
         return None
     return account if _takes_work(actor, account, employee) else None
 
@@ -179,5 +182,5 @@ def _takes_work(actor, account, employee: bool) -> bool:
     if not account.has_perm(COMPLETE_PERMISSION):
         return False
     if employee:
-        return bool(_farm_ids(account))
+        return account.all_farms or bool(_farm_ids(account))
     return not is_employee(actor)

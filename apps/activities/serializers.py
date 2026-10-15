@@ -39,6 +39,9 @@ class AssigneeOptionSerializer(AssigneeSerializer):
     # en el Productor, que vale para todas) y `assignable`, si quien pregunta puede asignarle una
     # labor.
     farm_ids = serializers.ListField(child=serializers.UUIDField())
+    # Que la cuenta vale para cualquier finca (el Productor, o un empleado con todas): con ella,
+    # `farm_ids` va vacía y no significa «ninguna».
+    all_farms = serializers.BooleanField()
     assignable = serializers.BooleanField()
 
 

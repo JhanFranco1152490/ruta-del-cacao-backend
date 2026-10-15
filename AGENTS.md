@@ -101,7 +101,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
   `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
   `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
-  `input_shared` (409);
+  `input_shared` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `role_scope_in_use` (409);
   `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
@@ -308,23 +309,38 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   lleva el productor en el cuerpo: `POST /api/farms` acepta `producer_id` **solo** de la cuenta
   técnica (y debe existir y estar activo); de cualquier otra cuenta es un `400`. Insumos hace lo mismo y comparte `resolve_target_producer`
   (`apps/common/ownership.py`). La auditoría registra siempre a quien actuó.
-- **Un empleado solo alcanza las fincas en las que trabaja** (`User.farms`, una o varias). El Productor y la cuenta
-  técnica alcanzan todas; un empleado sin finca, ninguna (el alcance falla cerrado). Empleado es la
+- **Un empleado solo alcanza las fincas en las que trabaja** (`User.farms`, una o varias) **o todas**
+  (`User.all_farms`, que incluye las que se registren después). El Productor y la cuenta técnica
+  alcanzan todas (`reaches_all_farms`, `apps/common/ownership.py`); un empleado sin alcance (sin
+  fincas y sin la marca), ninguna: el alcance falla cerrado, y «lista vacía» nunca significa
+  «todas». Empleado es la
   cuenta con productor y algún rol distinto del de Productor (`is_employee`,
   `apps/common/roles.py`). Todo lo que cuelga de una finca pasa su ruta a `owner_filter` con
   `farm=` (`"farm_id"` en una parcela, `"plot__farm_id"` en lo que cuelga de ella, `"id"` en la
   finca misma): así lo de otra finca responde `404`, igual que lo de otro productor. Un recurso
   nuevo agrega su caso a `apps/common/tests/test_farm_scope.py`. Además:
-  - **Las fincas de una cuenta** se envían en `farm_ids` al crearla, al editarla o al cambiarle los
-    roles, y es obligatoria si algún rol trae un permiso de campo (`FIELD_PERMISSIONS`,
-    `apps/accounts/registry.py`). Las cuentas Productor y Administrador no la llevan. La cuenta
-    expone `farms` y `needs_farm`; la sesión, `farms` y `all_farms`. `GET /api/users` filtra por
-    `farm` y `without_farm`, y un empleado con fincas solo ve a quien comparte alguna con él.
+  - **El alcance de una cuenta** se envía en `farm_ids` o `all_farms` (nunca los dos) al crearla,
+    al editarla o al cambiarle los roles, y es obligatorio en todo empleado, tenga o no permisos de
+    campo. Las cuentas Productor y Administrador no lo llevan. La cuenta expone `farms`, `all_farms`
+    y `needs_farm` (empleado sin alcance); la sesión, `farms` y `all_farms`. `GET /api/users`
+    filtra por `farm` (incluye a quienes trabajan en todas) y `without_farm`. Un empleado con
+    fincas solo ve a quien comparte alguna con él (o trabaja en todas); con todas, a todo el
+    productor; sin alcance, solo su cuenta.
+  - **El alcance que admite cada rol** (`Role.farm_scope`): `all` (la cuenta debe tener
+    `all_farms`), `one` (exactamente una finca) o `many` (a elección). Capataz/Operario es `one`;
+    Comercializador y Encargado de calidad, `many`; un rol propio, `many` por defecto. El rol limita
+    y la cuenta tiene el valor. Dos roles que piden `all` y `one` son incompatibles
+    (`role_scope_conflict`). Cambiar el alcance de un rol que ya no cumplirían sus cuentas es
+    `409 role_scope_in_use`. Nadie da más alcance del que tiene: «todas» y los roles `all` solo
+    los da quien alcanza todas (`farm_assignment.ensure_can_give`). Un empleado limitado crea roles
+    libremente, pero edita solo los que tienen cuentas dentro de su alcance
+    (`ensure_role_within_scope`, `403 role_in_use_outside_scope`).
   - **Crear empleados:** el Productor (y la cuenta técnica) en cualquier finca; un empleado de
-    confianza con `accounts.users_create` solo en la suya (la cuenta nueva la toma sola; otra es
-    `403`). Mover a alguien de finca es solo del Productor, y no se hace mientras tenga actividades
-    programadas o retrasadas en la que deja (`409 account_has_pending_work`, con `pending` y
-    `overdue`; las vencidas no bloquean). Cada app que asigne trabajo en una finca lo declara con
+    confianza con `accounts.users_create` solo en las suyas (la cuenta nueva toma la suya si es una
+    sola; otra, o «todas», es `403`). Cambiar el alcance de alguien lo hace quien alcanza todas las
+    fincas, y no se hace mientras tenga actividades programadas o retrasadas en las que deja
+    (`409 account_has_pending_work`, con `pending` y `overdue`; las vencidas no bloquean; desde
+    «todas», las que deja son todas las del productor fuera de la lista nueva). Cada app que asigne trabajo en una finca lo declara con
     `register_guard` (`apps/common/farm_change_guards.py`).
   - **Un empleado que registra una finca** (`farms.add_farm` en su rol) queda asignado a ella. Una
     finca con empleados asignados no se elimina (`409 farm_has_accounts`, con cuántos en `accounts`). Al eliminar un productor creado por error
@@ -339,10 +355,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     está en más de una finca (`409 input_shared`) y nunca le cambia la unidad (`403` con
     `fields.unit`).
   - **Responsables de una actividad:** una cuenta activa con
-    `activities.complete_agriculturalactivity` que trabaje en la finca de la parcela, o el
-    Productor. Al Productor solo le asigna él mismo o la cuenta técnica. Se decide por el permiso
+    `activities.complete_agriculturalactivity` que trabaje en la finca de la parcela (o en todas),
+    o el Productor. Al Productor solo le asigna él mismo o la cuenta técnica. Se decide por el permiso
     y no por el rol, que en un rol propio puede llamarse de cualquier forma. `GET …/assignees`
-    trae `farm_ids` y `assignable` (relativo a quien pregunta) para que el formulario arme la lista
+    trae `farm_ids`, `all_farms` (con la marca o el Productor, `farm_ids` va vacía) y `assignable` (relativo a quien pregunta) para que el formulario arme la lista
     de la parcela elegida, también sin conexión.
   - **Registrar la realización:** el responsable, quien tiene el permiso de programar
     (`activities.add_agriculturalactivity`) en la finca, o el Productor y la cuenta técnica

@@ -4,6 +4,9 @@ from rest_framework import serializers
 from apps.common.serializers import RejectUnknownFieldsMixin, RequireSomeFieldMixin
 
 from ..models import Role
+from ..system_roles import ADMINISTRATOR, PRODUCER
+
+EXCLUSIVE_ROLE_CODES = (ADMINISTRATOR, PRODUCER)
 
 
 class RoleProducerSerializer(serializers.Serializer):
@@ -27,6 +30,9 @@ class RoleSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
     permission_details = serializers.SerializerMethodField()
     producer = serializers.SerializerMethodField()
+    # Qué alcance admiten las cuentas con este rol; vacío en Productor y Administrador, que no
+    # llevan fincas.
+    farm_scope = serializers.SerializerMethodField()
 
     class Meta:
         model = Role
@@ -36,6 +42,7 @@ class RoleSerializer(serializers.ModelSerializer):
             "kind",
             "name",
             "description",
+            "farm_scope",
             "producer_id",
             "producer",
             "permissions",
@@ -45,6 +52,10 @@ class RoleSerializer(serializers.ModelSerializer):
 
     def get_permissions(self, role) -> list[str]:
         return sorted(role.permission_codes)
+
+    @extend_schema_field(serializers.ChoiceField(choices=Role.FarmScope.choices, allow_null=True))
+    def get_farm_scope(self, role) -> str | None:
+        return None if role.code in EXCLUSIVE_ROLE_CODES else role.farm_scope
 
     # Los permisos no delegables (los de la asociación) no están en `/api/permissions`, que solo
     # alimenta el formulario de roles propios: sin el nombre aquí, el detalle de un rol del sistema
@@ -73,6 +84,11 @@ class RoleCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     )
     # Solo lo envía el Administrador; los demás actores lo sacan de su propia cuenta.
     producer_id = serializers.UUIDField(required=False)
+    # Qué alcance admiten las cuentas con este rol. `all` solo lo crea quien alcanza todas las
+    # fincas.
+    farm_scope = serializers.ChoiceField(
+        choices=Role.FarmScope.choices, default=Role.FarmScope.MANY
+    )
 
 
 class RoleUpdateSerializer(
@@ -81,6 +97,8 @@ class RoleUpdateSerializer(
     name = serializers.CharField(max_length=100, required=False)
     description = serializers.CharField(max_length=255, required=False, allow_blank=True)
     permission_codes = serializers.ListField(child=serializers.CharField(), required=False)
+    # Cambiarlo se rechaza si hay cuentas con el rol que ya no lo cumplirían.
+    farm_scope = serializers.ChoiceField(choices=Role.FarmScope.choices, required=False)
 
 
 class PermissionSerializer(serializers.Serializer):

@@ -86,6 +86,7 @@ def test_a_delegate_with_the_permission_deletes_an_employee():
             "accounts.users_delete",
             *SYSTEM_ROLES[FOREMAN]["permissions"],
         ],
+        all_farms=True,
     )
     employee = make_employee(producer)
 
@@ -97,7 +98,9 @@ def test_a_delegate_with_the_permission_deletes_an_employee():
 
 def test_a_delegate_cannot_delete_an_employee_with_more_permissions_than_it_has():
     producer = ProducerFactory()
-    delegate = make_delegate(producer, ["accounts.users_view", "accounts.users_delete"])
+    delegate = make_delegate(
+        producer, ["accounts.users_view", "accounts.users_delete"], all_farms=True
+    )
     employee = make_employee(producer)
 
     response = delete_as(delegate, employee)
@@ -150,7 +153,9 @@ def test_the_superuser_deletes_an_employee_of_any_producer():
 @pytest.mark.parametrize(("target_role", "expected"), [(PRODUCER, 403), (ADMINISTRATOR, 404)])
 def test_a_delegate_does_not_reach_the_producer_or_administrator_accounts(target_role, expected):
     producer = ProducerFactory()
-    delegate = make_delegate(producer, ["accounts.users_view", "accounts.users_delete"])
+    delegate = make_delegate(
+        producer, ["accounts.users_view", "accounts.users_delete"], all_farms=True
+    )
     if target_role == PRODUCER:
         target = make_producer_owner(producer)
     else:

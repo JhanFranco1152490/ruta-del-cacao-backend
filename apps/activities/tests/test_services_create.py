@@ -18,7 +18,7 @@ from apps.activities.models import AgriculturalActivity, AgriculturalActivityAud
 from apps.activities.services import audit
 from apps.activities.services.create import create_activity
 from apps.activities.state import today_in_bogota
-from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.activities.tests.factories import AgriculturalActivityFactory, make_assignee
 from apps.plots.tests.factories import PlotFactory
 
 pytestmark = pytest.mark.django_db
@@ -36,7 +36,7 @@ def actor(plot):
 
 @pytest.fixture
 def assignee(plot):
-    return UserFactory(producer=plot.farm.producer)
+    return make_assignee(plot.farm.producer)
 
 
 def data(plot, assignee, **overrides) -> dict:

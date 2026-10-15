@@ -5,6 +5,7 @@ from django.urls import reverse
 from apps.accounts.tests.factories import UserFactory
 from apps.activities.services.create import create_activity
 from apps.activities.state import today_in_bogota
+from apps.activities.tests.factories import make_assignee
 from apps.plots.tests.factories import PlotFactory
 
 from .factories import AgriculturalActivityFactory, AgriculturalActivityInputFactory
@@ -21,7 +22,7 @@ def login(user):
 @pytest.fixture
 def event():
     plot = PlotFactory()
-    owner = UserFactory(producer=plot.farm.producer)
+    owner = make_assignee(plot.farm.producer)
     activity, _ = create_activity(
         owner,
         {

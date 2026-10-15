@@ -22,6 +22,18 @@ class UserFactory(DjangoModelFactory):
     password = factory.django.Password(DEFAULT_PASSWORD)
 
     @factory.post_generation
+    def farms(user, create, extracted, **kwargs):
+        """Las fincas en las que trabaja: `farms=[...]`."""
+        if create and extracted:
+            user.farms.set(extracted)
+
+    @factory.post_generation
+    def farm(user, create, extracted, **kwargs):
+        """Atajo para el caso común de una sola finca: `farm=finca`."""
+        if create and extracted is not None:
+            user.farms.add(extracted)
+
+    @factory.post_generation
     def permissions(user, create, extracted, **kwargs):
         """Recibe permisos como "app_label.codename", igual que user.has_perm()."""
         if not create or not extracted:

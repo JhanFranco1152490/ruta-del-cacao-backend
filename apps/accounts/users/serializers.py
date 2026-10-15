@@ -6,6 +6,8 @@ from apps.common.serializers import RejectUnknownFieldsMixin, RequireSomeFieldMi
 
 from ..access import roles_of
 from ..models import User
+from ..system_roles import ADMINISTRATOR, PRODUCER
+from .farm_assignment import needs_farm
 
 
 class AccountProducerSerializer(serializers.Serializer):
@@ -25,10 +27,31 @@ class AccountRoleSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     code = serializers.CharField(allow_null=True)
     name = serializers.CharField()
+    # Qué alcance admite el rol: con él el formulario de la cuenta sabe qué ofrecer sin pedir los
+    # roles aparte. Vacío en Productor y Administrador.
+    farm_scope = serializers.SerializerMethodField()
+
+    def get_farm_scope(self, role) -> str | None:
+        return None if role.code in (ADMINISTRATOR, PRODUCER) else role.farm_scope
+
+
+class AccountFarmSerializer(serializers.Serializer):
+    # Una finca en la que trabaja un empleado. Tampoco es un `ModelSerializer`, por lo mismo.
+
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    is_active = serializers.BooleanField()
 
 
 class AccountSerializer(serializers.ModelSerializer):
     producer = AccountProducerSerializer(read_only=True, allow_null=True)
+    farms = AccountFarmSerializer(many=True, read_only=True)
+    # Un empleado con permisos de campo y sin finca no alcanza nada: la interfaz lo señala para
+    # que el productor le asigne alguna.
+    needs_farm = serializers.SerializerMethodField()
+    # Que la cuenta alcanza todas las fincas de su productor: la del Productor, o la de un empleado
+    # a quien se le dio «todas las fincas».
+    all_farms = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     activation_pending = serializers.SerializerMethodField()
@@ -46,6 +69,9 @@ class AccountSerializer(serializers.ModelSerializer):
             "identity_document",
             "phone",
             "producer",
+            "farms",
+            "needs_farm",
+            "all_farms",
             "roles",
             "status",
             "activation_pending",
@@ -59,6 +85,13 @@ class AccountSerializer(serializers.ModelSerializer):
         # `group.role` (uno a uno inverso) ya viene precargado por `_optimized()`: no es una
         # consulta nueva por cada fila de la lista.
         return AccountRoleSerializer(roles_of(user), many=True).data
+
+    def get_needs_farm(self, user) -> bool:
+        return needs_farm(user)
+
+    def get_all_farms(self, user) -> bool:
+        # Con los grupos ya precargados de la lista: nada de una consulta por fila.
+        return user.all_farms or any(role.code == PRODUCER for role in roles_of(user))
 
     def get_status(self, user) -> str:
         return "active" if user.is_active else "inactive"
@@ -90,6 +123,10 @@ class AccountCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     # Solo lo envía el Administrador; los demás actores lo sacan de su propia cuenta o del
     # expediente del productor (ver create_account en user_services.py).
     producer_id = serializers.UUIDField(required=False)
+    # El alcance de un empleado: las fincas en las que trabaja, o todas. Una de las dos es
+    # obligatoria, y debe cumplir lo que piden sus roles.
+    farm_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+    all_farms = serializers.BooleanField(required=False)
 
     def validate_email(self, value):
         return value.strip().lower()
@@ -101,6 +138,9 @@ class AccountCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 class AccountUpdateSerializer(
     RequireSomeFieldMixin, RejectUnknownFieldsMixin, serializers.Serializer
 ):
+    # Reemplaza el alcance: las fincas, o todas. Una cuenta sin ninguno de los dos no se guarda.
+    farm_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+    all_farms = serializers.BooleanField(required=False)
     email = serializers.EmailField(max_length=254, required=False)
     document_type = serializers.ChoiceField(choices=DocumentType.choices, required=False)
     identity_document = serializers.CharField(max_length=50, required=False, trim_whitespace=True)
@@ -117,6 +157,9 @@ class AccountUpdateSerializer(
 
 class AccountRoleIdsSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     role_ids = serializers.ListField(child=serializers.UUIDField(), allow_empty=False)
+    # Para dar el alcance en la misma operación en que los roles nuevos lo exigen.
+    farm_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+    all_farms = serializers.BooleanField(required=False)
 
 
 class AccountStatusSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

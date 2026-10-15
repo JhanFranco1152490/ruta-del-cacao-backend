@@ -72,6 +72,8 @@ SYSTEM_ROLES = {
     FOREMAN: {
         "kind": Role.Kind.PREDEFINED,
         "name": "Capataz/Operario",
+        # Un capataz está en una sola finca (regla del equipo).
+        "farm_scope": Role.FarmScope.ONE,
         "permissions": [
             # Consulta las fincas y parcelas en las que programa sus labores; gestionarlas sigue
             # siendo del Productor.
@@ -90,9 +92,16 @@ SYSTEM_ROLES = {
     QUALITY_MANAGER: {
         "kind": Role.Kind.PREDEFINED,
         "name": "Encargado de calidad",
+        # Trabaja con lotes, que pueden venir de varias fincas.
+        "farm_scope": Role.FarmScope.MANY,
         "permissions": [],
     },
-    SALES_MANAGER: {"kind": Role.Kind.PREDEFINED, "name": "Comercializador", "permissions": []},
+    SALES_MANAGER: {
+        "kind": Role.Kind.PREDEFINED,
+        "name": "Comercializador",
+        "farm_scope": Role.FarmScope.MANY,
+        "permissions": [],
+    },
 }
 
 
@@ -118,6 +127,10 @@ def sync_system_roles() -> None:
                 name=definition["name"],
                 group=group,
             )
+        scope = definition.get("farm_scope", Role.FarmScope.MANY)
+        if role.farm_scope != scope:
+            role.farm_scope = scope
+            role.save(update_fields=["farm_scope"])
         role.group.permissions.set(
             _permission(permission_code) for permission_code in definition["permissions"]
         )

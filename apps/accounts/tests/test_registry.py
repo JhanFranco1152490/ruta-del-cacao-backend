@@ -53,6 +53,17 @@ def test_every_permission_of_the_producer_role_can_be_delegated():
     assert all(is_delegable(code) for code in SYSTEM_ROLES[PRODUCER]["permissions"])
 
 
+def test_field_permissions_are_the_delegable_ones_of_what_hangs_from_a_farm():
+    assert registry.is_field_permission("plots.view_plot")
+    assert registry.is_field_permission("activities.complete_agriculturalactivity")
+    assert registry.is_field_permission("inputs.manage_inputstock")
+    assert registry.is_field_permission("farms.add_farm")
+    # De cuentas y roles, o de la asociación: no cuelgan de ninguna finca.
+    assert not registry.is_field_permission("accounts.users_view")
+    assert not registry.is_field_permission("crops.manage_cacaovariety")
+    assert not registry.is_field_permission("producers.view")
+
+
 def test_input_actions_bring_the_permission_to_see_the_catalog():
     for code in (
         "inputs.add_agriculturalinput",

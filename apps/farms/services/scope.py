@@ -1,5 +1,6 @@
 from django.db.models import QuerySet
 
+from apps.common.ownership import owner_filter
 from apps.common.roles import is_association_admin
 
 from ..models import Farm
@@ -10,10 +11,11 @@ def readable_farms(actor) -> QuerySet[Farm]:
     asociación, ninguna.
 
     La asociación y la cuenta técnica leen las de todos los productores: nombre y ubicación de las
-    fincas son la base de sus reportes. Crear o editar no pasa por aquí.
+    fincas son la base de sus reportes. Crear o editar no pasa por aquí. Un empleado solo lee la
+    finca en la que trabaja.
     """
     if actor.is_superuser or is_association_admin(actor):
         return Farm.objects.select_related("producer")
     if actor.producer_id is not None:
-        return Farm.objects.select_related("producer").filter(producer_id=actor.producer_id)
+        return Farm.objects.select_related("producer").filter(**owner_filter(actor, farm="id"))
     return Farm.objects.none()

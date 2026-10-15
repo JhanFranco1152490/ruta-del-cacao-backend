@@ -4,7 +4,9 @@ from django.contrib.auth.models import Group, Permission
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.db.models.functions import Lower
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
+
+from apps.common.ownership import reaches_all_farms
 
 from ..access import is_association_admin
 from ..authorization import (
@@ -14,10 +16,18 @@ from ..authorization import (
     ensure_role_edit_keeps_your_role_management,
 )
 from ..events import record_account_event
-from ..exceptions import DuplicateRoleName, ExceedsOwnPermissions, RoleInUse, RoleNotFound
+from ..exceptions import (
+    DuplicateRoleName,
+    ExceedsOwnPermissions,
+    RoleInUse,
+    RoleInUseOutsideScope,
+    RoleNotFound,
+    RoleScopeInUse,
+)
 from ..models import AccountManagementEvent, Role
 from ..registry import PERMISSION_DEPENDENCIES, PERMISSION_REGISTRY, with_dependencies
-from ..scope import acts_for_producer, visible_roles
+from ..scope import acts_for_producer, visible_roles, visible_users
+from ..users.farm_assignment import accounts_breaking
 
 
 def get_role(actor, role_id) -> Role:
@@ -89,6 +99,23 @@ def _ensure_unique_name(name: str, producer_id, *, exclude_pk=None) -> None:
         raise DuplicateRoleName()
 
 
+def _ensure_can_set_scope(actor, farm_scope) -> None:
+    """Un rol de «siempre todas las fincas» solo lo da quien alcanza todas: nadie concede más
+    alcance del que tiene."""
+    if farm_scope == Role.FarmScope.ALL and not reaches_all_farms(actor):
+        raise PermissionDenied("Solo quien alcanza todas las fincas puede dar este alcance.")
+
+
+def ensure_role_within_scope(actor, role) -> None:
+    """Un rol es del productor entero, no de una finca: quien no alcanza todas las fincas solo lo
+    cambia si todas las cuentas que lo tienen están dentro de lo que él alcanza."""
+    if reaches_all_farms(actor):
+        return
+    reachable = visible_users(actor).values("pk")
+    if role.group.user_set.exclude(pk__in=reachable).exists():
+        raise RoleInUseOutsideScope()
+
+
 def create_role(actor, data: dict, request_id) -> Role:
     producer_id = data.get("producer_id")
     if is_association_admin(actor) or actor.is_superuser:
@@ -112,6 +139,8 @@ def create_role(actor, data: dict, request_id) -> Role:
     permissions = _resolve_permissions(permission_codes)
     ensure_can_grant(actor, permission_codes)
     _ensure_unique_name(data["name"], producer_id)
+    farm_scope = data.get("farm_scope", Role.FarmScope.MANY)
+    _ensure_can_set_scope(actor, farm_scope)
 
     with transaction.atomic():
         group = Group.objects.create(name=f"role-{uuid.uuid4()}")
@@ -122,6 +151,7 @@ def create_role(actor, data: dict, request_id) -> Role:
                 producer_id=producer_id,
                 name=data["name"],
                 description=data["description"],
+                farm_scope=farm_scope,
             )
         except IntegrityError:
             # La única restricción que estos datos pueden violar aquí es el nombre único: el
@@ -140,6 +170,13 @@ def create_role(actor, data: dict, request_id) -> Role:
 def update_role(actor, role_id, data: dict, request_id) -> Role:
     role = get_role(actor, role_id)
     ensure_can_manage_role(actor, role)
+    ensure_role_within_scope(actor, role)
+
+    if "farm_scope" in data and data["farm_scope"] != role.farm_scope:
+        _ensure_can_set_scope(actor, data["farm_scope"])
+        broken = accounts_breaking(role, data["farm_scope"])
+        if broken:
+            raise RoleScopeInUse(broken)
 
     if "permission_codes" in data:
         permission_codes = with_dependencies(data["permission_codes"])
@@ -152,7 +189,9 @@ def update_role(actor, role_id, data: dict, request_id) -> Role:
         _ensure_unique_name(data["name"], role.producer_id, exclude_pk=role.pk)
 
     with transaction.atomic():
-        changed_fields = [field for field in ("name", "description") if field in data]
+        changed_fields = [
+            field for field in ("name", "description", "farm_scope") if field in data
+        ]
         for field in changed_fields:
             setattr(role, field, data[field])
         if changed_fields:

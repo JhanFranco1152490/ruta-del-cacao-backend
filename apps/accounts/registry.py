@@ -21,6 +21,7 @@ class PermissionInfo:
 # se delega.
 PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "accounts.users_view": PermissionInfo(area="users", delegable=True),
+    # Un empleado de confianza que lo tenga solo crea cuentas en la finca en la que trabaja.
     "accounts.users_create": PermissionInfo(area="users", delegable=True),
     "accounts.users_update": PermissionInfo(area="users", delegable=True),
     "accounts.users_change_status": PermissionInfo(area="users", delegable=True),
@@ -34,6 +35,7 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "producers.change_status": PermissionInfo(area="producers", delegable=False),
     "producers.delete": PermissionInfo(area="producers", delegable=False),
     "farms.view_farm": PermissionInfo(area="farms", delegable=True),
+    # Un empleado que lo tenga queda asignado a la finca que registra: si no, la perdería de vista.
     "farms.add_farm": PermissionInfo(area="farms", delegable=True),
     "farms.change_farm": PermissionInfo(area="farms", delegable=True),
     "farms.delete_farm": PermissionInfo(area="farms", delegable=True),
@@ -56,6 +58,22 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "activities.complete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.delete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
 }
+
+
+# Las áreas de lo que cuelga de una finca. Un empleado con algún permiso de estas necesita una
+# finca asignada: sin ella no alcanza nada de lo que el permiso le deja hacer.
+FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities"})
+
+
+def is_field_permission(code: str) -> bool:
+    """Si el permiso es de campo: actúa sobre algo que cuelga de una finca de un productor, y un
+    empleado puede tenerlo. Los no delegables de esas áreas no cuentan: son de la asociación (el
+    catálogo de variedades), cuyas cuentas no llevan finca."""
+    info = PERMISSION_REGISTRY.get(code)
+    return info is not None and info.delegable and info.area in FIELD_AREAS
+
+
+FIELD_PERMISSIONS = frozenset(code for code in PERMISSION_REGISTRY if is_field_permission(code))
 
 
 def is_delegable(code: str) -> bool:

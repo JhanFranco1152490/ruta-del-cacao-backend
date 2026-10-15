@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from apps.common.db import save_translating_unique
-from apps.common.ownership import owns
+from apps.common.ownership import owns, reaches_farm
 
 from ..exceptions import DuplicatePlotCode, PlotIdConflict
 from ..models import Plot, PlotAuditEvent
@@ -62,7 +62,7 @@ def _existing(plot_id) -> Plot | None:
 
 
 def _resent_plot(existing: Plot, actor, data: dict) -> Plot:
-    if not owns(actor, existing.farm.producer_id):
+    if not (owns(actor, existing.farm.producer_id) and reaches_farm(actor, existing.farm_id)):
         raise PlotIdConflict()
     # Con el mismo dueño, un contenido distinto suele ser un pendiente editado en el dispositivo
     # después de una creación cuya respuesta se perdió: el conflicto lleva la parcela del

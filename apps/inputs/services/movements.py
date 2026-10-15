@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.common.ownership import owner_filter
+from apps.common.ownership import owner_filter, reaches_all_farms
 
 from ..exceptions import (
     FarmInactive,
@@ -49,11 +49,20 @@ def register_movement(actor, data: dict) -> tuple[InputMovement, InputStock, boo
     """
     # Se bloquea ya con el alcance de quien llama: lo que se lee es lo que nadie más puede cambiar
     # hasta el final de la transacción, sin una lectura previa aparte.
-    farm = _lock_farm(data["farm_id"], owner_filter(actor))
+    # Un empleado solo alcanza su finca. El insumo se busca en todo el catálogo del productor:
+    # así trae a su finca, con una entrada, uno que ya usa otra.
+    farm = _lock_farm(data["farm_id"], owner_filter(actor, farm="id"))
     item = _lock_input(data["input_id"], owner_filter(actor))
     if item.producer_id != farm.producer_id:
         raise ValidationError({"farm_id": ["La finca no es del productor del insumo."]})
     _validate(data)
+    if (
+        data["kind"] != Kind.ENTRY
+        and not reaches_all_farms(actor)
+        and not InputStock.objects.filter(input=item, farm=farm).exists()
+    ):
+        # Contar un insumo que no está en su finca: para él ese insumo no existe.
+        raise InputNotFound()
     stock = _locked_stock(item, farm)
 
     movement_id = data.get("id")

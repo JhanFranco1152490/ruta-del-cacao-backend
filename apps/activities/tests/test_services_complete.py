@@ -6,10 +6,12 @@ import pytest
 from django.utils import timezone
 
 from apps.accounts.tests.factories import UserFactory
+from apps.accounts.tests.role_helpers import make_delegate, make_producer_owner
 from apps.activities.choices import ActivityStatus, ActivityType
 from apps.activities.exceptions import (
     ActivityAlreadyDone,
     ActivityNotFound,
+    CompletionNotAllowed,
     InvalidActivity,
     MonitoringRequiresResult,
 )
@@ -197,3 +199,57 @@ def test_an_activity_of_another_producer_is_not_found():
 
     with pytest.raises(ActivityNotFound):
         complete_activity(stranger, activity.pk, completion())
+
+
+# --- Quién registra la realización ---
+
+COMPLETE = "activities.complete_agriculturalactivity"
+SCHEDULE = "activities.add_agriculturalactivity"
+
+
+def worker_of(activity, permissions):
+    """Un empleado de la finca de la actividad con un rol propio de esos permisos."""
+    return make_delegate(activity.plot.farm.producer, permissions, farm=activity.plot.farm)
+
+
+def test_the_assignee_records_its_own_activity():
+    activity = scheduled_in(1)
+    operator = worker_of(activity, [COMPLETE])
+    AgriculturalActivity.objects.filter(pk=activity.pk).update(assignee=operator)
+
+    complete_activity(operator, activity.pk, completion())
+
+    assert AgriculturalActivity.objects.get(pk=activity.pk).status == ActivityStatus.DONE
+
+
+def test_a_worker_who_does_not_schedule_cannot_record_someone_elses_activity():
+    activity = scheduled_in(1)
+    operator = worker_of(activity, [COMPLETE])
+
+    with pytest.raises(CompletionNotAllowed):
+        complete_activity(operator, activity.pk, completion())
+
+    assert AgriculturalActivity.objects.get(pk=activity.pk).status == ActivityStatus.SCHEDULED
+    assert not completed_events(activity).exists()
+
+
+def test_whoever_schedules_in_the_farm_records_someone_elses_activity():
+    # El Capataz/Operario, o un rol propio con el permiso de programar: decide el permiso, no el
+    # nombre del rol.
+    activity = scheduled_in(1)
+    foreman = worker_of(activity, [COMPLETE, SCHEDULE])
+
+    complete_activity(foreman, activity.pk, completion())
+
+    stored = AgriculturalActivity.objects.get(pk=activity.pk)
+    assert stored.completed_by == foreman
+    assert stored.assignee == activity.assignee
+
+
+def test_the_producer_records_someone_elses_activity():
+    activity = scheduled_in(1)
+    owner = make_producer_owner(activity.plot.farm.producer)
+
+    complete_activity(owner, activity.pk, completion())
+
+    assert AgriculturalActivity.objects.get(pk=activity.pk).completed_by == owner

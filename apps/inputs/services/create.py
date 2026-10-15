@@ -6,6 +6,7 @@ from apps.common.ownership import resolve_target_producer
 from ..exceptions import DuplicateInput, ProducerInactive
 from ..models import AgriculturalInput, AgriculturalInputAuditEvent
 from .audit import record_input_audit_event
+from .farm_scope import ensure_has_a_farm, farm_for_new_input, place_in_farm
 
 NAME_UNIQUE_CONSTRAINT = "inputs_input_producer_type_name_unique"
 CONTENT_FIELDS = ("name", "input_type", "unit", "package_type", "package_size", "is_active")
@@ -31,14 +32,18 @@ def duplicate_error(item: AgriculturalInput) -> DuplicateInput:
 @transaction.atomic
 def create_input(actor, data: dict) -> AgriculturalInput:
     """Registra un insumo en el catálogo del productor de la sesión, o del que nombra la cuenta
-    técnica. Solo en línea: el servidor genera el `id`."""
+    técnica. Solo en línea: el servidor genera el `id`. Queda además en la finca `farm_id` (la
+    de un empleado que trabaja en una sola, si no la indica)."""
+    ensure_has_a_farm(actor)
     data = dict(data)
+    farm_id = data.pop("farm_id", None)
     producer_id = resolve_target_producer(
         actor,
         data,
         AgriculturalInput._meta.get_field("producer").related_model,
         inactive=ProducerInactive,
     )
+    farm = farm_for_new_input(actor, producer_id, farm_id)
 
     item = AgriculturalInput(producer_id=producer_id, **data)
     item.full_clean(validate_unique=False, validate_constraints=False)
@@ -53,5 +58,6 @@ def create_input(actor, data: dict) -> AgriculturalInput:
         action=AgriculturalInputAuditEvent.Action.CREATED,
         changed_fields=CONTENT_FIELDS,
     )
+    place_in_farm(item, farm)
     item.has_records = False
     return item

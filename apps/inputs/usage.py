@@ -2,7 +2,9 @@
 
 Se recorren las relaciones del modelo en vez de listar las tablas: una tabla nueva (actividades,
 controles) que apunte a un insumo cuenta sola desde que existe, y esta app no conoce a las demás.
-El historial del propio insumo no cuenta.
+El historial del propio insumo no cuenta, y sus existencias tampoco: la fila de existencias dice
+en qué finca está el insumo, y existe desde que alguien lo registra allí. Lo que lo vuelve usado
+son sus movimientos.
 """
 
 from functools import reduce
@@ -12,15 +14,17 @@ from django.db.models import BooleanField, Exists, ExpressionWrapper, OuterRef, 
 
 from apps.common.db import dependent_relations, has_dependent_rows
 
-from .models import AgriculturalInput, AgriculturalInputAuditEvent
+from .models import AgriculturalInput, AgriculturalInputAuditEvent, InputStock
+
+NOT_USAGE = (AgriculturalInputAuditEvent, InputStock)
 
 
 def usage_relations():
-    return dependent_relations(AgriculturalInput, ignore=(AgriculturalInputAuditEvent,))
+    return dependent_relations(AgriculturalInput, ignore=NOT_USAGE)
 
 
 def is_used(item: AgriculturalInput) -> bool:
-    return has_dependent_rows(item, ignore=(AgriculturalInputAuditEvent,))
+    return has_dependent_rows(item, ignore=NOT_USAGE)
 
 
 def used_expression():

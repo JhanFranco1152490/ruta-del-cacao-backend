@@ -17,7 +17,7 @@ from apps.activities.exceptions import (
 from apps.activities.models import AgriculturalActivity, AgriculturalActivityAuditEvent
 from apps.activities.services.update import update_activity
 from apps.activities.state import ActivityState, activity_state, today_in_bogota
-from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.activities.tests.factories import AgriculturalActivityFactory, make_assignee
 from apps.plots.tests.factories import PlotFactory
 
 pytestmark = pytest.mark.django_db
@@ -40,7 +40,7 @@ def actor(activity):
 
 
 def colleague(activity, **kwargs):
-    return UserFactory(producer=activity.plot.farm.producer, **kwargs)
+    return make_assignee(activity.plot.farm.producer, **kwargs)
 
 
 def events(activity):

@@ -449,7 +449,9 @@ def test_staff_who_is_not_the_technical_account_only_reaches_the_accounts_it_can
     mine = employee()
     theirs = employee()
     technical = UserFactory(is_staff=True, is_superuser=True, email="tecnica@example.com")
-    delegate = make_delegate(mine.producer, ["accounts.users_view", "accounts.users_update"])
+    delegate = make_delegate(
+        mine.producer, ["accounts.users_view", "accounts.users_update"], all_farms=True
+    )
     delegate.is_staff = True
     delegate.save(update_fields=["is_staff"])
     client = Client()

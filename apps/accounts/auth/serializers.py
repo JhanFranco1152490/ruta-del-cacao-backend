@@ -4,12 +4,13 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.common.choices import DocumentType
+from apps.common.ownership import reaches_all_farms
 from apps.common.validators import strip_document_separators, validate_document_digits
 
 from ..access import roles_of
 from ..models import User
 from ..users.activation import user_from_activation_link
-from ..users.serializers import AccountRoleSerializer
+from ..users.serializers import AccountFarmSerializer, AccountRoleSerializer
 from .services import user_from_reset_link
 
 
@@ -98,6 +99,11 @@ class SessionUserSerializer(serializers.ModelSerializer):
     # Solo para que la interfaz sepa si ofrecer el selector de productor: el servidor decide
     # por su cuenta qué puede hacer cada petición, y esta respuesta nunca se lee como entrada.
     is_superuser = serializers.BooleanField(read_only=True)
+    # Las fincas a las que está limitado un empleado, y si la cuenta alcanza todas las de su
+    # productor (el Productor y la cuenta técnica). Con las dos la interfaz fija o no sus
+    # selectores de finca; el servidor aplica el alcance por su cuenta en cada petición.
+    farms = AccountFarmSerializer(many=True, read_only=True)
+    all_farms = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -110,7 +116,12 @@ class SessionUserSerializer(serializers.ModelSerializer):
             "permissions",
             "producer_id",
             "is_superuser",
+            "farms",
+            "all_farms",
         ]
+
+    def get_all_farms(self, user) -> bool:
+        return user.is_superuser or (user.producer_id is not None and reaches_all_farms(user))
 
     @extend_schema_field(AccountRoleSerializer(many=True))
     def get_roles(self, user) -> list[dict]:
@@ -139,6 +150,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     # sesión se pide en cada carga y el dispositivo guarda una copia de ella.
 
     producer = ProfileProducerSerializer(read_only=True, allow_null=True)
+    farms = AccountFarmSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
@@ -150,6 +162,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "identity_document",
             "phone",
             "producer",
+            "farms",
         ]
         read_only_fields = fields
 

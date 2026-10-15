@@ -194,7 +194,7 @@ def test_a_producer_creates_a_custom_role_with_permissions_it_holds(auth_client)
         {
             "name": "Administrador de finca",
             "description": "Gestiona cuentas y roles de la finca",
-            "permission_codes": ["accounts.users_view", "accounts.users_create"],
+            "permission_codes": ["accounts.users_view", "accounts.users_update"],
         },
         format="json",
     )
@@ -208,7 +208,7 @@ def test_a_producer_creates_a_custom_role_with_permissions_it_holds(auth_client)
         "first_name": producer.first_name,
         "last_name": producer.last_name,
     }
-    assert sorted(response.data["permissions"]) == ["accounts.users_create", "accounts.users_view"]
+    assert sorted(response.data["permissions"]) == ["accounts.users_update", "accounts.users_view"]
     role = Role.objects.get(pk=response.data["id"])
     assert AccountManagementEvent.objects.filter(
         event_type=AccountManagementEvent.EventType.ROLE_CREATED,
@@ -610,8 +610,11 @@ def test_permission_catalog_marks_what_each_permission_requires(auth_client):
 
     by_code = {item["code"]: item for item in response.data["results"]}
     assert by_code["accounts.roles_manage"]["requires"] == "accounts.roles_view"
-    assert by_code["accounts.users_create"]["requires"] == "accounts.users_view"
+    assert by_code["accounts.users_update"]["requires"] == "accounts.users_view"
     assert by_code["accounts.users_view"]["requires"] is None
+    assert by_code["accounts.users_create"]["requires"] == "accounts.users_view"
+    assert by_code["farms.add_farm"]["requires"] == "farms.view_farm"
+    assert by_code["plots.add_plot"]["requires"] == "plots.view_plot"
 
 
 def test_permission_catalog_offers_characterizing_plots_but_not_the_variety_catalog(auth_client):

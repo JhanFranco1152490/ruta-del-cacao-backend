@@ -13,6 +13,14 @@ from apps.inputs.tests.factories import AgriculturalInputFactory, InputMovementF
 from apps.plots.tests.factories import PlotFactory
 
 
+def make_assignee(producer, **kwargs):
+    """Una cuenta del productor a la que se le pueden asignar labores: puede registrar su
+    realización. Sin rol, así que no está limitada a una finca."""
+    return UserFactory(
+        producer=producer, permissions=["activities.complete_agriculturalactivity"], **kwargs
+    )
+
+
 class AgriculturalActivityFactory(DjangoModelFactory):
     class Meta:
         model = AgriculturalActivity

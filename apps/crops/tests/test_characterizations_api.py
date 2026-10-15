@@ -487,7 +487,9 @@ def test_saving_requires_a_session(api_client, plot, ccn51):
 
 
 def test_a_delegate_with_the_permission_saves(auth_client, producer, plot, ccn51):
-    employee = auth_client(make_delegate(producer, ["crops.change_plotcharacterization"]))
+    employee = auth_client(
+        make_delegate(producer, ["crops.change_plotcharacterization"], farm=plot.farm)
+    )
 
     response = employee.put(detail_url(plot), body((ccn51, 10)), format="json")
 
@@ -495,7 +497,7 @@ def test_a_delegate_with_the_permission_saves(auth_client, producer, plot, ccn51
 
 
 def test_a_delegate_who_only_sees_plots_cannot_save(auth_client, producer, plot, ccn51):
-    employee = auth_client(make_delegate(producer, ["plots.view_plot"]))
+    employee = auth_client(make_delegate(producer, ["plots.view_plot"], farm=plot.farm))
 
     response = employee.put(detail_url(plot), body((ccn51, 10)), format="json")
 
@@ -652,7 +654,7 @@ def test_reading_requires_a_session(api_client, farm):
 
 def test_a_delegate_who_sees_plots_reads_characterizations(auth_client, producer, plot, ccn51):
     characterize(plot, (ccn51, 10))
-    employee = auth_client(make_delegate(producer, ["plots.view_plot"]))
+    employee = auth_client(make_delegate(producer, ["plots.view_plot"], farm=plot.farm))
 
     assert employee.get(detail_url(plot)).status_code == 200
 

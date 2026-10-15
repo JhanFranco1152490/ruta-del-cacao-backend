@@ -17,6 +17,7 @@ from apps.accounts.tests.role_helpers import (
 )
 from apps.accounts.throttles import ActivationResendThrottle
 from apps.accounts.users.activation import activation_token_generator
+from apps.farms.tests.factories import FarmFactory
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db
@@ -105,7 +106,9 @@ def test_cannot_edit_ones_own_account(auth_client):
 def test_a_delegate_cannot_edit_a_peer_with_more_permissions(auth_client):
     producer = ProducerFactory()
     strong = make_delegate(producer, ["accounts.users_view", "accounts.roles_manage"])
-    weak = make_delegate(producer, ["accounts.users_view", "accounts.users_update"])
+    weak = make_delegate(
+        producer, ["accounts.users_view", "accounts.users_update"], all_farms=True
+    )
 
     response = auth_client(weak).patch(user_url(strong), {"phone": "3001234567"}, format="json")
 
@@ -225,7 +228,8 @@ def test_replace_an_employees_roles(auth_client):
     producer = ProducerFactory()
     owner = make_producer_owner(producer)
     foreman = get_system_role(FOREMAN)
-    employee = UserFactory(producer=producer)
+    # Con finca: el rol nuevo trae permisos de campo, que sin ella no alcanzarían nada.
+    employee = UserFactory(producer=producer, farm=FarmFactory(producer=producer))
 
     response = auth_client(owner).put(
         roles_url(employee), {"role_ids": [str(foreman.id)]}, format="json"
@@ -296,7 +300,7 @@ def test_role_ids_must_belong_to_the_actors_scope(auth_client):
 
 def test_a_delegate_cannot_assign_a_role_beyond_its_own_permissions(auth_client):
     producer = ProducerFactory()
-    delegate = make_delegate(producer, ["accounts.users_update"])
+    delegate = make_delegate(producer, ["accounts.users_update"], all_farms=True)
     employee = UserFactory(producer=producer)
     stronger_role = RoleFactory(producer=producer, permissions=["accounts.roles_manage"])
 

@@ -113,3 +113,11 @@ class PlannedInputInactive(ApiError):
             fields={"planned_input_id": [self.default_detail]},
             extra={"input_ids": [str(input_id)]},
         )
+
+
+class PlotNotFound(ApiError):
+    # También cubre la parcela de otro productor o de otra finca: responder distinto confirmaría
+    # que existe.
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "La parcela no existe."
+    default_code = "not_found"

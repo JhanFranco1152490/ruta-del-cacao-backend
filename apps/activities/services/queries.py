@@ -24,16 +24,20 @@ COMPLETE_PERMISSION = "activities.complete_agriculturalactivity"
 SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
 
 
+def with_representation(activities: QuerySet[AgriculturalActivity]) -> QuerySet:
+    """Las actividades con lo que necesita su representación ya precargado: los insumos usados
+    con su insumo, y lo que otras apps agregan (el resultado de un monitoreo) con lo que ellas
+    piden. Así un listado no hace una consulta por fila."""
+    return activities.select_related("plot__farm", "assignee", "completed_by").prefetch_related(
+        "inputs__input", *activity_detail_prefetch()
+    )
+
+
 def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
-    # Los insumos usados se precargan con su insumo, y lo que otras apps agregan a la
-    # representación (el resultado de un monitoreo) con lo que ellas piden: el listado no hace una
-    # consulta por fila.
-    return (
+    return with_representation(
         AgriculturalActivity.objects.filter(
             **owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id")
         )
-        .select_related("plot__farm", "assignee", "completed_by")
-        .prefetch_related("inputs__input", *activity_detail_prefetch())
     )
 
 

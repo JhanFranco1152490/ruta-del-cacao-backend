@@ -221,8 +221,13 @@ class ActivityMonitoringSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_detections(self, monitoring) -> DetectionOutputSerializer(many=True):
-        # La más alta primero: lo que más urge atender.
-        rows = sorted(monitoring.detections.all(), key=lambda row: (-row.incidence, str(row.pk)))
+        # La más alta primero: lo que más urge atender. El historial filtrado por plaga pasa en el
+        # contexto cuáles mostrar.
+        keep = self.context.get("keep_detection", lambda detection: True)
+        rows = sorted(
+            (row for row in monitoring.detections.all() if keep(row)),
+            key=lambda row: (-row.incidence, str(row.pk)),
+        )
         return DetectionOutputSerializer(rows, many=True).data
 
     def get_detections_without_control(self, monitoring) -> int:
@@ -261,3 +266,36 @@ class ControlOfSerializer(serializers.Serializer):
 
     def get_evidence_count(self, treatment) -> int:
         return 0
+
+
+# --- Historial fitosanitario --------------------------------------------------------------------
+
+
+class HistoryQuerySerializer(serializers.Serializer):
+    def get_fields(self):
+        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+        return {
+            "from": serializers.DateField(required=False),
+            "to": serializers.DateField(required=False),
+            "pest_disease": serializers.UUIDField(required=False),
+            "other": serializers.BooleanField(required=False, default=False),
+        }
+
+    def validate(self, attrs):
+        if attrs.get("from") and attrs.get("to") and attrs["to"] < attrs["from"]:
+            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
+        if attrs.get("pest_disease") and attrs["other"]:
+            raise serializers.ValidationError(
+                {"other": ["Filtra por una plaga o enfermedad o por Otra, no por las dos."]}
+            )
+        return attrs
+
+
+class PestSummarySerializer(serializers.Serializer):
+    pest_disease = PestDiseaseRefSerializer(allow_null=True)
+    other_description = serializers.CharField(allow_null=True)
+    sampling_unit = serializers.ChoiceField(choices=SamplingUnit.choices)
+    latest_incidence = serializers.DecimalField(max_digits=5, decimal_places=2)
+    # La del monitoreo anterior que contó lo mismo (árboles o mazorcas); `null` si no hay.
+    previous_incidence = serializers.DecimalField(max_digits=5, decimal_places=2, allow_null=True)
+    latest_date = serializers.DateField()

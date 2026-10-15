@@ -104,6 +104,14 @@ class AgriculturalActivity(models.Model):
     # finca de la parcela y revisó que quien actúa pueda hacerlo; aquí se aplican las reglas de la
     # actividad, su versión y su historial.
 
+    @classmethod
+    def with_representation(cls, activities):
+        """`activities` con lo que necesita su representación ya precargado, para listarlas sin
+        una consulta por fila."""
+        from .services.queries import with_representation
+
+        return with_representation(activities)
+
     def state_today(self) -> str:
         """El estado que se muestra hoy (programada, retrasada, vencida o realizada)."""
         from .state import activity_state, today_in_bogota

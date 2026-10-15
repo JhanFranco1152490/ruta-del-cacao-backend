@@ -31,8 +31,12 @@ class PestDiseaseFactory(DjangoModelFactory):
     )
 
 
-def done_monitoring(**kwargs):
-    return done_activity(activity_type=ActivityType.PHYTOSANITARY_MONITORING, **kwargs)
+def done_monitoring(done_date=None, **kwargs):
+    activity = done_activity(activity_type=ActivityType.PHYTOSANITARY_MONITORING, **kwargs)
+    if done_date is not None:
+        activity.done_date = done_date
+        activity.save(update_fields=["done_date"])
+    return activity
 
 
 class PhytosanitaryMonitoringFactory(DjangoModelFactory):

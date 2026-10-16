@@ -33,6 +33,7 @@ SYSTEM_ROLES = {
             # de los empleados a los que él se lo delegue.
             "farms.view_farm",
             "crops.manage_cacaovariety",
+            "health.manage_pestdisease",
         ],
     },
     PRODUCER: {

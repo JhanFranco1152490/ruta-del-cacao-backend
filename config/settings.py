@@ -60,6 +60,8 @@ INSTALLED_APPS = [
     "apps.crops",
     "apps.inputs",
     "apps.activities",
+    "apps.health",
+    "apps.notifications",
     "apps.demo_data",
 ]
 
@@ -237,6 +239,9 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "StatusEnum": "apps.producers.models.Producer.Status",
         "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
+        "PestDiseaseKindEnum": "apps.health.choices.PestDiseaseKind",
+        "ControlMethodEnum": "apps.health.choices.ControlMethod",
+        "ControlModeEnum": "apps.health.choices.ControlMode",
     },
 }
 
@@ -287,7 +292,9 @@ STATIC_URL = "static/"
 # collectstatic junta aquí todo (admin incluido) para que WhiteNoise lo sirva.
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Los archivos subidos (fotos de evidencia) van a la base de datos: el disco del servidor se
+    # borra en cada despliegue.
+    "default": {"BACKEND": "apps.common.storage.DatabaseStorage"},
     # Comprime y versiona (hash en el nombre) los estáticos en producción.
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
@@ -334,6 +341,13 @@ MAILERS = {
 
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="no-reply@rutadelcacao.local")
+
+# Notificaciones push (opcional): sin las llaves, la app no ofrece activarlas y no se envían.
+# Se generan una sola vez; si cambian, cada dispositivo tiene que volver a activarlas.
+VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
+VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
+# Un contacto del equipo (`mailto:…`) que los servicios de push usan si algo falla.
+VAPID_SUBJECT = config("VAPID_SUBJECT", default="")
 
 
 # Monitoreo de errores (opcional): solo se activa si existe SENTRY_DSN.

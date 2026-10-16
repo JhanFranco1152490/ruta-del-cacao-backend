@@ -57,6 +57,9 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "activities.change_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.complete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.delete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    # No delegable: el catálogo de plagas y enfermedades es común a toda la asociación, como el de
+    # variedades.
+    "health.manage_pestdisease": PermissionInfo(area="health", delegable=False),
 }
 
 

@@ -7,9 +7,14 @@ from rest_framework.exceptions import ValidationError as ApiValidationError
 from apps.common.admin import ServiceFailed, describe_failure, run_service
 from apps.common.exceptions import ApiError
 
-# Modelos del dominio que no tienen admin, cada uno con su motivo. Está vacío a propósito: un
-# modelo nuevo que no se registre en el admin debe fallar aquí y no quedar fuera por olvido.
-WITHOUT_ADMIN: dict[str, str] = {}
+# Modelos del dominio que no tienen admin, cada uno con su motivo. Un modelo nuevo que no se
+# registre en el admin debe fallar aquí y no quedar fuera por olvido.
+WITHOUT_ADMIN: dict[str, str] = {
+    "common.StoredFile": (
+        "Solo guarda los bytes de los archivos subidos; se ven desde el registro al que "
+        "pertenecen, que revisa el alcance."
+    ),
+}
 
 
 def domain_models():

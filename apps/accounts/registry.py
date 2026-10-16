@@ -57,12 +57,16 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "activities.change_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.complete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.delete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "facilities.view_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    "facilities.add_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    "facilities.change_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    "facilities.delete_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
 }
 
 
 # Las áreas de lo que cuelga de una finca. Un empleado con algún permiso de estas necesita una
 # finca asignada: sin ella no alcanza nada de lo que el permiso le deja hacer.
-FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities"})
+FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities", "facilities"})
 
 
 def is_field_permission(code: str) -> bool:
@@ -124,6 +128,12 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "activities.change_agriculturalactivity": "activities.view_agriculturalactivity",
     "activities.complete_agriculturalactivity": "activities.view_agriculturalactivity",
     "activities.delete_agriculturalactivity": "activities.view_agriculturalactivity",
+    # Los cajones y marquesinas se consultan eligiendo primero la finca: sin verlas no hay cómo
+    # llegar a ellos.
+    "facilities.view_postharvestfacility": "farms.view_farm",
+    "facilities.add_postharvestfacility": "facilities.view_postharvestfacility",
+    "facilities.change_postharvestfacility": "facilities.view_postharvestfacility",
+    "facilities.delete_postharvestfacility": "facilities.view_postharvestfacility",
 }
 
 

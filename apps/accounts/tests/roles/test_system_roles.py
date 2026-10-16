@@ -207,3 +207,26 @@ def test_only_the_producer_deletes_inputs_and_can_delegate_it():
 def test_the_inputs_permissions_are_delegable_and_the_association_has_none(permission):
     assert is_delegable(permission)
     assert ADMINISTRATOR not in _holders(permission)
+
+
+FACILITY_VIEW = "facilities.view_postharvestfacility"
+FACILITY_ADD = "facilities.add_postharvestfacility"
+FACILITY_CHANGE = "facilities.change_postharvestfacility"
+FACILITY_DELETE = "facilities.delete_postharvestfacility"
+
+
+@pytest.mark.parametrize("permission", [FACILITY_VIEW, FACILITY_ADD, FACILITY_CHANGE])
+def test_the_producer_and_the_foreman_manage_the_postharvest_facilities(permission):
+    assert _holders(permission) == {PRODUCER, FOREMAN}
+
+
+def test_only_the_producer_deletes_postharvest_facilities_and_can_delegate_it():
+    assert _holders(FACILITY_DELETE) == {PRODUCER}
+
+
+@pytest.mark.parametrize(
+    "permission", [FACILITY_VIEW, FACILITY_ADD, FACILITY_CHANGE, FACILITY_DELETE]
+)
+def test_the_facility_permissions_are_delegable_and_the_association_has_none(permission):
+    assert is_delegable(permission)
+    assert ADMINISTRATOR not in _holders(permission)

@@ -65,6 +65,10 @@ SYSTEM_ROLES = {
             "activities.change_agriculturalactivity",
             "activities.complete_agriculturalactivity",
             "activities.delete_agriculturalactivity",
+            "facilities.view_postharvestfacility",
+            "facilities.add_postharvestfacility",
+            "facilities.change_postharvestfacility",
+            "facilities.delete_postharvestfacility",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -87,6 +91,10 @@ SYSTEM_ROLES = {
             "activities.add_agriculturalactivity",
             "activities.change_agriculturalactivity",
             "activities.complete_agriculturalactivity",
+            # Es quien está en la finca y conoce sus cajones y marquesinas.
+            "facilities.view_postharvestfacility",
+            "facilities.add_postharvestfacility",
+            "facilities.change_postharvestfacility",
         ],
     },
     QUALITY_MANAGER: {

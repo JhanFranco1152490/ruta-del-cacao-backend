@@ -31,6 +31,9 @@ FIELD_PERMISSIONS = [
     "activities.add_agriculturalactivity",
     "activities.change_agriculturalactivity",
     "activities.complete_agriculturalactivity",
+    "facilities.view_postharvestfacility",
+    "facilities.add_postharvestfacility",
+    "facilities.change_postharvestfacility",
 ]
 
 

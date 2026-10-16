@@ -77,7 +77,7 @@ def check_no_overlap(farm, boundary: Boundary, exclude_plot_id=None) -> None:
         plot: to_polygon(plot.boundary)
         for plot in _active_plots(farm, exclude_plot_id)
         .filter(boundary__isnull=False)
-        .order_by("code_normalized")
+        .order_by("number")
     }
     overlaps = find_overlaps(boundary.polygon, neighbours)
     if not overlaps:

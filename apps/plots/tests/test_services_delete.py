@@ -27,17 +27,17 @@ def farm(owner):
 
 def test_deletes_the_plot_frees_its_area_and_keeps_its_history(owner, farm):
     # Criterio 16: la parcela desaparece, sus 3 ha quedan libres y el historial sigue.
-    plot, _ = create_plot(owner, plot_data(farm, code="P-error", area_hectares=Decimal("3.00")))
+    plot, _ = create_plot(owner, plot_data(farm, name="P-error", area_hectares=Decimal("3.00")))
     PlotFactory(farm=farm, area_hectares=Decimal("7.00"))
 
     delete_plot(owner, plot.pk, 1)
 
     assert not Plot.objects.filter(pk=plot.pk).exists()
-    create_plot(owner, plot_data(farm, code="P-nueva", area_hectares=Decimal("3.00")))
+    create_plot(owner, plot_data(farm, name="P-nueva", area_hectares=Decimal("3.00")))
     history = PlotAuditEvent.objects.filter(plot_ref=plot.pk).order_by("occurred_at")
     assert [event.action for event in history] == ["created", "deleted"]
     assert all(event.plot_id is None for event in history)
-    assert {event.plot_code for event in history} == {"P-error"}
+    assert {event.plot_code for event in history} == {"P01"}
     assert history.last().actor == owner
 
 
@@ -54,7 +54,7 @@ def test_a_plot_with_records_that_depend_on_it_is_not_deleted(owner, farm):
 
 def test_its_own_history_does_not_count_as_a_record(owner, farm):
     plot, _ = create_plot(owner, plot_data(farm))
-    update_plot(owner, plot.pk, 1, {"code": "Otro código"})
+    update_plot(owner, plot.pk, 1, {"name": "Otro código"})
 
     delete_plot(owner, plot.pk, 2)
 
@@ -63,7 +63,7 @@ def test_its_own_history_does_not_count_as_a_record(owner, farm):
 
 def test_an_outdated_version_is_rejected_with_the_current_plot(owner, farm):
     plot = PlotFactory(farm=farm)
-    update_plot(owner, plot.pk, 1, {"code": "Cambiada por otra persona"})
+    update_plot(owner, plot.pk, 1, {"name": "Cambiada por otra persona"})
 
     with pytest.raises(StalePlotVersion) as error:
         delete_plot(owner, plot.pk, 1)

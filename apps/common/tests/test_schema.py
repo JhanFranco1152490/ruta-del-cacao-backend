@@ -176,6 +176,14 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/agricultural-activities/{id}/completion"),
     ("get", "/api/agricultural-activities/assignees"),
     ("get", "/api/agricultural-activities/pending"),
+    ("get", "/api/harvests"),
+    ("post", "/api/harvests"),
+    ("patch", "/api/harvests/{id}"),
+    ("delete", "/api/harvests/{id}"),
+    ("get", "/api/harvests/collectors"),
+    ("get", "/api/lots"),
+    ("post", "/api/lots"),
+    ("delete", "/api/lots/{id}"),
 }
 
 

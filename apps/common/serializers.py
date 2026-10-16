@@ -54,6 +54,12 @@ class MunicipalityListSerializer(serializers.Serializer):
     results = MunicipalitySerializer(many=True)
 
 
+def full_name(account) -> str:
+    """El nombre con que se muestra una cuenta; sin nombre, su correo: es la única forma de
+    reconocerla."""
+    return account.get_full_name() or account.email
+
+
 # De quién es una finca, como lo muestran las fincas y las parcelas. Conserva el nombre con que
 # lo publica el esquema OpenAPI.
 class FarmProducerSerializer(serializers.Serializer):

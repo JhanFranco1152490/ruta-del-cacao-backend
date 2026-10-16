@@ -9,7 +9,7 @@ from apps.common import locks
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.exceptions import (
     AreaMismatch,
-    DuplicatePlotCode,
+    DuplicatePlotName,
     FarmInactive,
     PlotAreaExceedsFarm,
     PlotNotFound,
@@ -62,20 +62,20 @@ def audit_actions(plot):
 
 
 def test_edits_the_plot_raises_its_version_and_audits_the_changed_fields(owner, farm):
-    plot = PlotFactory(farm=farm, code="P-01")
+    plot = PlotFactory(farm=farm, name="P-01")
 
-    updated = update_plot(owner, plot.pk, 1, {"code": " P-01 Norte ", "area_hectares": "2.5"})
+    updated = update_plot(owner, plot.pk, 1, {"name": " P-01 Norte ", "area_hectares": "2.5"})
 
-    assert (updated.code, updated.code_normalized) == ("P-01 Norte", "p-01 norte")
+    assert (updated.name, updated.name_normalized) == ("P-01 Norte", "p-01 norte")
     assert (updated.area_hectares, updated.version) == (Decimal("2.50"), 2)
-    assert audit_actions(plot) == [("updated", ["area_hectares", "code"])]
+    assert audit_actions(plot) == [("updated", ["area_hectares", "name"])]
     assert PlotAuditEvent.objects.get(plot=plot).area_hectares == Decimal("2.50")
 
 
 def test_nothing_changes_when_the_values_are_the_same(owner, farm):
-    plot = PlotFactory(farm=farm, code="P-01", area_hectares=Decimal("1.00"))
+    plot = PlotFactory(farm=farm, name="P-01", area_hectares=Decimal("1.00"))
 
-    updated = update_plot(owner, plot.pk, 1, {"code": "P-01 ", "area_hectares": "1.0"})
+    updated = update_plot(owner, plot.pk, 1, {"name": "P-01 ", "area_hectares": "1.0"})
 
     assert updated.version == 1
     assert audit_actions(plot) == []
@@ -86,20 +86,20 @@ def test_a_plot_of_another_producer_does_not_exist(farm):
     stranger = UserFactory(producer=ProducerFactory())
 
     with pytest.raises(PlotNotFound):
-        update_plot(stranger, plot.pk, 1, {"code": "Mía"})
+        update_plot(stranger, plot.pk, 1, {"name": "Mía"})
 
 
 def test_an_unknown_plot_does_not_exist(owner):
     with pytest.raises(PlotNotFound):
-        update_plot(owner, uuid.uuid4(), 1, {"code": "P-01"})
+        update_plot(owner, uuid.uuid4(), 1, {"name": "P-01"})
 
 
-def test_a_repeated_code_in_the_same_farm_is_rejected(owner, farm):
-    PlotFactory(farm=farm, code="P-01")
-    plot = PlotFactory(farm=farm, code="P-02")
+def test_a_repeated_name_in_the_same_farm_is_rejected(owner, farm):
+    PlotFactory(farm=farm, name="P-01")
+    plot = PlotFactory(farm=farm, name="P-02")
 
-    with pytest.raises(DuplicatePlotCode):
-        update_plot(owner, plot.pk, 1, {"code": "p-01"})
+    with pytest.raises(DuplicatePlotName):
+        update_plot(owner, plot.pk, 1, {"name": "p-01"})
 
 
 def test_an_inactive_farm_rejects_every_change(owner, farm):
@@ -107,7 +107,7 @@ def test_an_inactive_farm_rejects_every_change(owner, farm):
     farm.is_active = False
     farm.save()
 
-    for change in ({"code": "Otro"}, {"is_active": False}):
+    for change in ({"name": "Otro"}, {"is_active": False}):
         with pytest.raises(FarmInactive):
             update_plot(owner, plot.pk, 1, change)
 
@@ -116,13 +116,13 @@ def test_an_inactive_farm_rejects_every_change(owner, farm):
 
 
 def test_an_outdated_version_is_rejected_with_the_current_plot(owner, farm):
-    plot = PlotFactory(farm=farm, code="P-01")
-    update_plot(owner, plot.pk, 1, {"code": "Del primer teléfono"})
+    plot = PlotFactory(farm=farm, name="P-01")
+    update_plot(owner, plot.pk, 1, {"name": "Del primer teléfono"})
 
     with pytest.raises(StalePlotVersion) as error:
-        update_plot(owner, plot.pk, 1, {"code": "Del segundo teléfono"})
+        update_plot(owner, plot.pk, 1, {"name": "Del segundo teléfono"})
 
-    assert (error.value.current_plot.code, error.value.current_plot.version) == (
+    assert (error.value.current_plot.name, error.value.current_plot.version) == (
         "Del primer teléfono",
         2,
     )
@@ -208,13 +208,13 @@ def test_the_previous_boundary_of_the_plot_is_not_a_neighbour(owner, farm):
 
 
 def test_a_new_boundary_cannot_invade_a_neighbour(owner, farm):
-    drawn_plot(farm, rect(1, 0, 2, 1), code="P2")
+    drawn_plot(farm, rect(1, 0, 2, 1), name="P2")
     plot = drawn_plot(farm, rect(0, 0, 1, 1))
 
     with pytest.raises(PlotOverlap) as error:
         update_plot(owner, plot.pk, 1, drawn(rect(0, 0, 2, 1)))
 
-    assert [neighbour.code for neighbour, _ in error.value.overlaps] == ["P2"]
+    assert [neighbour.code for neighbour, _ in error.value.overlaps] == ["P01"]
 
 
 # --- Activar y desactivar ----------------------------------------------------------------
@@ -233,7 +233,7 @@ def test_a_deactivated_boundary_no_longer_blocks_its_neighbours(owner, farm):
     plot = drawn_plot(farm, rect(0, 0, 1, 1))
     update_plot(owner, plot.pk, 1, {"is_active": False})
 
-    create_plot(owner, plot_data(farm, code="Nueva", **drawn(rect(0, 0, 1, 1))))
+    create_plot(owner, plot_data(farm, name="Nueva", **drawn(rect(0, 0, 1, 1))))
 
 
 def test_reactivating_checks_the_available_area_again(owner, farm):
@@ -246,7 +246,7 @@ def test_reactivating_checks_the_available_area_again(owner, farm):
 
 def test_reactivating_checks_the_overlap_again(owner, farm):
     plot = drawn_plot(farm, rect(0, 0, 1, 1), is_active=False)
-    drawn_plot(farm, rect(0, 0, 1, 1), code="Ocupante")
+    drawn_plot(farm, rect(0, 0, 1, 1), name="Ocupante")
 
     with pytest.raises(PlotOverlap):
         update_plot(owner, plot.pk, 1, {"is_active": True})
@@ -255,11 +255,11 @@ def test_reactivating_checks_the_overlap_again(owner, farm):
 def test_editing_and_deactivating_at_once_records_both_events(owner, farm):
     plot = PlotFactory(farm=farm)
 
-    update_plot(owner, plot.pk, 1, {"code": "Retirada", "is_active": False})
+    update_plot(owner, plot.pk, 1, {"name": "Retirada", "is_active": False})
 
     assert sorted(audit_actions(plot)) == [
         ("status_changed", ["is_active"]),
-        ("updated", ["code"]),
+        ("updated", ["name"]),
     ]
 
 
@@ -276,7 +276,7 @@ def test_a_plot_deleted_while_waiting_for_the_farm_lock_is_not_found(owner, farm
 
     with mock.patch.object(locks, "lock_root_row", side_effect=lock_after_someone_deletes_it):
         with pytest.raises(PlotNotFound):
-            update_plot(owner, plot.pk, 1, {"code": "Tarde"})
+            update_plot(owner, plot.pk, 1, {"name": "Tarde"})
 
 
 def test_a_new_boundary_too_far_from_the_farm_point_is_rejected(owner, farm):
@@ -297,6 +297,6 @@ def test_editing_only_the_area_does_not_look_at_the_distance_again(owner, farm):
     farm.latitude = Decimal("8.5")
     farm.save()
 
-    updated = update_plot(owner, plot.pk, 1, {"code": "Otro código"})
+    updated = update_plot(owner, plot.pk, 1, {"name": "Otro código"})
 
-    assert updated.code == "Otro código"
+    assert updated.name == "Otro código"

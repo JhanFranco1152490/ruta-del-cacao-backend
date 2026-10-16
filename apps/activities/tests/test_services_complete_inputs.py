@@ -25,7 +25,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def plot():
-    return PlotFactory(code="P-03")
+    return PlotFactory(name="P-03")
 
 
 @pytest.fixture
@@ -90,7 +90,7 @@ def test_the_movement_says_which_task_it_came_from(actor, activity, plot):
 
     complete_activity(actor, activity.pk, completion((urea, Decimal("1"))))
 
-    assert InputMovement.objects.get(input=urea).note == "Fertilización · P-03"
+    assert InputMovement.objects.get(input=urea).note == "Fertilización · P01"
 
 
 def test_other_uses_its_description_in_the_note(actor, plot):
@@ -104,7 +104,7 @@ def test_other_uses_its_description_in_the_note(actor, plot):
 
     complete_activity(actor, other.pk, completion((seedlings, Decimal("40"))))
 
-    assert InputMovement.objects.get(input=seedlings).note == "Resiembra · P-03"
+    assert InputMovement.objects.get(input=seedlings).note == "Resiembra · P01"
 
 
 def test_the_stock_may_end_negative(actor, activity, plot):

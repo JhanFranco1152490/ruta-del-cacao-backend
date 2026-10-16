@@ -547,9 +547,9 @@ def test_an_inactive_variety_is_shown_as_such(client, plot):
 
 
 def test_the_list_brings_only_the_characterizations_of_that_farm(client, farm, ccn51):
-    first = characterize(PlotFactory(farm=farm, code="P-01"), (ccn51, 10))
-    second = characterize(PlotFactory(farm=farm, code="P-02"), (ccn51, 20))
-    PlotFactory(farm=farm, code="P-03")
+    first = characterize(PlotFactory(farm=farm, name="P-01"), (ccn51, 10))
+    second = characterize(PlotFactory(farm=farm, name="P-02"), (ccn51, 20))
+    PlotFactory(farm=farm, name="P-03")
     characterize(PlotFactory(farm=FarmFactory(producer=farm.producer)), (ccn51, 30))
 
     response = client.get(URL, {"farm": str(farm.pk)})
@@ -588,11 +588,11 @@ def test_the_list_needs_a_farm_or_plots(client):
 
 
 def test_the_list_brings_the_characterizations_of_the_given_plots(client, farm, ccn51):
-    first = characterize(PlotFactory(farm=farm, code="P-01"), (ccn51, 10))
+    first = characterize(PlotFactory(farm=farm, name="P-01"), (ccn51, 10))
     other_farm = FarmFactory(producer=farm.producer)
-    second = characterize(PlotFactory(farm=other_farm, code="P-02"), (ccn51, 20))
-    characterize(PlotFactory(farm=farm, code="P-03"), (ccn51, 30))
-    without = PlotFactory(farm=farm, code="P-04")
+    second = characterize(PlotFactory(farm=other_farm, name="P-02"), (ccn51, 20))
+    characterize(PlotFactory(farm=farm, name="P-03"), (ccn51, 30))
+    without = PlotFactory(farm=farm, name="P-04")
 
     response = client.get(URL, {"plots": f"{second.pk},{first.pk},{without.pk}"})
 

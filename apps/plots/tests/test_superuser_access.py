@@ -34,29 +34,29 @@ def test_the_technical_account_registers_a_plot_in_a_farm_of_any_producer(
 
 
 def test_the_technical_account_edits_and_lists_the_plots_of_any_farm(auth_client, superuser, farm):
-    plot = PlotFactory(farm=farm, code="Lote 1")
+    plot = PlotFactory(farm=farm, name="Lote 1")
     client = auth_client(superuser)
 
     listed = client.get(f"/api/plots?farm={farm.pk}")
     edited = client.patch(
         f"/api/plots/{plot.pk}",
-        {"code": "Lote 2", "expected_version": plot.version},
+        {"name": "Lote 2", "expected_version": plot.version},
         format="json",
     )
 
-    assert [item["code"] for item in listed.data["results"]] == ["Lote 1"]
+    assert [item["name"] for item in listed.data["results"]] == ["Lote 1"]
     assert edited.status_code == 200
-    assert edited.data["code"] == "Lote 2"
+    assert edited.data["name"] == "Lote 2"
 
 
 def test_the_technical_account_lists_the_plots_of_one_producer(auth_client, superuser, farm):
-    PlotFactory(farm=farm, code="Suya")
-    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="Ajena")
+    PlotFactory(farm=farm, name="Suya")
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), name="Ajena")
     client = auth_client(superuser)
 
     everyone = client.get("/api/plots").data["results"]
     one = client.get("/api/plots", {"producer": farm.producer_id}).data["results"]
 
-    assert [item["code"] for item in everyone] == ["Ajena", "Suya"]
-    assert [item["code"] for item in one] == ["Suya"]
+    assert sorted(item["name"] for item in everyone) == ["Ajena", "Suya"]
+    assert [item["name"] for item in one] == ["Suya"]
     assert one[0]["farm"]["producer"]["id"] == str(farm.producer_id)

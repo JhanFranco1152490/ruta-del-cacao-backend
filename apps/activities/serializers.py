@@ -22,6 +22,7 @@ class ActivityFarmSerializer(serializers.Serializer):
 class ActivityPlotSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     code = serializers.CharField()
+    name = serializers.CharField(allow_null=True)
     is_active = serializers.BooleanField()
     farm = ActivityFarmSerializer()
 

@@ -38,8 +38,10 @@ class HarvestRecorderSerializer(serializers.Serializer):
     full_name = serializers.CharField()
 
 
+# Un comentario y no un docstring: el esquema OpenAPI toma el docstring de la clase como
+# descripción del componente y publicaría este texto interno en los tipos del cliente.
 class HarvestRepresentationSerializer(serializers.Serializer):
-    """La cosecha sin su lote. Solo de salida."""
+    # La cosecha sin su lote. Solo de salida.
 
     id = serializers.UUIDField()
     plot = HarvestPlotSerializer()

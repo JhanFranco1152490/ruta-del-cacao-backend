@@ -88,9 +88,15 @@ def test_it_schedules_and_answers_the_full_representation(client, plot, owner):
     assert data["id"] == sent["id"]
     assert data["plot"] == {
         "id": str(plot.pk),
-        "code": "P-03",
+        "code": "P01",
+        "name": "P-03",
         "is_active": True,
-        "farm": {"id": str(plot.farm_id), "name": "La Esperanza", "is_active": True},
+        "farm": {
+            "id": str(plot.farm_id),
+            "code": "F01",
+            "name": "La Esperanza",
+            "is_active": True,
+        },
     }
     assert data["producer_id"] == str(plot.farm.producer_id)
     assert data["activity_type"] == "fertilization"
@@ -384,7 +390,7 @@ def test_the_completion_with_inputs_shows_up_in_the_inventory(auth_client, clien
     [movement] = movements.json()["results"]
     assert movement["kind"] == "consumption"
     assert movement["quantity"] == "-50.000"
-    assert movement["note"] == "Poda · P-03"
+    assert movement["note"] == "Poda · P01"
 
 
 def test_an_inactive_input_is_422_with_its_id(client, activity, plot):

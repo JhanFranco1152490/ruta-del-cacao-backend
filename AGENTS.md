@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y los puntos de encuentro de la representación de una actividad (`activity_details.py`, `activity_representation.py`) |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) los puntos de encuentro de la representación de una actividad (`activity_details.py`, `activity_representation.py`), el de las alertas (`alerts.py`: evaluadores y `notify`) y quién puede programar en una finca (`schedulers.py`) |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -55,6 +55,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
+| `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`) |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -326,6 +327,38 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     que revisa el alcance, con `nosniff`; no hay URL pública. La elimina quien la subió, quien
     programa en la finca o el Productor, y el archivo se borra del almacenamiento con
     `transaction.on_commit`. `HealthEvidenceAuditEvent` registra quién adjuntó o eliminó cada una.
+- **Notificaciones** (`apps/notifications`):
+  - **Evaluación:** `python manage.py evaluate_alerts` (cada hora, como tarea programada; `--today
+    AAAA-MM-DD` para probar) corre los evaluadores registrados en `apps/common/alerts.py`, guarda
+    los avisos nuevos, envía las push y purga lo viejo. Un evaluador que falla no detiene a los
+    demás y el comando termina con error. Cada evaluador solo calcula `NotificationDraft`; lo único
+    que escribe avisos es `create_notifications` (también desde `notify()`, para una condición que
+    se detecta al guardar, con `transaction.on_commit`).
+  - **Sin duplicados:** única (`recipient`, `kind`, `condition_key`). `thread_key` agrupa lo de una
+    misma actividad o detección: el aviso nuevo de una persona deja leídos y eliminados los
+    anteriores del hilo (así el recordatorio de hoy reemplaza al de ayer). Eliminar desde la
+    bandeja marca `dismissed_at` y no borra la fila: sin ella, la siguiente evaluación avisaría
+    otra vez. La purga borra solo lo leído o eliminado de más de 90 días cuya condición ya pasó.
+  - **Condiciones de hoy:** actividad próxima (días 2, 1 y 0, al responsable), retrasada (días 1 y
+    2) y vencida (una vez, sin límite), las dos últimas al responsable y a quien programa en la
+    finca; control pendiente, cada día durante los 10 primeros desde la solicitud, a quien
+    programa. "Quien programa" sale de `Schedulers` (`apps/common/schedulers.py`), sin la cuenta
+    técnica.
+  - **Bandeja** (`/api/notifications`, `…/unread-count`, `…/{id}/read`, `…/read-all`, `DELETE
+    …/{id}`, `…/{id}/restore`, `…/dismiss-read`): solo pide sesión. Cada cuenta ve sus avisos, sin
+    los eliminados, y solo de lo que alcanza **hoy** con `activities.view_agriculturalactivity`
+    (si le quitan una finca, los de esa finca desaparecen). Lo ajeno es `404`. Primero las
+    críticas sin leer y después por fecha, con el id como desempate. `activity` usa la
+    representación registrada de la actividad, la del calendario.
+  - **Push** (`…/push-config`, `POST …/push-subscriptions`, `POST …/push-subscriptions/remove`):
+    sin `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`, `public_key` es `null` y no se envía nada. El
+    `endpoint` debe ser `https` de un servicio de push de navegador (Google, Mozilla, Apple o
+    Microsoft, `PUSH_SERVICE_HOSTS`): el servidor le hace peticiones. Quitar un dispositivo es un
+    `POST` con el `endpoint` en el cuerpo (un `DELETE` no lleva cuerpo y en la URL quedaría en los
+    registros). El envío va de 6:00 a 19:00 en Bogotá, una push por persona y evaluación (o un
+    resumen), sin nombres de personas; `404`/`410` borra el dispositivo, otro error reintenta la
+    hora siguiente, y una cuenta inactiva pierde sus dispositivos. `python manage.py
+    generate_vapid_keys` imprime las llaves listas para las variables de entorno.
 - **Los archivos subidos van a PostgreSQL** (`STORAGES["default"]` es
   `apps.common.storage.DatabaseStorage`): el disco del servidor se borra en cada despliegue. Los
   modelos usan `FileField` sin saber dónde queda el archivo; cambiar de almacenamiento es cambiar
@@ -507,6 +540,10 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   `productor@example.com`, la misma que muestra la pantalla de inicio de sesión del frontend).
   Es idempotente: no toca un productor que ya existe y restablece las dos cuentas. No envía
   correos. Nunca se corre en un despliegue con datos reales.
+- **`evaluate_alerts`** (management command) es la evaluación de las alertas. En despliegue corre
+  cada hora como tarea programada aparte (`5 * * * *`), con las mismas variables de entorno del
+  servicio web; no corre `migrate`. Repetirla no duplica nada. **`generate_vapid_keys`** imprime un
+  par de llaves de push nuevo.
 - **Variedades de cacao** (`apps/crops/admin.py`): con `crops.manage_cacaovariety`. Alta, edición
   y borrado pasan por los servicios, que normalizan el nombre y dejan el historial. Solo se borra
   una variedad que ninguna ficha usa (registrada por error); el historial sobrevive y registra el
@@ -540,6 +577,7 @@ las variables con valores de ejemplo.
 | `AUTH_JWT_SIGNING_KEY`, `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAMESITE` | Sesión. La llave por defecto es `SECRET_KEY`; `AUTH_COOKIE_SECURE` es `not DEBUG` por defecto |
 | `TRUSTED_PROXY_COUNT` | Proxies de confianza delante de la app (`0` por defecto). Ver la advertencia arriba |
 | `MAILER_BACKEND` | Correo: consola por defecto. `anymail.backends.resend.EmailBackend` exige `RESEND_API_KEY`; `django.core.mail.backends.smtp.EmailBackend` exige `MAILER_HOST`, `MAILER_USERNAME`, `MAILER_PASSWORD` (y admite `MAILER_PORT`, `MAILER_USE_TLS`) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notificaciones push, opcionales: sin las dos llaves no se ofrecen ni se envían. Se generan una sola vez con `python manage.py generate_vapid_keys`; si cambian, cada dispositivo debe volver a activarlas. `VAPID_SUBJECT` es un `mailto:` del equipo. En despliegue van en el servicio web y en la tarea programada |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | Monitoreo de errores, opcional: solo se activa con `SENTRY_DSN` (no lo pongas en tu `.env` local al correr las pruebas: las activaría contra el proyecto real). `SENTRY_ENVIRONMENT` es `production` si `DEBUG` es falso y `development` si no. `init_sentry` (en `apps/common/sentry.py`) apaga usuario/IP/cookies, cuerpo de las peticiones, variables locales, breadcrumbs, métricas y tracing, y no propaga `sentry-trace` ni `baggage` en las llamadas salientes (por ejemplo al proveedor de correo). `scrub_event` deja pasar solo una lista de campos y descarta cualquier evento con forma inesperada. Lo que sí puede llegar a Sentry, y solo en errores: de la petición, el método, la **ruta** de la URL (nunca query ni fragmento; en una ruta que no resuelve es lo que envió el cliente) y las cabeceras `Host`, `User-Agent`, `Accept`, `Origin`, `Content-Type` y `Content-Length`; el nombre de la transacción (patrón de ruta o, si no resuelve, la ruta); de la excepción, tipo y traceback con el mensaje vacío; **el mensaje de log y sus parámetros tal cual, si los escribe un logger de `apps.`** (por eso no se ponen datos personales en logs, regla del proyecto); y metadatos (nivel, `environment`, `release`, `server_name`, versión de Python y del SDK). Los ids de traza no se envían |
 
 ### Configurar correo

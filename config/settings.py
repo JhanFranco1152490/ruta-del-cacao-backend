@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "apps.crops",
     "apps.inputs",
     "apps.activities",
+    "apps.facilities",
     "apps.demo_data",
 ]
 

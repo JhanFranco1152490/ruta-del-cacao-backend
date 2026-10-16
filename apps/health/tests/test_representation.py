@@ -152,6 +152,16 @@ def test_detections_without_control_are_counted(client, recorded):
     assert result["detections_without_control"] == 2
 
 
+def test_a_dismissed_detection_is_not_counted_without_control(client, recorded):
+    monitoring, _, _ = recorded
+    DetectionFactory(monitoring=monitoring)
+    DetectionFactory(monitoring=monitoring, requested=True, control_dismissed_at=timezone.now())
+
+    result = detail(client, monitoring.activity)["monitoring"]
+
+    assert result["detections_without_control"] == 1
+
+
 def test_a_detection_lists_its_controls_by_date(client, recorded):
     monitoring, detection, first = recorded
     later = PhytosanitaryTreatmentFactory(

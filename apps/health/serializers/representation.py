@@ -99,7 +99,13 @@ class ActivityMonitoringSerializer(serializers.ModelSerializer):
         return DetectionOutputSerializer(rows, many=True).data
 
     def get_detections_without_control(self, monitoring) -> int:
-        return sum(1 for row in monitoring.detections.all() if not row.treatments.all())
+        # Una detección que alguien marcó como "no requiere control" ya está resuelta: si contara,
+        # el calendario seguiría avisando de algo que ya se decidió.
+        return sum(
+            1
+            for row in monitoring.detections.all()
+            if not row.treatments.all() and row.control_dismissed_at is None
+        )
 
     def get_evidence_count(self, monitoring) -> int:
         # Las fotos no van en la lista: el contador dice si hay algo que ver en el detalle.

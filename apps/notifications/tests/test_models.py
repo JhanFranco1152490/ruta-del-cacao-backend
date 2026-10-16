@@ -101,3 +101,16 @@ def test_deleting_the_account_deletes_its_subscriptions():
     subscription.user.delete()
 
     assert not PushSubscription.objects.filter(pk=subscription.pk).exists()
+
+
+def test_a_pending_control_needs_its_detection():
+    activity = NotificationFactory().activity
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Notification.objects.create(
+            recipient=activity.assignee,
+            kind=NotificationKind.DETECTION_CONTROL_PENDING,
+            activity=activity,
+            condition_key="d:0",
+            thread_key="detection:d",
+        )

@@ -5,6 +5,7 @@ class NotificationKind(models.TextChoices):
     ACTIVITY_UPCOMING = "activity_upcoming", "Actividad próxima"
     ACTIVITY_DELAYED = "activity_delayed", "Actividad retrasada"
     ACTIVITY_OVERDUE = "activity_overdue", "Actividad vencida"
+    DETECTION_CONTROL_PENDING = "detection_control_pending", "Control pendiente"
 
 
 # Los tipos que hablan de una actividad: todos llevan la actividad.

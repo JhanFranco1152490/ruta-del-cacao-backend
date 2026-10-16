@@ -25,6 +25,7 @@ def create_notifications(drafts) -> int:
             condition_key=draft.condition_key,
             thread_key=draft.thread_key,
             activity_id=draft.activity_id,
+            detection_id=draft.detection_id,
             condition_date=draft.condition_date,
         )
         for draft in drafts

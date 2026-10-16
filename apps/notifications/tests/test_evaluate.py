@@ -9,6 +9,7 @@ from apps.activities.choices import ActivityStatus
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.common import alerts
 from apps.common.alerts import NotificationDraft
+from apps.health.tests.factories import DetectionFactory, PhytosanitaryTreatmentFactory
 from apps.notifications.models import Notification
 from apps.notifications.services.evaluate import evaluate_alerts, evaluation_date
 from apps.notifications.tests.factories import NotificationFactory
@@ -40,7 +41,7 @@ def test_it_creates_what_the_evaluators_find():
 
     result = evaluate_alerts(TODAY, NOW)
 
-    assert result.created == {"activities": 1}
+    assert result.created["activities"] == 1
     assert result.failed == []
     assert Notification.objects.get().recipient == activity.assignee
 
@@ -51,7 +52,7 @@ def test_evaluating_again_creates_nothing_new():
 
     result = evaluate_alerts(TODAY, NOW)
 
-    assert result.created == {"activities": 0}
+    assert result.created["activities"] == 0
     assert Notification.objects.count() == 1
 
 
@@ -156,7 +157,7 @@ def test_a_dismissed_overdue_that_is_still_pending_is_kept():
     evaluate_alerts(TODAY, NOW)
 
     assert remains(notification)
-    assert evaluate_alerts(TODAY, NOW).created == {"activities": 0}
+    assert evaluate_alerts(TODAY, NOW).created["activities"] == 0
 
 
 def test_a_recent_read_notification_of_a_done_activity_is_kept():
@@ -186,3 +187,45 @@ def test_the_command_evaluates_the_given_day(capsys):
 def test_the_command_rejects_a_malformed_date():
     with pytest.raises(CommandError):
         call_command("evaluate_alerts", "--today", "16/10/2026")
+
+
+# El control pendiente: su monitoreo siempre está realizado, cuenta la detección.
+
+
+def control_pending(**detection_fields):
+    detection = DetectionFactory(**detection_fields)
+    activity = detection.monitoring.activity
+    return NotificationFactory(
+        activity=activity,
+        detection=detection,
+        kind="detection_control_pending",
+        condition_key=f"{detection.pk}:0",
+        thread_key=f"detection:{detection.pk}",
+        condition_date=None,
+        read_at=NOW,
+    )
+
+
+def test_an_old_pending_control_that_is_still_pending_is_kept():
+    notification = old(control_pending())
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert remains(notification)
+
+
+def test_an_old_pending_control_that_needs_no_control_anymore_is_purged():
+    notification = old(control_pending(control_dismissed_at=NOW))
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(notification)
+
+
+def test_an_old_pending_control_that_got_a_control_is_purged():
+    notification = old(control_pending())
+    PhytosanitaryTreatmentFactory(detection=notification.detection)
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(notification)

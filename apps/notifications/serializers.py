@@ -8,7 +8,17 @@ from .models import Notification
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ["id", "kind", "severity", "created_at", "read_at", "condition_date"]
+        # `detection_id` solo en el control pendiente: la detección con sus controles viene
+        # dentro de `activity.monitoring`, y el dispositivo la busca ahí por su id.
+        fields = [
+            "id",
+            "kind",
+            "severity",
+            "created_at",
+            "read_at",
+            "condition_date",
+            "detection_id",
+        ]
         read_only_fields = fields
 
     def get_fields(self):

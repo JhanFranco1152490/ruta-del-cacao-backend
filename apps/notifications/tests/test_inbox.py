@@ -71,11 +71,13 @@ def test_a_notification_looks_like_this(auth_client, owner, farm):
         "created_at",
         "read_at",
         "condition_date",
+        "detection_id",
         "activity",
     }
     assert row["kind"] == "activity_overdue"
     assert row["severity"] == "normal"
     assert row["read_at"] is None
+    assert row["detection_id"] is None
     assert row["condition_date"] == str(notification.condition_date)
 
 

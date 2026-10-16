@@ -28,6 +28,7 @@ class NotificationDraft:
     thread_key: str
     severity: str = "normal"
     activity_id: object = None
+    detection_id: object = None
     condition_date: date | None = None
 
 

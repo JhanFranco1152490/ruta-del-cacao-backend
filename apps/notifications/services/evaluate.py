@@ -7,6 +7,7 @@ from django.utils import timezone
 from apps.common.alerts import evaluators
 from apps.common.exceptions import log_unhandled_error
 
+from ..choices import ACTIVITY_KINDS, NotificationKind
 from ..models import Notification
 from .create import create_notifications
 
@@ -46,10 +47,17 @@ def evaluate_alerts(today, now) -> EvaluationResult:
 
 
 def _purge(now) -> int:
-    """Borra los avisos leídos o eliminados de hace más de `KEEP_DAYS` cuya condición ya pasó
-    (la actividad se realizó o se reprogramó). Uno de una actividad que sigue vencida se queda:
-    sin él, la siguiente evaluación avisaría otra vez."""
-    passed = Q(activity__status=DONE_STATUS) | ~Q(activity__scheduled_date=F("condition_date"))
+    """Borra los avisos leídos o eliminados de hace más de `KEEP_DAYS` cuya condición ya pasó: la
+    actividad se realizó o se reprogramó, o la detección ya tiene un control o no lo requiere.
+    Uno de algo que sigue pendiente se queda: sin él, la siguiente evaluación avisaría otra vez."""
+    activity_passed = Q(kind__in=ACTIVITY_KINDS) & (
+        Q(activity__status=DONE_STATUS) | ~Q(activity__scheduled_date=F("condition_date"))
+    )
+    # El monitoreo de una detección siempre está realizado: aquí cuenta la detección.
+    control_passed = Q(kind=NotificationKind.DETECTION_CONTROL_PENDING) & (
+        Q(detection__control_dismissed_at__isnull=False) | Q(detection__treatments__isnull=False)
+    )
+    passed = activity_passed | control_passed
     deleted, _ = (
         Notification.objects.filter(
             Q(read_at__isnull=False) | Q(dismissed_at__isnull=False),

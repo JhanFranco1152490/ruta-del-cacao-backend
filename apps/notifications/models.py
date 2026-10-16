@@ -32,6 +32,15 @@ class Notification(models.Model):
         blank=True,
         related_name="+",
     )
+    # La detección cuyo control alguien pidió y nadie atendió. Va con la actividad del monitoreo,
+    # que da el enlace y el alcance.
+    detection = models.ForeignKey(
+        "health.Detection",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     # La fecha programada que tenía la actividad al avisar: si ya no es la misma, se reprogramó.
     condition_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -51,6 +60,11 @@ class Notification(models.Model):
             models.CheckConstraint(
                 condition=~Q(kind__in=ACTIVITY_KINDS) | Q(activity__isnull=False),
                 name="notifications_activity_kinds_have_activity",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind=NotificationKind.DETECTION_CONTROL_PENDING)
+                | Q(activity__isnull=False, detection__isnull=False),
+                name="notifications_control_pending_has_detection",
             ),
         ]
         indexes = [

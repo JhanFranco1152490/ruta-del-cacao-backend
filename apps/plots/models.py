@@ -84,6 +84,9 @@ class Plot(models.Model):
     def code(self) -> str:
         return format_code("P", self.number)
 
+    def __str__(self):
+        return f"{self.code} · {self.name}" if self.name else self.code
+
     def clean(self):
         if isinstance(self.name, str):
             self.name = self.name.strip() or None

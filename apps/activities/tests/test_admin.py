@@ -102,7 +102,7 @@ def test_the_activity_list_searches_by_plot_code():
         reverse("admin:activities_agriculturalactivity_changelist"), {"q": "P-BUSCADA"}
     ).content.decode()
 
-    assert wanted.plot.code in body and "P-OTRA" not in body
+    assert wanted.plot.name in body and "P-OTRA" not in body
 
 
 def test_staff_who_is_not_the_technical_account_does_not_read_activities():

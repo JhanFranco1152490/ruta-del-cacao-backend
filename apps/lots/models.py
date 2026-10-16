@@ -35,6 +35,9 @@ class Lot(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return self.code
+
     class Meta:
         ordering = ["-created_at", "code"]
         indexes = [models.Index(fields=["status"], name="lots_status_idx")]

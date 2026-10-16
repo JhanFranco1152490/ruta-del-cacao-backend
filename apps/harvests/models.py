@@ -54,6 +54,9 @@ class Harvest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return f"{self.harvest_date} · {self.plot} · {self.green_weight_kg} kg"
+
     class Meta:
         ordering = ["-harvest_date", "-created_at", "id"]
         indexes = [

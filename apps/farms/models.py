@@ -103,6 +103,9 @@ class Farm(models.Model):
     def code(self) -> str:
         return format_code("F", self.number)
 
+    def __str__(self):
+        return f"{self.code} · {self.name}"
+
     def clean(self):
         errors = {}
 

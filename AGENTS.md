@@ -49,11 +49,13 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
-| `apps/farms/`      | Fincas: alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
-| `apps/plots/`      | Parcelas de cada finca: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
+| `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
+| `apps/plots/`      | Parcelas de cada finca, con su código consecutivo por finca (`P05`) y un nombre opcional: alta (también sin conexión), consulta, edición, activación, eliminación de lo creado por error (si nada depende de la parcela), contorno opcional y su auditoría, que sobrevive al borrado. Las reglas de área disponible y de superposición corren con la fila de la finca bloqueada |
 | `apps/activities/` | Actividades agrícolas de cada parcela: programar, editar, reprogramar, eliminar lo programado por error, registrar la realización (también desde la cola sin conexión) y consultar por periodo, con su historial de valores anterior y nuevo. Los estados retrasada y vencida se calculan con la fecha (`state.py`); todo su alcance pasa por `services/queries.py` |
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
+| `apps/harvests/`   | Cosechas: una recolección en una parcela y fecha, con su peso en verde, su variedad (de la ficha de la parcela) y su recolector. Registrar (también desde la cola sin conexión), consultar por mes, corregir y eliminar mientras no formen un lote, con su historial de valor anterior y nuevo |
+| `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`advance_lot_status`). Conformar es solo en línea |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -99,18 +101,20 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
-  `duplicate_plot_code`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
+  `duplicate_plot_name`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
   `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
-  `input_shared` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
+  `lot_id_conflict`, `lot_invalid_status` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
   `payload_too_large` (413); `unsupported_media_type` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
   `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive`,
-  `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive` (422);
+  `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive`,
+  `plot_not_characterized`, `variety_not_in_plot`, `collector_not_available` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
-- **Registros creados sin conexión** (hoy, fincas y parcelas): el `POST` acepta un `id` UUID generado en
+- **Registros creados sin conexión** (fincas, parcelas y cosechas): el `POST` acepta un `id` UUID generado en
   el dispositivo. Reenviar el mismo `id` con el mismo contenido responde `200` con el registro
   ya creado (nunca duplica, ni con dos envíos simultáneos); con otro contenido u otro dueño,
   `409`. Si el registro es del mismo dueño, ese `409` trae el del servidor en `current`: suele
@@ -265,6 +269,53 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     elimina (`account_has_activity`).
   - El historial guarda `changes` con el valor anterior y el nuevo de cada campo
     (`field_changes`, `apps/common/audit.py`); una persona va por su id, nunca por su nombre.
+- **Código de finca y de parcela:** el servidor asigna a cada finca un número consecutivo dentro de
+  su productor (`Farm.number`, código `F02`) y a cada parcela uno dentro de su finca (`Plot.number`,
+  código `P05`; al menos dos cifras, `P100` la centésima). El contador vive en la fila del dueño
+  (`Producer.farm_sequence`, `Farm.plot_sequence`), solo sube y se toma con `next_number`
+  (`apps/common/codes.py`), que bloquea esa fila: un registro eliminado no devuelve su número, un
+  reenvío o un rechazo no gastan uno y dos altas a la vez no repiten. Se asigna al llegar al
+  servidor, así que un registro creado sin conexión recibe su código al sincronizar. `code` es de
+  solo lectura (en la parcela, un `PATCH` con `code` es `400`). El nombre de la finca ya existía; el
+  de la parcela (`Plot.name`) es opcional, de hasta 60 caracteres, único por finca solo cuando
+  existe (`409 duplicate_plot_name`) y reemplaza al código libre de antes: una cola de una versión
+  anterior que manda `code` sin `name` lo guarda como nombre, y con `name` lo ignora. La búsqueda de
+  fincas y parcelas encuentra por código (`F02`, `f2`) y por nombre. La nota del inventario de una
+  labor (`Fertilización · P05`) y los historiales nuevos usan el código.
+- **Las cosechas** (`/api/harvests`): una recolección en una sola parcela y fecha, con su peso en
+  verde (cacao en baba, `Decimal(7,1)`), su variedad y su recolector. Permisos
+  `harvests.{view,add,change,delete}_harvest`, delegables; `delete` solo lo tiene el Productor y
+  los cuatro son permisos de campo. El `POST` llega desde la cola (`id` del dispositivo, reenvío
+  idéntico `200` sin volver a validar, otros datos `409 harvest_id_conflict`) y exige una parcela
+  con ficha y siembras (`422 plot_not_characterized`), una variedad de esas siembras (`422
+  variety_not_in_plot`), un recolector que cumple la regla de `apps/common/assignable.py`
+  (`422 collector_not_available`), una fecha no futura ni anterior a la siembra más antigua de la
+  variedad y un peso mayor que cero, de un decimal y de hasta 2.000 kg por hectárea declarada. Una
+  parcela o finca inactivas no impiden registrar. Guarda la versión vigente de la ficha
+  (`characterization_version`, que cambia si se corrige la variedad). El listado
+  (`GET ?from=&to=`) es de hasta 92 días, sin paginar, con `farm`, `plot` y `producer` (solo la
+  cuenta técnica); los filtros de variedad, recolector y lote y los totales corren en el
+  dispositivo. `GET …/collectors` entrega las cuentas que pueden ser recolectoras, con la forma de
+  los responsables de una actividad. Corregir (`PATCH` con `expected_version`) y eliminar
+  (`DELETE ?expected_version=`) solo mientras no formen un lote (`409 harvest_in_lot`); cada regla se
+  revisa solo si lo que mira cambia. Una cosecha impide eliminar su parcela, su finca y su productor
+  (`plot_has_records` y siguientes), una cuenta recolectora (`account_has_activity`) y una variedad
+  del catálogo. Su historial (`HarvestAuditEvent`) guarda el valor anterior y nuevo de cada campo.
+- **Los lotes** (`/api/lots`): un lote es una cosecha completa (`OneToOne`). Permisos
+  `lots.{view,add,delete}_lot`, delegables y de campo; consultar depende de consultar cosechas.
+  Conformar (`POST`, solo en línea) asigna el código `PPPPPP-Fnn-Pnn-AAMMDD-c` (productor, finca,
+  parcela, fecha de la cosecha y consecutivo de la parcela en ese día, `build_lot_code`) con la finca
+  bloqueada; el consecutivo vive en `LotCodeSequence`, no baja al eliminar un lote y se reserva en
+  la misma transacción que lo usa. El reenvío del mismo `id` para la misma cosecha es `200`; una
+  cosecha que ya tiene lote, `409 harvest_already_in_lot` con ese lote en `current`. El listado es
+  paginado, con `status`, `farm`, `plot`, `variety`, `from`, `to` (fecha de la cosecha), `search` por
+  parte del código y `producer` (solo la cuenta técnica). Eliminar (`DELETE ?expected_version=`) solo
+  un lote Generado (`409 lot_invalid_status` con `current_status`): la cosecha queda sin lote y el
+  código no se reutiliza. **El estado** es `generated`, `fermenting`, `fermented`, `drying`, `dried`
+  y solo cambia por `advance_lot_status(lot, expected, new, actor=...)` (`apps/lots/services/
+  status.py`), que exige estar en `expected` y que `new` sea el siguiente; los demás módulos la
+  llaman dentro de su transacción con el lote ya bloqueado (la finca de su parcela). El historial
+  (`LotAuditEvent`) guarda el código y la cosecha de origen y sobrevive al lote.
 - **Esquema OpenAPI** con `drf-spectacular`: `GET /api/schema` y Swagger en `/api/docs`, **solo
   con `DEBUG=True`**. Las vistas declaran sus respuestas de error con `error_responses(...)`
   (`apps/common/schema.py`) para que el esquema traiga la forma estándar. El frontend debe
@@ -290,6 +341,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Cada rol trae sus permisos con su nombre** (`permission_details`: `code` y `name`), además de
   la lista de códigos (`permissions`). `/api/permissions` solo ofrece los delegables, que son los
   que puede llevar un rol propio, así que no sirve para nombrar los de un rol del sistema.
+- **Mostrar una cosecha:** la representación (sin su lote) vive en
+  `apps/common/harvest_representation.py` porque la usan cosechas y lotes y ninguna app importa de
+  la otra.
 - **Todo permiso nuevo se declara en `apps/accounts/registry.py` y es delegable por defecto.**
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
   productor puede dárselo a un empleado de confianza en un rol propio. Solo se marca
@@ -354,7 +408,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     entrada un insumo que ya usa otra. Un empleado no edita, desactiva ni elimina un insumo que
     está en más de una finca (`409 input_shared`) y nunca le cambia la unidad (`403` con
     `fields.unit`).
-  - **Responsables de una actividad:** una cuenta activa con
+  - **Responsables de una actividad y recolectores de una cosecha:** la regla vive en
+    `apps/common/assignable.py` y solo cambia el permiso (`activities.complete_agriculturalactivity`
+    o `harvests.add_harvest`). Para una actividad: una cuenta activa con
     `activities.complete_agriculturalactivity` que trabaje en la finca de la parcela (o en todas),
     o el Productor. Al Productor solo le asigna él mismo o la cuenta técnica. Se decide por el permiso
     y no por el rol, que en un rol propio puede llamarse de cualquier forma. `GET …/assignees`

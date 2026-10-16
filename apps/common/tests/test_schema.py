@@ -190,6 +190,8 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/agricultural-activities/{id}/completion"),
     ("get", "/api/agricultural-activities/assignees"),
     ("get", "/api/agricultural-activities/pending"),
+    ("get", "/api/notifications"),
+    ("get", "/api/notifications/unread-count"),
 }
 
 

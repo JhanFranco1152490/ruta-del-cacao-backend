@@ -197,6 +197,9 @@ DOCUMENTED_OPERATIONS = {
     ("delete", "/api/notifications/{id}"),
     ("post", "/api/notifications/{id}/restore"),
     ("post", "/api/notifications/dismiss-read"),
+    ("get", "/api/notifications/push-config"),
+    ("post", "/api/notifications/push-subscriptions"),
+    ("post", "/api/notifications/push-subscriptions/remove"),
 }
 
 

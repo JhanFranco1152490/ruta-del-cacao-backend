@@ -342,6 +342,13 @@ MAILERS = {
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="no-reply@rutadelcacao.local")
 
+# Notificaciones push (opcional): sin las llaves, la app no ofrece activarlas y no se envían.
+# Se generan una sola vez; si cambian, cada dispositivo tiene que volver a activarlas.
+VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
+VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
+# Un contacto del equipo (`mailto:…`) que los servicios de push usan si algo falla.
+VAPID_SUBJECT = config("VAPID_SUBJECT", default="")
+
 
 # Monitoreo de errores (opcional): solo se activa si existe SENTRY_DSN.
 SENTRY_DSN = config("SENTRY_DSN", default="")

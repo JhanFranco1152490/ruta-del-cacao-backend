@@ -239,6 +239,7 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "StatusEnum": "apps.producers.models.Producer.Status",
         "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
+        "LotStatusEnum": "apps.lots.choices.LotStatus",
     },
 }
 

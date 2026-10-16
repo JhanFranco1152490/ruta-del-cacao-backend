@@ -68,6 +68,24 @@ class LotListQuerySerializer(serializers.Serializer):
         return attrs
 
 
+class LotSummaryQuerySerializer(LotListQuerySerializer):
+    # Los mismos filtros de la lista menos el estado, que es lo que se cuenta.
+    def get_fields(self):
+        fields = super().get_fields()
+        fields.pop("status")
+        return fields
+
+
+class LotStatusTotalSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=LotStatus.choices)
+    count = serializers.IntegerField()
+    green_weight_kg = serializers.DecimalField(max_digits=12, decimal_places=1)
+
+
+class LotSummarySerializer(serializers.Serializer):
+    results = LotStatusTotalSerializer(many=True)
+
+
 class LotDeleteQuerySerializer(serializers.Serializer):
     expected_version = serializers.IntegerField(min_value=1)
 

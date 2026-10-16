@@ -4,11 +4,14 @@ Todo el alcance de esta app pasa por aquí: el productor alcanza lo de todas sus
 empleado lo de las fincas en las que trabaja, y la cuenta técnica lo de cualquiera.
 """
 
-from django.db.models import QuerySet
+from decimal import Decimal
+
+from django.db.models import Count, QuerySet, Sum
 
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 
+from ..choices import LotStatus
 from ..exceptions import HarvestNotFound, LotNotFound
 from ..models import Lot
 
@@ -30,10 +33,10 @@ def visible_lots(actor) -> QuerySet[Lot]:
     )
 
 
-def list_lots(actor, filters: dict) -> QuerySet[Lot]:
-    """Los lotes que `actor` alcanza, del de cosecha más reciente al más antiguo. Los filtros son
-    de estado, finca, parcela, variedad, periodo de la fecha de cosecha y parte del código, sin
-    distinguir mayúsculas. `producer` solo lo usa la cuenta técnica, que sin él ve los de todos."""
+def filter_lots(actor, filters: dict) -> QuerySet[Lot]:
+    """Los lotes que `actor` alcanza con los filtros de la lista: estado, finca, parcela, variedad,
+    periodo de la fecha de cosecha y parte del código, sin distinguir mayúsculas. `producer` solo
+    lo usa la cuenta técnica, que sin él ve los de todos."""
     lots = visible_lots(actor)
     if "status" in filters:
         lots = lots.filter(status=filters["status"])
@@ -51,7 +54,35 @@ def list_lots(actor, filters: dict) -> QuerySet[Lot]:
         lots = lots.filter(code__icontains=term)
     if actor.is_superuser and "producer" in filters:
         lots = lots.filter(harvest__plot__farm__producer_id=filters["producer"])
-    return lots.order_by("-harvest__harvest_date", "code")
+    return lots
+
+
+def list_lots(actor, filters: dict) -> QuerySet[Lot]:
+    """Los lotes filtrados, del de cosecha más reciente al más antiguo."""
+    return filter_lots(actor, filters).order_by("-harvest__harvest_date", "code")
+
+
+def lot_summary(actor, filters: dict) -> list[dict]:
+    """Cuántos lotes y cuántos kilos en verde hay en cada estado, con los demás filtros de la
+    lista. El estado no filtra: el recuento es lo que permite elegirlo. Están todos los estados de
+    la cadena, en orden, también los que no tienen lotes."""
+    others = {key: value for key, value in filters.items() if key != "status"}
+    rows = (
+        filter_lots(actor, others)
+        .order_by()
+        .values("status")
+        .annotate(count=Count("id"), green_weight_kg=Sum("harvest__green_weight_kg"))
+    )
+    by_status = {row["status"]: row for row in rows}
+    return [
+        {
+            "status": status.value,
+            "count": by_status.get(status.value, {}).get("count", 0),
+            "green_weight_kg": by_status.get(status.value, {}).get("green_weight_kg")
+            or Decimal("0"),
+        }
+        for status in LotStatus
+    ]
 
 
 def get_lot(actor, lot_id) -> Lot:

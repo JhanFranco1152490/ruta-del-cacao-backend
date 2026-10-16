@@ -1,6 +1,7 @@
 from django.urls import reverse
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -15,10 +16,12 @@ from .serializers import (
     LotDeleteQuerySerializer,
     LotListQuerySerializer,
     LotSerializer,
+    LotSummaryQuerySerializer,
+    LotSummarySerializer,
 )
 from .services.create import create_lot
 from .services.delete import delete_lot
-from .services.queries import get_lot, list_lots
+from .services.queries import get_lot, list_lots, lot_summary
 
 
 @extend_schema_view(
@@ -79,6 +82,7 @@ class LotViewSet(GenericViewSet):
         "retrieve": "lots.view_lot",
         "create": "lots.add_lot",
         "destroy": "lots.delete_lot",
+        "summary": "lots.view_lot",
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -112,6 +116,25 @@ class LotViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         delete_lot(request.user, pk, query.validated_data["expected_version"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        description=(
+            "Cuántos lotes y cuántos kilos en verde hay en cada estado, con los mismos filtros de "
+            "la lista menos `status`: el recuento sirve para elegirlo. Trae todos los estados de "
+            "la cadena, en orden, también los que tienen cero."
+        ),
+        parameters=[
+            LotSummaryQuerySerializer,
+            OpenApiParameter("producer", str, description="Solo para la cuenta técnica."),
+        ],
+        responses={200: LotSummarySerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], pagination_class=None)
+    def summary(self, request):
+        query = LotSummaryQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        totals = lot_summary(request.user, query.validated_data)
+        return Response(LotSummarySerializer({"results": totals}).data)
 
     def handle_exception(self, exc):
         # El servicio lanza el conflicto con el lote del dominio; aquí se convierte en lo que el

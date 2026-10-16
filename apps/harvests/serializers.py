@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from apps.common.harvest_representation import HarvestRepresentationSerializer
@@ -89,6 +90,9 @@ class HarvestListQuerySerializer(serializers.Serializer):
         return attrs
 
 
+# La lista responde un objeto con todo el periodo en `results`, no un arreglo: sin esto, el esquema
+# supone que toda acción `list` responde un arreglo.
+@extend_schema_serializer(many=False)
 class HarvestListSerializer(serializers.Serializer):
     results = HarvestSerializer(many=True)
 

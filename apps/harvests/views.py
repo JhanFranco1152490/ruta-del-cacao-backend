@@ -111,6 +111,9 @@ class HarvestViewSet(GenericViewSet):
         "collectors": "harvests.view_harvest",
     }
     filter_backends = []
+    # La lista devuelve todo el periodo de una vez (ver su descripción): sin esto, el esquema
+    # heredaba la paginación por defecto y anunciaba `page` y `page_size`, que no hacen nada.
+    pagination_class = None
     lookup_value_converter = "uuid"
 
     def list(self, request):

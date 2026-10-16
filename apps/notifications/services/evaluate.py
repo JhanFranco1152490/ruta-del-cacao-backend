@@ -9,6 +9,7 @@ from apps.common.exceptions import log_unhandled_error
 
 from ..choices import ACTIVITY_KINDS, NotificationKind
 from ..models import Notification
+from ..push.send import SendResult, send_pending_pushes
 from .create import create_notifications
 
 # Cuánto se guarda un aviso que ya se leyó o se eliminó y cuya condición ya pasó.
@@ -23,6 +24,7 @@ class EvaluationResult:
     created: dict[str, int] = field(default_factory=dict)
     failed: list[str] = field(default_factory=list)
     purged: int = 0
+    pushes: SendResult = field(default_factory=SendResult)
 
 
 def evaluation_date(now):
@@ -42,6 +44,12 @@ def evaluate_alerts(today, now) -> EvaluationResult:
         except Exception as exc:
             log_unhandled_error(exc, where=f"el evaluador {name}")
             result.failed.append(name)
+    try:
+        result.pushes = send_pending_pushes(now)
+    except Exception as exc:
+        # Una push que no sale no deshace los avisos: siguen en la bandeja y la siguiente
+        # evaluación vuelve a intentar.
+        log_unhandled_error(exc, where="el envío de push")
     result.purged = _purge(now)
     return result
 

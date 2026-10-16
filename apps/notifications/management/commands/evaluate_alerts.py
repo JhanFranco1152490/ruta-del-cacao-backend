@@ -38,6 +38,7 @@ class Command(BaseCommand):
         created = ", ".join(f"{name}: {count}" for name, count in result.created.items())
         self.stdout.write(
             f"Evaluación del {today}: avisos nuevos ({created or 'ninguno'}), "
+            f"push enviadas {result.pushes.sent} y fallidas {result.pushes.failed}, "
             f"purgados {result.purged}, {time.monotonic() - started:.1f} s."
         )
         if result.failed:

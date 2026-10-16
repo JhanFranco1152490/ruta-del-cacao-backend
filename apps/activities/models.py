@@ -56,6 +56,8 @@ class AgriculturalActivity(models.Model):
         ordering = ["scheduled_date", "activity_type", "id"]
         indexes = [
             models.Index(fields=["plot", "scheduled_date"], name="activities_plot_date_idx"),
+            # La evaluación de los avisos busca las sin realizar por fecha.
+            models.Index(fields=["status", "scheduled_date"], name="activities_status_date_idx"),
         ]
         constraints = [
             models.CheckConstraint(

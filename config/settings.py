@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "apps.inputs",
     "apps.activities",
     "apps.health",
+    "apps.notifications",
     "apps.demo_data",
 ]
 

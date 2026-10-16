@@ -192,6 +192,11 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/agricultural-activities/pending"),
     ("get", "/api/notifications"),
     ("get", "/api/notifications/unread-count"),
+    ("post", "/api/notifications/{id}/read"),
+    ("post", "/api/notifications/read-all"),
+    ("delete", "/api/notifications/{id}"),
+    ("post", "/api/notifications/{id}/restore"),
+    ("post", "/api/notifications/dismiss-read"),
 }
 
 

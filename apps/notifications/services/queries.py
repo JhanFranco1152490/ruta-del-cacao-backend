@@ -18,20 +18,25 @@ AgriculturalActivity = Notification._meta.get_field("activity").related_model
 VIEW_PERMISSION = "activities.view_agriculturalactivity"
 
 
-def _visible(actor) -> QuerySet[Notification]:
+def reachable(actor) -> QuerySet[Notification]:
+    """Los avisos de la cuenta que alcanza hoy, también los que eliminó (para deshacerlo)."""
     if not actor.has_perm(VIEW_PERMISSION):
         return Notification.objects.none()
     return Notification.objects.filter(
         recipient=actor,
-        dismissed_at__isnull=True,
         **owner_filter(actor, "activity__plot__farm__producer_id", farm="activity__plot__farm_id"),
     )
+
+
+def visible(actor) -> QuerySet[Notification]:
+    """Los que se ven en la bandeja: los que alcanza y no eliminó."""
+    return reachable(actor).filter(dismissed_at__isnull=True)
 
 
 def inbox(actor, *, unread_only=False) -> QuerySet[Notification]:
     """Las críticas sin leer primero; después, de la más reciente a la más antigua. El id
     desempata: con un orden total, una página no repite ni salta avisos de la misma hora."""
-    notifications = _visible(actor)
+    notifications = visible(actor)
     if unread_only:
         notifications = notifications.filter(read_at__isnull=True)
     return (
@@ -56,4 +61,4 @@ def inbox(actor, *, unread_only=False) -> QuerySet[Notification]:
 
 
 def unread_count(actor) -> int:
-    return _visible(actor).filter(read_at__isnull=True).count()
+    return visible(actor).filter(read_at__isnull=True).count()

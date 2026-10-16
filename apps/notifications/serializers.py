@@ -27,3 +27,11 @@ class InboxQuerySerializer(serializers.Serializer):
 
 class UnreadCountSerializer(serializers.Serializer):
     count = serializers.IntegerField()
+
+
+class UpdatedCountSerializer(serializers.Serializer):
+    updated = serializers.IntegerField()
+
+
+class DismissedCountSerializer(serializers.Serializer):
+    dismissed = serializers.IntegerField()

@@ -45,6 +45,34 @@ def test_a_plot_with_only_its_history_has_no_dependents():
     assert has_dependent_rows(plot, ignore=(PlotAuditEvent,)) is False
 
 
+# --- has_dependent_rows_expression --------------------------------------------------------------
+
+from apps.common.db import has_dependent_rows_expression  # noqa: E402
+from apps.farms.models import Farm as FarmModel  # noqa: E402
+
+
+def annotated(model, *, ignore=()):
+    return dict(
+        model.objects.annotate(
+            used=has_dependent_rows_expression(model, ignore=ignore)
+        ).values_list("pk", "used")
+    )
+
+
+def test_the_expression_marks_each_row_like_has_dependent_rows():
+    free = FarmFactory()
+    used = PlotFactory().farm
+
+    assert annotated(FarmModel) == {free.pk: False, used.pk: True}
+
+
+def test_the_expression_ignores_the_given_tables():
+    farm = FarmFactory()
+    record_farm_audit_event(farm=farm, actor=UserFactory(), action=FarmAuditEvent.Action.CREATED)
+
+    assert annotated(FarmModel, ignore=(FarmAuditEvent,)) == {farm.pk: False}
+
+
 # --- save_translating_unique --------------------------------------------------------------------
 
 from apps.common.db import save_translating_unique  # noqa: E402

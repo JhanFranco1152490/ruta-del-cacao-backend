@@ -13,6 +13,7 @@ from apps.accounts.tests.role_helpers import make_delegate, make_producer_owner
 from apps.activities.state import today_in_bogota
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.crops.tests.factories import CacaoVarietyFactory
+from apps.facilities.tests.factories import PostharvestFacilityFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
@@ -54,6 +55,8 @@ class World:
         self.activity_b = AgriculturalActivityFactory(
             plot=self.plot_b, scheduled_date=soon, assignee=self.owner
         )
+        self.facility_a = PostharvestFacilityFactory(farm=self.farm_a)
+        self.facility_b = PostharvestFacilityFactory(farm=self.farm_b)
         self.employee = make_delegate(self.producer, FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, FIELD_PERMISSIONS)
         self.window = {
@@ -89,12 +92,14 @@ LISTS = {
         "activity_a",
         "activity_b",
     ),
+    "facilities": (lambda w: ("/api/postharvest-facilities", {}), "facility_a", "facility_b"),
 }
 
 DETAILS = {
     "farm": ("/api/farms/{}", "farm_a", "farm_b"),
     "plot": ("/api/plots/{}", "plot_a", "plot_b"),
     "activity": ("/api/agricultural-activities/{}", "activity_a", "activity_b"),
+    "facility": ("/api/postharvest-facilities/{}", "facility_a", "facility_b"),
 }
 
 

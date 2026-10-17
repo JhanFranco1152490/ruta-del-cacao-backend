@@ -8,6 +8,7 @@ RESOURCE_SERVICES = (
     "crops/services",
     "inputs/services",
     "activities/services",
+    "facilities/services",
 )
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin
 # alcanzarlo: ella no tiene productor propio. Esos servicios usan `owner_filter` y `owns`

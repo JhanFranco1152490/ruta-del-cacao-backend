@@ -19,6 +19,7 @@ from pywebpush import WebPushException, webpush
 from requests import RequestException
 
 from ..models import Notification, PushSubscription
+from ..services.queries import reachable
 from .messages import push_message
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,10 @@ class SendResult:
 
 
 def push_enabled() -> bool:
-    return bool(settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY)
+    # Sin el contacto, el servicio de push rechaza cada envío: es mejor no tomar los avisos.
+    return bool(
+        settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY and settings.VAPID_SUBJECT
+    )
 
 
 def send_pending_pushes(now) -> SendResult:
@@ -80,10 +84,12 @@ def send_pending_pushes(now) -> SendResult:
 def claim_pending(now) -> list[Notification]:
     """Toma los avisos por enviar y los marca enviados en la misma transacción. Las filas que
     otra evaluación ya está tomando se saltan: dos evaluaciones a la vez no mandan dos veces la
-    misma push."""
+    misma push. Solo se toman los que la persona ve hoy en su bandeja: una push con el código de
+    la parcela y la finca no debe llegar a quien ya no alcanza esa finca."""
     with transaction.atomic():
-        ids = list(
+        candidates = list(
             Notification.objects.select_for_update(skip_locked=True, of=("self",))
+            .select_related("recipient")
             .filter(
                 Exists(PushSubscription.objects.filter(user_id=OuterRef("recipient_id"))),
                 pushed_at__isnull=True,
@@ -92,14 +98,25 @@ def claim_pending(now) -> list[Notification]:
                 created_at__gte=now - PUSH_WINDOW,
                 recipient__is_active=True,
             )
-            .values_list("pk", flat=True)
         )
+        ids = _reached(candidates)
         Notification.objects.filter(pk__in=ids).update(pushed_at=now)
     return list(
         Notification.objects.filter(pk__in=ids).select_related(
             "activity__plot__farm", "detection__pest_disease"
         )
     )
+
+
+def _reached(candidates: list[Notification]) -> list:
+    """Los ids de los avisos que su destinatario alcanza hoy."""
+    by_recipient: dict = {}
+    for notification in candidates:
+        by_recipient.setdefault(notification.recipient, []).append(notification.pk)
+    ids: list = []
+    for recipient, pks in by_recipient.items():
+        ids.extend(reachable(recipient).filter(pk__in=pks).values_list("pk", flat=True))
+    return ids
 
 
 def _deliver(device, payload, now, result) -> bool:
@@ -124,6 +141,13 @@ def _deliver(device, payload, now, result) -> bool:
             return False
         # Sin la dirección ni el mensaje: los dos identifican al dispositivo.
         logger.warning("Push no enviada: %s %s", type(exc).__name__, status or "")
+        result.failed += 1
+        return False
+    except Exception as exc:
+        # Una llave o una suscripción inválida no debe detener a los demás dispositivos: los
+        # avisos ya están tomados y, si el ciclo se corta, no se vuelven a intentar. Solo la clase,
+        # que el mensaje puede traer la dirección del dispositivo.
+        logger.error("Push no enviada: %s", type(exc).__name__)
         result.failed += 1
         return False
     device.last_success_at = now

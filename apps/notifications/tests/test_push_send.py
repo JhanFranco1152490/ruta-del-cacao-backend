@@ -7,18 +7,23 @@ from django.core.management import call_command
 from py_vapid import Vapid02
 from pywebpush import WebPushException
 
+from apps.accounts.system_roles import PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
+from apps.accounts.tests.role_helpers import grant_role, make_delegate
 from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.farms.tests.factories import FarmFactory
 from apps.notifications.models import Notification, PushSubscription
 from apps.notifications.push import send
 from apps.notifications.push.send import send_pending_pushes
 from apps.notifications.services.evaluate import evaluate_alerts
 from apps.notifications.tests.factories import NotificationFactory, PushSubscriptionFactory
+from apps.plots.tests.factories import PlotFactory
 
 pytestmark = pytest.mark.django_db
 
 # 11:05 UTC son las 6:05 en Bogotá: la primera hora con push.
 MORNING = datetime(2026, 10, 16, 11, 5, tzinfo=UTC)
+VIEW = "activities.view_agriculturalactivity"
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +40,7 @@ class Sent(list):
     def __init__(self):
         super().__init__()
         self.failures = {}
+        self.errors = {}
 
 
 @pytest.fixture
@@ -44,6 +50,8 @@ def sent(monkeypatch):
 
     def fake_webpush(subscription_info, data, vapid_private_key, vapid_claims, ttl, timeout):
         endpoint = subscription_info["endpoint"]
+        if endpoint in calls.errors:
+            raise calls.errors[endpoint]
         assert vapid_private_key == "privada"
         assert vapid_claims == {"sub": "mailto:equipo@example.com"}
         if endpoint in calls.failures:
@@ -56,7 +64,13 @@ def sent(monkeypatch):
 
 
 def pending(recipient=None, created=MORNING, **kwargs):
-    notification = NotificationFactory(**({"recipient": recipient} if recipient else {}), **kwargs)
+    activity = kwargs.pop("activity", None) or AgriculturalActivityFactory()
+    recipient = recipient or activity.assignee
+    # Quien recibe la push alcanza la actividad: si no, el aviso no se ve en su bandeja.
+    recipient.producer = activity.plot.farm.producer
+    recipient.save(update_fields=["producer"])
+    grant_role(recipient, get_system_role(PRODUCER))
+    notification = NotificationFactory(recipient=recipient, activity=activity, **kwargs)
     Notification.objects.filter(pk=notification.pk).update(created_at=created)
     return notification
 
@@ -97,8 +111,9 @@ def test_the_payload_carries_only_what_the_phone_shows(sent):
 
 def test_several_new_ones_go_as_one_summary(sent):
     recipient = UserFactory()
-    pending(recipient=recipient)
-    pending(recipient=recipient)
+    first = pending(recipient=recipient)
+    farm = first.activity.plot.farm
+    pending(recipient=recipient, activity=AgriculturalActivityFactory(plot=PlotFactory(farm=farm)))
     PushSubscriptionFactory(user=recipient)
 
     send_pending_pushes(MORNING)
@@ -278,3 +293,88 @@ def test_a_push_failure_does_not_stop_the_evaluation(monkeypatch):
     result = evaluate_alerts(MORNING.date(), MORNING)
 
     assert result.failed == []
+
+
+def test_an_unexpected_error_on_one_device_does_not_lose_the_others(sent):
+    notification = pending()
+    broken = PushSubscriptionFactory(user=notification.recipient)
+    working = PushSubscriptionFactory(user=notification.recipient)
+    sent.errors[broken.endpoint] = ValueError("llave inválida")
+
+    result = send_pending_pushes(MORNING)
+
+    assert [endpoint for endpoint, _ in sent] == [working.endpoint]
+    assert (result.sent, result.failed) == (1, 1)
+    assert pushed(notification) == MORNING
+
+
+def test_an_unexpected_error_is_retried_the_next_hour(sent):
+    first = pending()
+    device = PushSubscriptionFactory(user=first.recipient)
+    second = pending()
+    PushSubscriptionFactory(user=second.recipient)
+    sent.errors[device.endpoint] = ValueError("llave inválida")
+
+    result = send_pending_pushes(MORNING)
+
+    assert result.failed == 1
+    assert len(sent) == 1
+    assert pushed(first) is None
+    assert pushed(second) == MORNING
+    assert PushSubscription.objects.filter(pk=device.pk).exists()
+
+
+def test_without_a_subject_push_is_off(sent, settings):
+    settings.VAPID_SUBJECT = ""
+    notification = pending()
+    PushSubscriptionFactory(user=notification.recipient)
+
+    send_pending_pushes(MORNING)
+
+    assert sent == []
+    assert pushed(notification) is None
+
+
+def test_one_from_a_farm_the_recipient_no_longer_reaches_is_not_pushed(sent):
+    farm = FarmFactory()
+    elsewhere = FarmFactory(producer=farm.producer)
+    employee = make_delegate(farm.producer, [VIEW], farm=elsewhere)
+    notification = NotificationFactory(
+        recipient=employee, activity=AgriculturalActivityFactory(plot=PlotFactory(farm=farm))
+    )
+    Notification.objects.filter(pk=notification.pk).update(created_at=MORNING)
+    PushSubscriptionFactory(user=employee)
+
+    send_pending_pushes(MORNING)
+
+    assert sent == []
+    assert pushed(notification) is None
+
+
+def test_one_for_a_recipient_who_cannot_view_activities_is_not_pushed(sent):
+    farm = FarmFactory()
+    employee = make_delegate(farm.producer, [], farm=farm)
+    notification = NotificationFactory(
+        recipient=employee, activity=AgriculturalActivityFactory(plot=PlotFactory(farm=farm))
+    )
+    Notification.objects.filter(pk=notification.pk).update(created_at=MORNING)
+    PushSubscriptionFactory(user=employee)
+
+    send_pending_pushes(MORNING)
+
+    assert sent == []
+    assert pushed(notification) is None
+
+
+def test_one_from_a_farm_the_recipient_reaches_is_pushed(sent):
+    farm = FarmFactory()
+    employee = make_delegate(farm.producer, [VIEW], farm=farm)
+    notification = NotificationFactory(
+        recipient=employee, activity=AgriculturalActivityFactory(plot=PlotFactory(farm=farm))
+    )
+    Notification.objects.filter(pk=notification.pk).update(created_at=MORNING)
+    PushSubscriptionFactory(user=employee)
+
+    send_pending_pushes(MORNING)
+
+    assert len(sent) == 1

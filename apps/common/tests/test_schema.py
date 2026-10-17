@@ -178,6 +178,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/agricultural-activities/pending"),
     ("get", "/api/postharvest-facilities"),
     ("post", "/api/postharvest-facilities"),
+    ("patch", "/api/postharvest-facilities/{id}"),
 }
 
 

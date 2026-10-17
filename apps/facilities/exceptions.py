@@ -48,3 +48,24 @@ class FarmRequired(ApiError):
     status_code = status.HTTP_403_FORBIDDEN
     default_detail = "Tu cuenta no tiene una finca asignada."
     default_code = "permission_denied"
+
+
+class StaleFacilityVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Otra persona cambió este elemento. Revisa los datos actuales antes de guardar."
+    )
+    default_code = "stale_version"
+
+    def __init__(self, current_facility):
+        super().__init__()
+        self.current_facility = current_facility
+
+
+class FacilityFieldsLocked(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "No se puede cambiar: el elemento ya se usó en un proceso."
+    default_code = "facility_fields_locked"
+
+    def __init__(self, field: str):
+        super().__init__(fields={field: [self.default_detail]})

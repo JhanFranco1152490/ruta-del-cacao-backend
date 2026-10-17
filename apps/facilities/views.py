@@ -9,14 +9,16 @@ from rest_framework.viewsets import GenericViewSet
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
+from .exceptions import StaleFacilityVersion
 from .serializers import (
     PostharvestFacilityConflictErrorSerializer,
     PostharvestFacilityCreateSerializer,
     PostharvestFacilityListQuerySerializer,
     PostharvestFacilityListSerializer,
     PostharvestFacilitySerializer,
+    PostharvestFacilityUpdateSerializer,
 )
-from .services import create_facility, get_facility, list_facilities
+from .services import create_facility, get_facility, list_facilities, update_facility
 
 
 @extend_schema_view(
@@ -52,6 +54,20 @@ from .services import create_facility, get_facility, list_facilities
             **error_responses(400, 401, 403, 404, 422),
         },
     ),
+    partial_update=extend_schema(
+        description=(
+            "Edición parcial, incluida la activación o desactivación con `is_active`. Requiere "
+            "`expected_version`; si el elemento cambió, 409 `stale_version` con el vigente en "
+            "`current`. La finca no se edita (`farm_id` es un 400). El tipo no cambia cuando el "
+            "elemento ya se usó en un proceso (422 `facility_fields_locked`)."
+        ),
+        request=PostharvestFacilityUpdateSerializer,
+        responses={
+            200: PostharvestFacilitySerializer,
+            409: PostharvestFacilityConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404, 422),
+        },
+    ),
 )
 class PostharvestFacilityViewSet(GenericViewSet):
     serializer_class = PostharvestFacilitySerializer
@@ -60,6 +76,7 @@ class PostharvestFacilityViewSet(GenericViewSet):
         "list": "facilities.view_postharvestfacility",
         "retrieve": "facilities.view_postharvestfacility",
         "create": "facilities.add_postharvestfacility",
+        "partial_update": "facilities.change_postharvestfacility",
     }
     filter_backends = []
     pagination_class = None
@@ -83,3 +100,16 @@ class PostharvestFacilityViewSet(GenericViewSet):
             status=status.HTTP_201_CREATED,
             headers={"Location": reverse("postharvest-facility-detail", args=[facility.pk])},
         )
+
+    def partial_update(self, request, pk):
+        serializer = PostharvestFacilityUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        expected_version = data.pop("expected_version")
+        facility = update_facility(request.user, pk, expected_version, data)
+        return Response(PostharvestFacilitySerializer(facility).data)
+
+    def handle_exception(self, exc):
+        if isinstance(exc, StaleFacilityVersion):
+            exc.extra = {"current": PostharvestFacilitySerializer(exc.current_facility).data}
+        return super().handle_exception(exc)

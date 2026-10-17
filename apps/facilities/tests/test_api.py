@@ -265,3 +265,82 @@ def test_a_name_with_only_dashes_is_a_validation_error_in_its_field(auth_client,
 
     assert (response.status_code, response.data["code"]) == (400, "validation_error")
     assert "name" in response.data["fields"]
+
+
+# --- Editar, activar y desactivar ---
+
+
+def patch(client, facility, **data):
+    return client.patch(detail(facility), data, format="json")
+
+
+def test_editing_needs_the_permission(auth_client, box):
+    response = patch(auth_client(make_administrator()), box, expected_version=1, name="C-9")
+
+    assert response.status_code == 403
+
+
+def test_the_foreman_edits_and_deactivates(auth_client, foreman, box):
+    client = auth_client(foreman)
+
+    edited = patch(client, box, expected_version=1, name="C-20", capacity_kg=700)
+    deactivated = patch(client, box, expected_version=2, is_active=False)
+
+    assert (edited.status_code, edited.data["name"], edited.data["capacity_kg"]) == (
+        200,
+        "C-20",
+        700,
+    )
+    assert (deactivated.data["status"], deactivated.data["version"]) == ("inactive", 3)
+
+
+def test_the_farm_cannot_be_changed(auth_client, owner, producer, box):
+    other = FarmFactory(producer=producer)
+
+    response = patch(auth_client(owner), box, expected_version=1, farm_id=str(other.pk))
+
+    assert (response.status_code, response.data["code"]) == (400, "validation_error")
+    assert "farm_id" in response.data["fields"]
+    box.refresh_from_db()
+    assert box.farm_id != other.pk
+
+
+def test_the_version_is_required(auth_client, owner, box):
+    response = patch(auth_client(owner), box, name="C-9")
+
+    assert response.status_code == 400
+    assert "expected_version" in response.data["fields"]
+
+
+def test_a_patch_with_only_the_version_is_rejected(auth_client, owner, box):
+    assert patch(auth_client(owner), box, expected_version=1).status_code == 400
+
+
+def test_a_stale_version_answers_with_the_current_facility(auth_client, owner, box):
+    client = auth_client(owner)
+    patch(client, box, expected_version=1, capacity_kg=650)
+
+    response = patch(client, box, expected_version=1, capacity_kg=700)
+
+    assert (response.status_code, response.data["code"]) == (409, "stale_version")
+    assert response.data["current"]["capacity_kg"] == 650
+
+
+def test_the_type_of_a_used_facility_is_locked_in_the_api(auth_client, used_facility):
+    owner = make_producer_owner(used_facility.farm.producer)
+
+    response = patch(
+        auth_client(owner), used_facility, expected_version=1, facility_type="solar_dryer"
+    )
+
+    assert (response.status_code, response.data["code"]) == (422, "facility_fields_locked")
+    assert "facility_type" in response.data["fields"]
+
+
+def test_a_repeated_name_answers_with_the_existing_one_when_editing(auth_client, owner, farm, box):
+    existing = PostharvestFacilityFactory(farm=farm, name="C-07")
+
+    response = patch(auth_client(owner), box, expected_version=1, name="c 07")
+
+    assert (response.status_code, response.data["code"]) == (409, "duplicate_facility_name")
+    assert response.data["existing"]["id"] == str(existing.pk)

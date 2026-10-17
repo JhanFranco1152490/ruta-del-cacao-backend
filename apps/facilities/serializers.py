@@ -1,7 +1,11 @@
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireVersionedChangeMixin,
+)
 
 from .models import MAX_CAPACITY_KG, MIN_CAPACITY_KG, NAME_MAX_LENGTH, PostharvestFacility
 from .status import FacilityStatus, facility_status
@@ -63,6 +67,22 @@ class PostharvestFacilityCreateSerializer(RejectUnknownFieldsMixin, serializers.
     capacity_kg = serializers.IntegerField(min_value=MIN_CAPACITY_KG, max_value=MAX_CAPACITY_KG)
 
 
+class PostharvestFacilityUpdateSerializer(
+    RequireVersionedChangeMixin, RejectUnknownFieldsMixin, serializers.Serializer
+):
+    # Sin `farm_id`: un elemento está construido en una finca y no se muda. Si llega, el mixin lo
+    # rechaza como campo no permitido.
+    facility_type = serializers.ChoiceField(
+        choices=PostharvestFacility.FacilityType.choices, required=False
+    )
+    name = serializers.CharField(max_length=NAME_MAX_LENGTH, required=False)
+    capacity_kg = serializers.IntegerField(
+        min_value=MIN_CAPACITY_KG, max_value=MAX_CAPACITY_KG, required=False
+    )
+    is_active = serializers.BooleanField(required=False)
+    expected_version = serializers.IntegerField(min_value=1, write_only=True)
+
+
 class ExistingFacilitySerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -71,6 +91,7 @@ class ExistingFacilitySerializer(serializers.Serializer):
 
 
 class PostharvestFacilityConflictErrorSerializer(ApiErrorSerializer):
-    # Solo se documenta: el 409 lo arma el manejador global de errores. `existing` llega con
-    # `duplicate_facility_name`.
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
+    # `stale_version` y `existing` con `duplicate_facility_name`.
+    current = PostharvestFacilitySerializer(required=False)
     existing = ExistingFacilitySerializer(required=False)

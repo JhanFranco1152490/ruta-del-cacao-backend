@@ -179,6 +179,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/postharvest-facilities"),
     ("post", "/api/postharvest-facilities"),
     ("patch", "/api/postharvest-facilities/{id}"),
+    ("delete", "/api/postharvest-facilities/{id}"),
 }
 
 

@@ -344,3 +344,40 @@ def test_a_repeated_name_answers_with_the_existing_one_when_editing(auth_client,
 
     assert (response.status_code, response.data["code"]) == (409, "duplicate_facility_name")
     assert response.data["existing"]["id"] == str(existing.pk)
+
+
+# --- Eliminar ---
+
+
+def test_deleting_is_only_for_the_producer_by_default(auth_client, foreman, box):
+    response = auth_client(foreman).delete(f"{detail(box)}?expected_version=1")
+
+    assert response.status_code == 403
+
+
+def test_the_producer_deletes_a_facility_never_used(auth_client, owner, box):
+    response = auth_client(owner).delete(f"{detail(box)}?expected_version=1")
+
+    assert response.status_code == 204
+    assert not PostharvestFacility.objects.filter(pk=box.pk).exists()
+
+
+def test_deleting_needs_the_version(auth_client, owner, box):
+    response = auth_client(owner).delete(detail(box))
+
+    assert response.status_code == 400
+    assert "expected_version" in response.data["fields"]
+
+
+def test_a_used_facility_answers_that_it_has_records(auth_client, used_facility):
+    owner = make_producer_owner(used_facility.farm.producer)
+
+    response = auth_client(owner).delete(f"{detail(used_facility)}?expected_version=1")
+
+    assert (response.status_code, response.data["code"]) == (409, "facility_has_records")
+
+
+def test_a_used_facility_is_listed_with_its_records(auth_client, used_facility):
+    owner = make_producer_owner(used_facility.farm.producer)
+
+    assert auth_client(owner).get(detail(used_facility)).data["has_records"] is True

@@ -13,12 +13,19 @@ from .exceptions import StaleFacilityVersion
 from .serializers import (
     PostharvestFacilityConflictErrorSerializer,
     PostharvestFacilityCreateSerializer,
+    PostharvestFacilityDeleteSerializer,
     PostharvestFacilityListQuerySerializer,
     PostharvestFacilityListSerializer,
     PostharvestFacilitySerializer,
     PostharvestFacilityUpdateSerializer,
 )
-from .services import create_facility, get_facility, list_facilities, update_facility
+from .services import (
+    create_facility,
+    delete_facility,
+    get_facility,
+    list_facilities,
+    update_facility,
+)
 
 
 @extend_schema_view(
@@ -68,6 +75,26 @@ from .services import create_facility, get_facility, list_facilities, update_fac
             **error_responses(400, 401, 403, 404, 422),
         },
     ),
+    destroy=extend_schema(
+        description=(
+            "Elimina un elemento creado por error. Requiere `expected_version` en la URL. Si ya "
+            "se usó en un proceso, 409 `facility_has_records` (se desactiva en su lugar). Su "
+            "historial se conserva."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "expected_version",
+                int,
+                required=True,
+                description="La `version` del elemento que se leyó.",
+            )
+        ],
+        responses={
+            204: None,
+            409: PostharvestFacilityConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
 )
 class PostharvestFacilityViewSet(GenericViewSet):
     serializer_class = PostharvestFacilitySerializer
@@ -77,6 +104,7 @@ class PostharvestFacilityViewSet(GenericViewSet):
         "retrieve": "facilities.view_postharvestfacility",
         "create": "facilities.add_postharvestfacility",
         "partial_update": "facilities.change_postharvestfacility",
+        "destroy": "facilities.delete_postharvestfacility",
     }
     filter_backends = []
     pagination_class = None
@@ -108,6 +136,13 @@ class PostharvestFacilityViewSet(GenericViewSet):
         expected_version = data.pop("expected_version")
         facility = update_facility(request.user, pk, expected_version, data)
         return Response(PostharvestFacilitySerializer(facility).data)
+
+    def destroy(self, request, pk):
+        # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP.
+        serializer = PostharvestFacilityDeleteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        delete_facility(request.user, pk, serializer.validated_data["expected_version"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def handle_exception(self, exc):
         if isinstance(exc, StaleFacilityVersion):

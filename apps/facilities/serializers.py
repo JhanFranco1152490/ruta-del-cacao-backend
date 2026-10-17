@@ -83,6 +83,12 @@ class PostharvestFacilityUpdateSerializer(
     expected_version = serializers.IntegerField(min_value=1, write_only=True)
 
 
+class PostharvestFacilityDeleteSerializer(serializers.Serializer):
+    # Query param del DELETE, con la versión leída: no se elimina un elemento que otra persona
+    # acaba de cambiar.
+    expected_version = serializers.IntegerField(min_value=1)
+
+
 class ExistingFacilitySerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()

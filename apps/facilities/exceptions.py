@@ -69,3 +69,9 @@ class FacilityFieldsLocked(ApiError):
 
     def __init__(self, field: str):
         super().__init__(fields={field: [self.default_detail]})
+
+
+class FacilityHasRecords(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El elemento ya se usó en un proceso: no se puede eliminar. Desactívalo."
+    default_code = "facility_has_records"

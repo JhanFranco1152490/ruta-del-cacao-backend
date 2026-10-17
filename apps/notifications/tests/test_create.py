@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounts.tests.factories import UserFactory
@@ -47,6 +49,56 @@ def test_the_same_drafts_twice_do_not_duplicate():
 
     assert created == 0
     assert Notification.objects.count() == 1
+
+
+def statements(captured, verb):
+    return [q["sql"] for q in captured if q["sql"].startswith(verb)]
+
+
+def test_conditions_already_notified_cost_no_write():
+    activities = [AgriculturalActivityFactory() for _ in range(3)]
+    drafts = [draft_for(a, a.assignee) for a in activities]
+    create_notifications(drafts)
+
+    with CaptureQueriesContext(connection) as captured:
+        created = create_notifications(drafts)
+
+    assert created == 0
+    assert statements(captured, "INSERT") == []
+    assert statements(captured, "UPDATE") == []
+
+
+def test_a_new_one_among_existing_ones_is_the_only_one_written():
+    old = AgriculturalActivityFactory()
+    create_notifications([draft_for(old, old.assignee)])
+    fresh = AgriculturalActivityFactory()
+
+    created = create_notifications(
+        [draft_for(old, old.assignee), draft_for(fresh, fresh.assignee)]
+    )
+
+    assert created == 1
+    assert Notification.objects.filter(activity=fresh).count() == 1
+    assert Notification.objects.count() == 2
+
+
+def test_hiding_the_previous_ones_goes_in_bounded_statements(monkeypatch):
+    # Con un trozo de 2, cinco hilos se ocultan en tres sentencias y no en una gigante.
+    monkeypatch.setattr("apps.notifications.services.create.CHUNK_SIZE", 2, raising=False)
+    activities = [AgriculturalActivityFactory() for _ in range(5)]
+    create_notifications([draft_for(a, a.assignee, key="yesterday") for a in activities])
+
+    with CaptureQueriesContext(connection) as captured:
+        create_notifications([draft_for(a, a.assignee, key="today") for a in activities])
+
+    assert (
+        Notification.objects.filter(condition_key="yesterday", dismissed_at__isnull=False).count()
+        == 5
+    )
+    assert (
+        Notification.objects.filter(condition_key="today", dismissed_at__isnull=True).count() == 5
+    )
+    assert len(statements(captured, "UPDATE")) == 3
 
 
 def test_nothing_to_create_is_fine():

@@ -1,7 +1,9 @@
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
-from .models import PostharvestFacility
+from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+
+from .models import MAX_CAPACITY_KG, MIN_CAPACITY_KG, NAME_MAX_LENGTH, PostharvestFacility
 from .status import FacilityStatus, facility_status
 
 
@@ -51,3 +53,24 @@ class PostharvestFacilityListSerializer(serializers.Serializer):
 
 class PostharvestFacilityListQuerySerializer(serializers.Serializer):
     producer = serializers.UUIDField(required=False)
+
+
+class PostharvestFacilityCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    farm_id = serializers.UUIDField()
+    facility_type = serializers.ChoiceField(choices=PostharvestFacility.FacilityType.choices)
+    # Un nombre que solo tiene guiones lo rechaza el modelo (`clean`), que lo normaliza.
+    name = serializers.CharField(max_length=NAME_MAX_LENGTH)
+    capacity_kg = serializers.IntegerField(min_value=MIN_CAPACITY_KG, max_value=MAX_CAPACITY_KG)
+
+
+class ExistingFacilitySerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    facility_type = serializers.ChoiceField(choices=PostharvestFacility.FacilityType.choices)
+    is_active = serializers.BooleanField()
+
+
+class PostharvestFacilityConflictErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `existing` llega con
+    # `duplicate_facility_name`.
+    existing = ExistingFacilitySerializer(required=False)

@@ -177,6 +177,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/agricultural-activities/assignees"),
     ("get", "/api/agricultural-activities/pending"),
     ("get", "/api/postharvest-facilities"),
+    ("post", "/api/postharvest-facilities"),
 }
 
 

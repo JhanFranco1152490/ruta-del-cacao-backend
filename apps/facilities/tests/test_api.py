@@ -3,11 +3,11 @@ import pytest
 from apps.accounts.system_roles import FOREMAN, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_administrator, make_producer_owner
-from apps.facilities.models import PostharvestFacility
+from apps.facilities.models import PostharvestFacility, PostharvestFacilityAuditEvent
 from apps.farms.tests.factories import FarmFactory
 from apps.producers.tests.factories import ProducerFactory
 
-from .factories import PostharvestFacilityFactory
+from .factories import PostharvestFacilityFactory, facility_data
 
 pytestmark = pytest.mark.django_db
 
@@ -159,3 +159,109 @@ def test_a_malformed_producer_is_a_validation_error(auth_client, owner):
     response = auth_client(owner).get(URL, {"producer": "no-es-un-uuid"})
 
     assert (response.status_code, response.data["code"]) == (400, "validation_error")
+
+
+# --- Registrar ---
+
+
+def body(farm, **overrides) -> dict:
+    data = facility_data(farm, **overrides)
+    data["farm_id"] = str(data["farm_id"])
+    return data
+
+
+def test_registering_needs_a_session_and_the_permission(anonymous_client, auth_client, farm):
+    assert anonymous_client.post(URL, body(farm), format="json").status_code == 401
+    assert (
+        auth_client(make_administrator()).post(URL, body(farm), format="json").status_code == 403
+    )
+
+
+def test_the_producer_registers_an_available_facility(auth_client, owner, farm):
+    response = auth_client(owner).post(URL, body(farm), format="json")
+
+    assert response.status_code == 201
+    assert response["Location"].endswith(f"{URL}/{response.data['id']}")
+    assert (response.data["name"], response.data["status"], response.data["farm"]["id"]) == (
+        "C-04",
+        "available",
+        str(farm.pk),
+    )
+    assert PostharvestFacilityAuditEvent.objects.filter(action="created").count() == 1
+
+
+def test_the_foreman_registers_in_its_farm(auth_client, foreman, farm):
+    assert auth_client(foreman).post(URL, body(farm), format="json").status_code == 201
+
+
+@pytest.mark.parametrize("missing", ["farm_id", "facility_type", "name", "capacity_kg"])
+def test_every_field_is_required(auth_client, owner, farm, missing):
+    data = body(farm)
+    del data[missing]
+
+    response = auth_client(owner).post(URL, data, format="json")
+
+    assert (response.status_code, response.data["code"]) == (400, "validation_error")
+    assert missing in response.data["fields"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("facility_type", "mechanical_dryer"),
+        ("name", "   "),
+        ("name", "x" * 41),
+        ("capacity_kg", 0),
+        ("capacity_kg", 10_001),
+        ("capacity_kg", "600.5"),
+    ],
+)
+def test_invalid_values_are_rejected_in_their_field(auth_client, owner, farm, field, value):
+    response = auth_client(owner).post(URL, body(farm, **{field: value}), format="json")
+
+    assert (response.status_code, response.data["code"]) == (400, "validation_error")
+    assert field in response.data["fields"]
+    assert PostharvestFacility.objects.count() == 0
+
+
+def test_an_unknown_field_is_rejected(auth_client, owner, farm):
+    response = auth_client(owner).post(URL, body(farm, is_active=False), format="json")
+
+    assert response.status_code == 400
+    assert "is_active" in response.data["fields"]
+
+
+def test_a_repeated_name_answers_with_the_existing_facility(auth_client, owner, farm):
+    existing = PostharvestFacilityFactory(farm=farm, name="C-02", is_active=False)
+
+    response = auth_client(owner).post(URL, body(farm, name="c-02"), format="json")
+
+    assert (response.status_code, response.data["code"]) == (409, "duplicate_facility_name")
+    assert response.data["existing"] == {
+        "id": str(existing.pk),
+        "name": "C-02",
+        "facility_type": "fermentation_box",
+        "is_active": False,
+    }
+    assert "name" in response.data["fields"]
+
+
+def test_an_inactive_farm_is_rejected(auth_client, owner, producer):
+    farm = FarmFactory(producer=producer, is_active=False)
+
+    response = auth_client(owner).post(URL, body(farm), format="json")
+
+    assert (response.status_code, response.data["code"]) == (422, "farm_inactive")
+
+
+def test_a_farm_of_another_producer_is_not_found(auth_client, owner):
+    response = auth_client(owner).post(URL, body(FarmFactory()), format="json")
+
+    assert (response.status_code, response.data["code"]) == (404, "not_found")
+
+
+def test_a_name_with_only_dashes_is_a_validation_error_in_its_field(auth_client, owner, farm):
+    response = auth_client(owner).post(URL, body(farm, name=" - "), format="json")
+
+    assert (response.status_code, response.data["code"]) == (400, "validation_error")
+    assert "name" in response.data["fields"]

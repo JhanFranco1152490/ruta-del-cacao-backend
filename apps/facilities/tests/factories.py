@@ -15,3 +15,15 @@ class PostharvestFacilityFactory(DjangoModelFactory):
     name = factory.Sequence(lambda n: f"C-{n:02d}")
     name_normalized = factory.LazyAttribute(lambda item: normalize_catalog_name(item.name))
     capacity_kg = 600
+
+
+def facility_data(farm, **overrides) -> dict:
+    """Cuerpo válido de un alta, con los nombres de la API."""
+    data = {
+        "farm_id": farm.pk,
+        "facility_type": "fermentation_box",
+        "name": "C-04",
+        "capacity_kg": 600,
+    }
+    data.update(overrides)
+    return data

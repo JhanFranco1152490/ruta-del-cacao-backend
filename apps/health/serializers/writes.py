@@ -9,6 +9,10 @@ from ..choices import ControlMethod, ControlMode, SamplingMethod, SamplingUnit
 # mayores que cero, afectadas hasta las evaluadas, sin repetir, qué se hizo) las aplica el
 # servicio, con el mensaje de cada regla.
 
+# Un tope muy por encima de lo que se cuenta en una parcela (árboles o mazorcas): evita que un
+# valor desmedido llegue a la columna y falle como error del servidor.
+MAX_UNITS = 1_000_000
+
 
 class ControlInputSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     input_id = serializers.UUIDField()
@@ -80,7 +84,7 @@ class DetectionWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer)
     other_description = serializers.CharField(
         max_length=100, required=False, allow_null=True, allow_blank=True, default=None
     )
-    affected_units = serializers.IntegerField()
+    affected_units = serializers.IntegerField(max_value=MAX_UNITS)
     # Ninguno por ahora, hecho en el momento o programado para después.
     control = ControlSerializer(required=False, allow_null=True, default=None)
     # Quien no puede programar controles pide que se lo programen, en lugar de `control`.
@@ -90,7 +94,7 @@ class DetectionWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer)
 class MonitoringResultSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     done_date = serializers.DateField()
     sampling_unit = serializers.ChoiceField(choices=SamplingUnit.choices)
-    evaluated_units = serializers.IntegerField()
+    evaluated_units = serializers.IntegerField(max_value=MAX_UNITS)
     sampling_method = serializers.ChoiceField(
         choices=SamplingMethod.choices, required=False, allow_null=True, default=None
     )

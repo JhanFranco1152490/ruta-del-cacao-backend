@@ -210,6 +210,22 @@ def test_the_evaluated_units_are_more_than_zero(client, monitoring, monilia, eva
     assert_nothing_saved(monitoring)
 
 
+def test_the_evaluated_units_cannot_overflow_the_column(client, monitoring, monilia):
+    body = result(detection(monilia), evaluated_units=10_000_000_000)
+
+    assert_rejected(client.post(url(monitoring), body, format="json"), "evaluated_units")
+    assert_nothing_saved(monitoring)
+
+
+def test_the_affected_units_cannot_overflow_the_column(client, monitoring, monilia):
+    body = result(detection(monilia, 10_000_000_000), evaluated_units=10_000_000_000)
+
+    response = client.post(url(monitoring), body, format="json")
+
+    assert response.status_code == 400, response.data
+    assert_nothing_saved(monitoring)
+
+
 @pytest.mark.parametrize("affected", [0, -1])
 def test_the_affected_units_are_more_than_zero(client, monitoring, monilia, affected):
     body = result(detection(monilia, affected))

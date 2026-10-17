@@ -72,10 +72,11 @@ class DetectionsWithoutControlView(APIView):
     @extend_schema(
         operation_id="phytosanitary_detections_without_control_list",
         description=(
-            "Las detecciones que no tienen ningún control, programado o realizado, del monitoreo "
-            "más antiguo al más reciente, en las fincas que alcanza la cuenta. Sin fecha mínima "
-            "ni paginar: son las que esperan que alguien decida su control. Pide el permiso de "
-            "programar. La cuenta técnica puede acotar con `producer`."
+            "Las detecciones en que alguien pidió que le programen un control y nadie lo ha "
+            "atendido (ni programado ni marcado como que no lo requiere), del monitoreo más "
+            "antiguo al más reciente, en las fincas que alcanza la cuenta. Una detección con "
+            "«Ninguno por ahora» no está: no se pidió nada. Sin fecha mínima ni paginar. Pide el "
+            "permiso de programar. La cuenta técnica puede acotar con `producer`."
         ),
         parameters=[OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")],
         responses={200: WaitingDetectionListSerializer, **error_responses(400, 401, 403)},

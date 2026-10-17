@@ -33,6 +33,7 @@ from .services.update import dismiss, dismiss_read, mark_all_read, mark_read, re
 class NotificationViewSet(GenericViewSet):
     # Cada cuenta ve solo sus avisos: lo que filtra es el alcance, no un permiso propio.
     serializer_class = NotificationSerializer
+    lookup_value_converter = "uuid"
     # Solo para que el esquema sepa de qué modelo es: lo que se lista sale de `inbox`.
     queryset = Notification.objects.none()
 

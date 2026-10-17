@@ -177,6 +177,16 @@ def test_someone_elses_notification_does_not_exist(auth_client, owner, farm, met
     assert fresh(theirs).dismissed_at is None
 
 
+@pytest.mark.parametrize(
+    "method, path",
+    [("post", "not-a-uuid/read"), ("delete", "not-a-uuid"), ("post", "not-a-uuid/restore")],
+)
+def test_an_id_that_is_not_a_uuid_does_not_exist(auth_client, owner, method, path):
+    response = getattr(auth_client(owner), method)("/api/notifications/" + path)
+
+    assert response.status_code == 404
+
+
 def test_one_from_a_farm_it_no_longer_reaches_does_not_exist(auth_client, farm):
     employee = make_delegate(farm.producer, [VIEW], farm=farm)
     elsewhere = notify(employee, FarmFactory(producer=farm.producer))

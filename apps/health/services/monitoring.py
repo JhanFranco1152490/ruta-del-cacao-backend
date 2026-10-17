@@ -4,7 +4,6 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.common.locks import lock_aggregate_root
-from apps.common.ownership import owner_filter
 from apps.common.text import normalize_catalog_name
 
 from ..exceptions import (
@@ -16,12 +15,9 @@ from ..exceptions import (
 )
 from ..models import Detection, PestDisease, PhytosanitaryMonitoring, PhytosanitaryTreatment
 from .controls import add_control, clean_control, treatment_values
-
-# La actividad se toma de la relación y no de su app: ninguna app importa de otra.
-AgriculturalActivity = PhytosanitaryMonitoring._meta.get_field("activity").related_model
+from .shared import ACTIVITY_DONE, AgriculturalActivity, activity_scope
 
 MONITORING_TYPE = "phytosanitary_monitoring"
-DONE = "done"
 PERCENT_PLACES = Decimal("0.01")
 REPEATED = "Esta plaga o enfermedad ya está en la lista. Modifica la detección existente."
 
@@ -42,7 +38,7 @@ def record_monitoring(actor, activity_id, data: dict):
         AgriculturalActivity,
         activity_id,
         root="plot__farm",
-        scope=owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id"),
+        scope=activity_scope(actor),
         not_found=MonitoringNotFound,
     )
     if activity.activity_type != MONITORING_TYPE:
@@ -50,7 +46,7 @@ def record_monitoring(actor, activity_id, data: dict):
     activity.ensure_completable_by(actor)
 
     detections = _clean_detections(data)
-    if activity.status == DONE:
+    if activity.status == ACTIVITY_DONE:
         if _same_result(activity, data, detections):
             return activity, False
         raise MonitoringAlreadyRecorded()

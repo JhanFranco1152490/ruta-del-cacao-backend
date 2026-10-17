@@ -3,11 +3,9 @@ from collections.abc import Callable
 from apps.common.ownership import owner_filter
 
 from ..exceptions import PlotNotFound
-from ..models import PhytosanitaryMonitoring
+from .shared import AgriculturalActivity
 
-# Los modelos de la actividad y de la parcela se toman de las relaciones y no de sus apps: ninguna
-# app importa de otra.
-AgriculturalActivity = PhytosanitaryMonitoring._meta.get_field("activity").related_model
+# El modelo de la parcela se toma de la relación y no de su app: ninguna app importa de otra.
 Plot = AgriculturalActivity._meta.get_field("plot").related_model
 
 

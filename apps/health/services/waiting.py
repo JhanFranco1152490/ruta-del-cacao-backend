@@ -3,10 +3,10 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from apps.common.locks import lock_aggregate_root
-from apps.common.ownership import owner_filter
 
 from ..exceptions import DetectionNotFound
 from ..models import Detection
+from .shared import DETECTION_FARM, detection_scope
 
 
 def detections_without_control(actor, producer_id=None) -> QuerySet[Detection]:
@@ -19,11 +19,7 @@ def detections_without_control(actor, producer_id=None) -> QuerySet[Detection]:
         treatments__isnull=True,
         control_requested_at__isnull=False,
         control_dismissed_at__isnull=True,
-        **owner_filter(
-            actor,
-            "monitoring__activity__plot__farm__producer_id",
-            farm="monitoring__activity__plot__farm_id",
-        ),
+        **detection_scope(actor),
     )
     if actor.is_superuser and producer_id is not None:
         detections = detections.filter(monitoring__activity__plot__farm__producer_id=producer_id)
@@ -39,12 +35,8 @@ def dismiss_control(actor, detection_id) -> None:
     detection, _ = lock_aggregate_root(
         Detection,
         detection_id,
-        root="monitoring__activity__plot__farm",
-        scope=owner_filter(
-            actor,
-            "monitoring__activity__plot__farm__producer_id",
-            farm="monitoring__activity__plot__farm_id",
-        ),
+        root=DETECTION_FARM,
+        scope=detection_scope(actor),
         not_found=DetectionNotFound,
     )
     if detection.control_dismissed_at is not None:

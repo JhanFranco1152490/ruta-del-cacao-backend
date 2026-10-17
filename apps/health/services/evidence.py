@@ -24,17 +24,13 @@ from ..models import (
     PhytosanitaryTreatment,
     PhytosanitaryTreatmentEvidence,
 )
+from .shared import ACTIVITY_DONE, SCHEDULE_PERMISSION, AgriculturalActivity, activity_scope
 
-# La actividad se toma de la relación y no de su app: ninguna app importa de otra.
-AgriculturalActivity = PhytosanitaryMonitoring._meta.get_field("activity").related_model
-
-SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
 MAX_BYTES = 5 * 1024 * 1024
 MAX_PER_RECORD = 5
 NAME_MAX = 100
 MONITORING = "phytosanitary_monitoring"
 CONTROL = "phytosanitary_control"
-DONE = "done"
 # Los primeros bytes de cada formato admitido, con su tipo y la extensión con que se guarda.
 SIGNATURES = (
     (b"\xff\xd8\xff", "image/jpeg", "jpg"),
@@ -109,13 +105,11 @@ def attach_evidence(actor, activity_id, data: dict):
 def list_evidence(actor, activity_id) -> list:
     """Las fotos de un monitoreo o un control, de la primera a la última. Uno que todavía no se
     realizó no tiene."""
-    activity = AgriculturalActivity.objects.filter(
-        pk=activity_id, **owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id")
-    ).first()
+    activity = AgriculturalActivity.objects.filter(pk=activity_id, **activity_scope(actor)).first()
     if activity is None:
         raise EvidenceTargetNotFound()
     _ensure_allowed_type(activity)
-    if activity.status != DONE:
+    if activity.status != ACTIVITY_DONE:
         return []
     parent, model, parent_field = _parent(activity)
     return list(
@@ -189,11 +183,11 @@ def _locked_activity(actor, activity_id):
         AgriculturalActivity,
         activity_id,
         root="plot__farm",
-        scope=owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id"),
+        scope=activity_scope(actor),
         not_found=EvidenceTargetNotFound,
     )
     _ensure_allowed_type(activity)
-    if activity.status != DONE:
+    if activity.status != ACTIVITY_DONE:
         # La foto respalda lo que ya se observó o se aplicó.
         raise EvidenceRequiresDone()
     return activity

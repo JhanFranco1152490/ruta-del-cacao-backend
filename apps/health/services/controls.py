@@ -10,7 +10,6 @@ from decimal import Decimal
 from django.db import transaction
 
 from apps.common.locks import lock_aggregate_root
-from apps.common.ownership import owner_filter
 
 from ..choices import ControlMethod, ControlMode
 from ..exceptions import (
@@ -22,15 +21,17 @@ from ..exceptions import (
     ScheduleNotAllowed,
 )
 from ..models import Detection, PhytosanitaryTreatment
+from .shared import (
+    ACTIVITY_DONE,
+    COMPLETE_PERMISSION,
+    DETECTION_FARM,
+    SCHEDULE_PERMISSION,
+    AgriculturalActivity,
+    detection_scope,
+)
 
-# Los modelos de la actividad y del insumo se toman de las relaciones y no de sus apps: ninguna
-# app importa de otra.
-AgriculturalActivity = PhytosanitaryTreatment._meta.get_field("activity").related_model
+# El modelo del insumo se toma de la relación y no de su app: ninguna app importa de otra.
 AgriculturalInput = PhytosanitaryTreatment._meta.get_field("planned_input").related_model
-
-SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
-COMPLETE_PERMISSION = "activities.complete_agriculturalactivity"
-DONE = "done"
 
 
 def clean_control(control: dict) -> dict:
@@ -103,12 +104,8 @@ def create_control_from_detection(actor, detection_id, data: dict):
     detection, _ = lock_aggregate_root(
         Detection,
         detection_id,
-        root="monitoring__activity__plot__farm",
-        scope=owner_filter(
-            actor,
-            "monitoring__activity__plot__farm__producer_id",
-            farm="monitoring__activity__plot__farm_id",
-        ),
+        root=DETECTION_FARM,
+        scope=detection_scope(actor),
         not_found=DetectionNotFound,
     )
     if data["mode"] == ControlMode.DONE and not actor.has_perm(COMPLETE_PERMISSION):
@@ -158,7 +155,7 @@ def _same_control(existing: PhytosanitaryTreatment, detection, control: dict) ->
     if treatment_values(existing) != sent:
         return False
     if control["mode"] == ControlMode.SCHEDULED:
-        return activity.status != DONE and (
+        return activity.status != ACTIVITY_DONE and (
             activity.scheduled_date,
             str(activity.assignee_id),
         ) == (control["scheduled_date"], str(control["assignee_id"]))
@@ -167,7 +164,7 @@ def _same_control(existing: PhytosanitaryTreatment, detection, control: dict) ->
         str(row["input_id"]): Decimal(str(row["quantity"])) for row in control["inputs"]
     }
     return (
-        activity.status == DONE
+        activity.status == ACTIVITY_DONE
         and (activity.done_date, str(activity.assignee_id))
         == (control["done_date"], str(control["assignee_id"]))
         and used == sent_inputs

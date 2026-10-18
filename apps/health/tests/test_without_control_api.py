@@ -89,7 +89,8 @@ def test_it_lists_the_detections_without_control_from_the_oldest(client, plot):
         "plot": {
             "id": str(plot.pk),
             "code": plot.code,
-            "farm": {"id": str(plot.farm.pk), "name": "La Esperanza"},
+            "name": plot.name,
+            "farm": {"id": str(plot.farm.pk), "code": "F01", "name": "La Esperanza"},
         },
         "control_requested_by": {
             "id": str(new.control_requested_by.pk),

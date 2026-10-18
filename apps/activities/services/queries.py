@@ -7,18 +7,16 @@ empleado lo de la finca en la que trabaja, y la cuenta técnica lo de cualquiera
 from django.db.models import QuerySet
 
 from apps.common.activity_details import activity_detail_prefetch
+from apps.common.assignable import assignable_person, person_options
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter, reaches_all_farms
-from apps.common.roles import is_employee
 
 from ..choices import ActivityStatus
 from ..exceptions import ActivityNotFound, CompletionNotAllowed, InvalidActivity, PlotNotFound
 from ..models import AgriculturalActivity
 
-# Los modelos de la parcela y de la cuenta se toman de las relaciones y no de sus apps: ninguna
-# app importa de otra.
+# El modelo de la parcela se toma de la relación y no de su app: ninguna app importa de otra.
 Plot = AgriculturalActivity._meta.get_field("plot").related_model
-User = AgriculturalActivity._meta.get_field("assignee").related_model
 
 COMPLETE_PERMISSION = "activities.complete_agriculturalactivity"
 SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
@@ -116,83 +114,19 @@ def ensure_can_complete(actor, activity) -> None:
 
 
 def assignee_options(actor, producer_id=None) -> list[dict]:
-    """Las cuentas del productor que `actor` alcanza (su cuenta y sus empleados), activas e
-    inactivas, con lo necesario para decidir a quién asignarle una labor. Las inactivas sirven
-    para filtrar y para mostrar labores viejas; el formulario solo ofrece las activas.
-
-    Un empleado recibe a la gente que comparte alguna finca con él y al Productor. De cada cuenta,
-    las fincas en las que trabaja (`farm_ids`, vacía en el Productor, que vale para todas) y si
-    `actor` puede asignarle (`assignable`): con eso el formulario arma la lista de la parcela
-    elegida, también sin conexión. No lleva el documento ni los roles: quien asigna no tiene por
-    qué verlos. Una cuenta sin nombre se muestra por su correo, como en los historiales: es la
-    única forma de reconocerla. La cuenta técnica dice de qué productor; de cualquier otra cuenta
-    `producer_id` se ignora.
-    """
-    if actor.is_superuser:
-        if producer_id is None:
-            raise InvalidActivity("producer", "Indica de qué productor son los responsables.")
-    else:
-        producer_id = actor.producer_id
-    if producer_id is None:
-        return []
-    accounts = (
-        User.objects.filter(producer_id=producer_id, is_superuser=False)
-        .prefetch_related("farms")
-        .order_by("last_name", "first_name", "id")
+    """Las cuentas a las que `actor` puede asignar una labor; ver `person_options`."""
+    return person_options(
+        actor,
+        producer_id,
+        COMPLETE_PERMISSION,
+        producer_required=lambda: InvalidActivity(
+            "producer", "Indica de qué productor son los responsables."
+        ),
     )
-    actor_farms = None if reaches_all_farms(actor) else _farm_ids(actor)
-    options = []
-    for account in accounts:
-        employee = is_employee(account)
-        # El Productor y quien trabaja en todas valen para cualquier finca: sin lista.
-        all_farms = not employee or account.all_farms
-        farm_ids = [] if all_farms else sorted(_farm_ids(account), key=str)
-        if actor_farms is not None and not all_farms and not actor_farms & set(farm_ids):
-            continue
-        options.append(
-            {
-                "id": account.pk,
-                "full_name": account.get_full_name() or account.email,
-                "is_active": account.is_active,
-                "farm_ids": farm_ids,
-                "all_farms": all_farms,
-                "assignable": _takes_work(actor, account, employee),
-            }
-        )
-    return options
 
 
 def assignable_account(actor, plot, account_id):
     """La cuenta, si `actor` puede hacerla responsable de una labor en `plot`: activa, del
     productor de la parcela, con permiso de registrar la realización y, si es un empleado, que
-    trabaje en la finca de la parcela. Nunca una cuenta técnica ni de la asociación, que no
-    tienen productor."""
-    account = User.objects.filter(
-        pk=account_id, producer_id=plot.farm.producer_id, is_active=True, is_superuser=False
-    ).first()
-    if account is None:
-        return None
-    employee = is_employee(account)
-    if employee and not account.all_farms and plot.farm_id not in _farm_ids(account):
-        return None
-    return account if _takes_work(actor, account, employee) else None
-
-
-def _farm_ids(account) -> set:
-    # Con `.all()`, para aprovechar las fincas precargadas de una lista.
-    return {farm.pk for farm in account.farms.all()}
-
-
-def _takes_work(actor, account, employee: bool) -> bool:
-    """Si a `account` se le puede asignar una labor y `actor` puede hacerlo.
-
-    A quien se le asigna una labor debe poder marcarla como hecha: por eso decide el permiso de
-    registrar la realización y no el nombre del rol, que en un rol propio puede ser cualquiera.
-    Un empleado sin finca no trabaja en ninguna. Al Productor solo le asigna él mismo (o la cuenta
-    técnica): un empleado no le pone labores a quien lo dirige.
-    """
-    if not account.has_perm(COMPLETE_PERMISSION):
-        return False
-    if employee:
-        return account.all_farms or bool(_farm_ids(account))
-    return not is_employee(actor)
+    trabaje en la finca de la parcela."""
+    return assignable_person(actor, plot, account_id, COMPLETE_PERMISSION)

@@ -112,7 +112,7 @@ class PhytosanitaryMonitoringAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin
     list_display = ("activity", "sampling_unit", "evaluated_units", "no_presence", "created_at")
     list_filter = ("sampling_unit", "no_presence")
     list_select_related = ("activity__plot__farm",)
-    search_fields = ("activity__plot__code", "activity__plot__farm__name__unaccent")
+    search_fields = ("activity__plot__name__unaccent", "activity__plot__farm__name__unaccent")
     readonly_fields = (
         "activity",
         "sampling_unit",

@@ -37,14 +37,14 @@ def test_plots_without_records_are_not_important_and_are_counted():
 def test_a_plot_with_records_is_important():
     farm = FarmFactory()
     PlotFactory(farm=farm)
-    busy = PlotFactory(farm=farm, code="Con registros")
+    busy = PlotFactory(farm=farm, name="Con registros")
 
     with mock.patch(
         "apps.plots.services.delete.has_dependent_rows", side_effect=lambda plot, **_: plot == busy
     ):
         reason = plots_dependent.important_record(farm)
 
-    assert "Con registros" in reason
+    assert "P02" in reason
 
 
 def test_deleting_all_removes_only_that_farms_plots_and_audits_each_one(owner):

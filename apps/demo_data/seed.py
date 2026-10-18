@@ -115,7 +115,7 @@ def _create_farm_with_plots(actor: User, definition: dict) -> None:
             actor,
             {
                 "farm_id": farm.pk,
-                "code": plot_definition["code"],
+                "name": plot_definition["name"],
                 "area_hectares": plot_definition["area_hectares"],
                 "boundary": rectangle(farm, **shape) if shape else None,
             },

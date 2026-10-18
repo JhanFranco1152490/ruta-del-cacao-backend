@@ -43,7 +43,7 @@ def farm(producer):
 
 @pytest.fixture
 def plot(farm):
-    return PlotFactory(farm=farm, code="P-03")
+    return PlotFactory(farm=farm, name="P-03")
 
 
 @pytest.fixture

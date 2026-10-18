@@ -1,9 +1,9 @@
 import uuid
 
-from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.common.audit import AuditEventBase
+from apps.common.codes import format_code
 from apps.common.text import normalize_name
 from apps.common.validators import validate_positive_area
 
@@ -17,8 +17,12 @@ class Plot(models.Model):
         on_delete=models.PROTECT,
         related_name="plots",
     )
-    code = models.CharField(max_length=50)
-    code_normalized = models.CharField(max_length=200, editable=False)
+    # Consecutivo de la parcela dentro de su finca, que asigna el servidor y nunca cambia.
+    number = models.PositiveIntegerField(editable=False)
+    # Nombre que le da el productor, opcional: se reconoce la parcela por él, pero la identifica
+    # su código. Vacío se guarda como nulo para que varias parcelas sin nombre convivan.
+    name = models.CharField(max_length=60, null=True, blank=True)
+    name_normalized = models.CharField(max_length=200, editable=False, null=True)
     # El área declarada es la que cuenta para no superar el área de la finca, tenga o no
     # contorno dibujado.
     area_hectares = models.DecimalField(
@@ -46,8 +50,12 @@ class Plot(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["farm", "code_normalized"],
-                name="plots_farm_code_normalized_unique",
+                fields=["farm", "name_normalized"],
+                name="plots_farm_name_normalized_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["farm", "number"],
+                name="plots_farm_number_unique",
             ),
             models.CheckConstraint(
                 condition=models.Q(area_hectares__gt=0),
@@ -72,12 +80,17 @@ class Plot(models.Model):
             ("delete_plot", "Puede eliminar parcelas creadas por error"),
         ]
 
+    @property
+    def code(self) -> str:
+        return format_code("P", self.number)
+
+    def __str__(self):
+        return f"{self.code} · {self.name}" if self.name else self.code
+
     def clean(self):
-        if isinstance(self.code, str):
-            self.code = self.code.strip()
-        if not self.code:
-            raise ValidationError({"code": "Este campo es obligatorio."})
-        self.code_normalized = normalize_name(self.code)
+        if isinstance(self.name, str):
+            self.name = self.name.strip() or None
+        self.name_normalized = normalize_name(self.name) if self.name else None
 
 
 class PlotAuditEvent(AuditEventBase):

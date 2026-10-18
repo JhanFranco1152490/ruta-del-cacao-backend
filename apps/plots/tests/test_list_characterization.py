@@ -29,18 +29,18 @@ def farm(owner):
 
 
 def characterized(farm, code, **fields):
-    plot = PlotFactory(farm=farm, code=code, **fields)
+    plot = PlotFactory(farm=farm, name=code, **fields)
     PlotCharacterizationFactory(plot=plot)
     return plot
 
 
 def codes(client, **params):
-    return [plot["code"] for plot in client.get(URL, params).data["results"]]
+    return [plot["name"] for plot in client.get(URL, params).data["results"]]
 
 
 def test_filters_the_plots_with_and_without_characterization(client, farm):
     characterized(farm, "P-01")
-    PlotFactory(farm=farm, code="P-02")
+    PlotFactory(farm=farm, name="P-02")
 
     assert codes(client, characterization="done") == ["P-01"]
     assert codes(client, characterization="pending") == ["P-02"]
@@ -50,7 +50,7 @@ def test_filters_the_plots_with_and_without_characterization(client, farm):
 def test_counts_every_page_and_ignores_the_characterization_filter(client, farm):
     characterized(farm, "P-01")
     characterized(farm, "P-02")
-    PlotFactory(farm=farm, code="P-03")
+    PlotFactory(farm=farm, name="P-03")
 
     response = client.get(URL, {"characterization": "pending", "page_size": 1})
 
@@ -61,9 +61,9 @@ def test_counts_every_page_and_ignores_the_characterization_filter(client, farm)
 def test_the_counts_follow_the_other_filters(client, farm):
     characterized(farm, "P-01")
     characterized(farm, "P-02", is_active=False)
-    PlotFactory(farm=farm, code="P-03", is_active=False)
+    PlotFactory(farm=farm, name="P-03", is_active=False)
     other_farm = FarmFactory(**NEAR_SHAPES, producer=farm.producer)
-    PlotFactory(farm=other_farm, code="P-04")
+    PlotFactory(farm=other_farm, name="P-04")
 
     def counts(**params):
         return client.get(URL, params).data["characterization_counts"]
@@ -83,7 +83,7 @@ def test_the_counts_stay_within_the_session_producer(client, farm):
 
 def test_the_technical_account_counts_one_producer_or_everyone(auth_client, farm):
     characterized(farm, "P-01")
-    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="Ajena")
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), name="Ajena")
     client = auth_client(UserFactory(is_superuser=True))
 
     everyone = client.get(URL).data["characterization_counts"]
@@ -106,7 +106,7 @@ def test_filtering_and_counting_take_the_same_queries_with_one_or_many_plots(cli
         client.get(URL, {"characterization": "done"})
     for number in range(2, 7):
         characterized(farm, f"P-0{number}")
-        PlotFactory(farm=farm, code=f"Q-0{number}")
+        PlotFactory(farm=farm, name=f"Q-0{number}")
 
     with CaptureQueriesContext(connection) as many:
         client.get(URL, {"characterization": "done"})

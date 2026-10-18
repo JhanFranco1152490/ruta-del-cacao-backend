@@ -10,7 +10,7 @@ from apps.accounts.tests.factories import UserFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.exceptions import (
     AreaMismatch,
-    DuplicatePlotCode,
+    DuplicatePlotName,
     FarmInactive,
     FarmNotFound,
     InvalidBoundary,
@@ -62,10 +62,10 @@ def coordinates(vertices):
 
 
 def test_creates_a_plot_without_boundary_and_audits_it(owner, farm):
-    plot, created = create_plot(owner, plot_data(farm, code="  P1 · El Mango "))
+    plot, created = create_plot(owner, plot_data(farm, name="  P1 · El Mango "))
 
     assert created is True
-    assert (plot.farm_id, plot.code, plot.code_normalized) == (
+    assert (plot.farm_id, plot.name, plot.name_normalized) == (
         farm.pk,
         "P1 · El Mango",
         "p1 · el mango",
@@ -143,12 +143,12 @@ def test_an_inactive_farm_does_not_accept_plots(owner, farm):
 # --- Validaciones del registro ---------------------------------------------------------
 
 
-@pytest.mark.parametrize("code", ["", "   "])
-def test_code_is_required(owner, farm, code):
-    with pytest.raises(ValidationError) as error:
-        create_plot(owner, plot_data(farm, code=code))
+@pytest.mark.parametrize("name", [None, "", "   "])
+def test_the_name_is_optional(owner, farm, name):
+    plot, created = create_plot(owner, plot_data(farm, name=name))
 
-    assert "code" in error.value.message_dict
+    assert created is True
+    assert plot.name is None
 
 
 def test_area_must_be_positive(owner, farm):
@@ -159,16 +159,16 @@ def test_area_must_be_positive(owner, farm):
 
 
 def test_code_is_unique_within_the_farm(owner, farm):
-    create_plot(owner, plot_data(farm, code="P-01"))
+    create_plot(owner, plot_data(farm, name="P-01"))
 
-    with pytest.raises(DuplicatePlotCode):
-        create_plot(owner, plot_data(farm, code=" p-01 "))
+    with pytest.raises(DuplicatePlotName):
+        create_plot(owner, plot_data(farm, name=" p-01 "))
 
 
 def test_the_same_code_is_accepted_in_another_farm(owner, farm):
-    create_plot(owner, plot_data(farm, code="P-01"))
+    create_plot(owner, plot_data(farm, name="P-01"))
 
-    create_plot(owner, plot_data(FarmFactory(**NEAR_SHAPES, producer=owner.producer), code="P-01"))
+    create_plot(owner, plot_data(FarmFactory(**NEAR_SHAPES, producer=owner.producer), name="P-01"))
 
 
 def test_an_invalid_boundary_is_rejected_and_nothing_is_saved(owner, farm):
@@ -224,7 +224,7 @@ def test_inactive_plots_do_not_count_for_the_farm_area(owner, farm):
 
 
 def test_an_overlap_is_rejected_with_the_neighbour_and_a_suggestion(owner, farm):
-    neighbour = PlotFactory(farm=farm, code="P2", **boundary_fields(rect(1, 0, 3, 1)))
+    neighbour = PlotFactory(farm=farm, name="P2", **boundary_fields(rect(1, 0, 3, 1)))
 
     with pytest.raises(PlotOverlap) as error:
         create_plot(owner, with_boundary(farm, rect(0, 0, 2, 1)))
@@ -234,16 +234,16 @@ def test_an_overlap_is_rejected_with_the_neighbour_and_a_suggestion(owner, farm)
     assert area == measured(rect(1, 0, 2, 1))
     assert coordinates(error.value.suggested_boundary) == coordinates(rect(0, 0, 1, 1))
     assert error.value.suggested_measured_area_hectares == measured(rect(0, 0, 1, 1))
-    assert error.value.fields == {"boundary": ["El polígono se superpone con la parcela P2."]}
+    assert error.value.fields == {"boundary": ["El polígono se superpone con la parcela P01."]}
 
 
 def test_an_overlap_without_a_possible_suggestion_still_lists_the_neighbour(owner, farm):
-    PlotFactory(farm=farm, code="P2", **boundary_fields(rect(0, 0, 3, 3)))
+    PlotFactory(farm=farm, name="P2", **boundary_fields(rect(0, 0, 3, 3)))
 
     with pytest.raises(PlotOverlap) as error:
         create_plot(owner, with_boundary(farm, rect(1, 1, 2, 2)))
 
-    assert [plot.code for plot, _ in error.value.overlaps] == ["P2"]
+    assert [plot.code for plot, _ in error.value.overlaps] == ["P01"]
     assert error.value.suggested_boundary is None
     assert error.value.suggested_measured_area_hectares is None
 
@@ -287,12 +287,12 @@ def test_resending_the_same_plot_returns_it_without_duplicating(owner, farm):
 
 def test_resending_an_id_with_other_content_returns_the_current_plot(owner, farm):
     plot_id = uuid.uuid4()
-    create_plot(owner, plot_data(farm, id=plot_id, code="P-01"))
+    create_plot(owner, plot_data(farm, id=plot_id, name="P-01"))
 
     with pytest.raises(PlotIdConflict) as error:
-        create_plot(owner, plot_data(farm, id=plot_id, code="P-02"))
+        create_plot(owner, plot_data(farm, id=plot_id, name="P-02"))
 
-    assert error.value.current_plot.code == "P-01"
+    assert error.value.current_plot.name == "P-01"
 
 
 def test_an_id_of_another_producer_is_a_conflict_without_its_data(owner, farm):

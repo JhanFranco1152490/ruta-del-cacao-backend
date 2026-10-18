@@ -31,7 +31,7 @@ Action = AgriculturalActivityAuditEvent.Action
 
 @pytest.fixture
 def plot():
-    return PlotFactory(code="P-03")
+    return PlotFactory(name="P-03")
 
 
 @pytest.fixture
@@ -175,7 +175,7 @@ def test_a_done_control_is_created_done_and_discounts_its_inputs(plot, actor):
         (item, Decimal("0.500"))
     ]
     assert stock_movements(item) == [
-        (InputMovement.Kind.CONSUMPTION, Decimal("-0.500"), "Control fitosanitario · P-03")
+        (InputMovement.Kind.CONSUMPTION, Decimal("-0.500"), "Control fitosanitario · P01")
     ]
     assert actions_of(control) == [Action.CREATED, Action.COMPLETED]
 

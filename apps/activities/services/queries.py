@@ -6,6 +6,7 @@ empleado lo de la finca en la que trabaja, y la cuenta técnica lo de cualquiera
 
 from django.db.models import QuerySet
 
+from apps.common.activity_details import activity_detail_prefetch
 from apps.common.assignable import assignable_person, person_options
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter, reaches_all_farms
@@ -21,14 +22,20 @@ COMPLETE_PERMISSION = "activities.complete_agriculturalactivity"
 SCHEDULE_PERMISSION = "activities.add_agriculturalactivity"
 
 
+def with_representation(activities: QuerySet[AgriculturalActivity]) -> QuerySet:
+    """Las actividades con lo que necesita su representación ya precargado: los insumos usados
+    con su insumo, y lo que otras apps agregan (el resultado de un monitoreo) con lo que ellas
+    piden. Así un listado no hace una consulta por fila."""
+    return activities.select_related("plot__farm", "assignee", "completed_by").prefetch_related(
+        "inputs__input", *activity_detail_prefetch()
+    )
+
+
 def visible_activities(actor) -> QuerySet[AgriculturalActivity]:
-    # Los insumos usados se precargan con su insumo: el listado no hace una consulta por fila.
-    return (
+    return with_representation(
         AgriculturalActivity.objects.filter(
             **owner_filter(actor, "plot__farm__producer_id", farm="plot__farm_id")
         )
-        .select_related("plot__farm", "assignee", "completed_by")
-        .prefetch_related("inputs__input")
     )
 
 
@@ -42,12 +49,17 @@ def list_activities(actor, date_from, date_to, producer_id=None) -> QuerySet[Agr
     return activities.order_by("scheduled_date", "activity_type", "id")
 
 
-def pending_activities(actor, through, producer_id=None) -> QuerySet[AgriculturalActivity]:
+def pending_activities(
+    actor, through, producer_id=None, activity_type=None
+) -> QuerySet[AgriculturalActivity]:
     """Las actividades sin realizar con fecha programada hasta `through`, incluida. No tiene fecha
     mínima: una vencida sigue pendiente mientras no se registre, por viejo que sea su atraso.
-    `producer_id` solo lo usa la cuenta técnica, como en `list_activities`."""
+    `producer_id` solo lo usa la cuenta técnica, como en `list_activities`. `activity_type` deja
+    solo las de un tipo: Sanidad pide así los monitoreos por registrar."""
     activities = visible_activities(actor).filter(scheduled_date__lte=through)
     activities = activities.exclude(status=ActivityStatus.DONE)
+    if activity_type is not None:
+        activities = activities.filter(activity_type=activity_type)
     if actor.is_superuser and producer_id is not None:
         activities = activities.filter(plot__farm__producer_id=producer_id)
     return activities.order_by("scheduled_date", "activity_type", "id")

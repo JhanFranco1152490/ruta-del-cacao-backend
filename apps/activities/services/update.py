@@ -78,6 +78,9 @@ def _validated(actor, activity: AgriculturalActivity, before: dict, sent: dict) 
     quien edita es un empleado) se edita sin cambiarlo. Devuelve los valores a guardar."""
     after = {}
     if sent["activity_type"] != before["activity_type"]:
+        # Un control queda unido a la detección que atiende: si pasara a otra labor, la detección
+        # parecería atendida por una poda o un riego.
+        rules.ensure_type_allowed(before["activity_type"])
         rules.ensure_type_allowed(sent["activity_type"])
         after["activity_type"] = sent["activity_type"]
     description = rules.clean_description(sent["activity_type"], sent["other_description"])

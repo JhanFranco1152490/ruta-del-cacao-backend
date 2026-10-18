@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.common.activity_details import activity_detail_fields
 from apps.common.serializers import (
     ApiErrorSerializer,
     RejectUnknownFieldsMixin,
@@ -98,6 +99,12 @@ class AgriculturalActivitySerializer(serializers.ModelSerializer):
         ]
         # Solo de salida: así el esquema los marca como siempre presentes.
         read_only_fields = fields
+
+    def get_fields(self):
+        # Lo que otras apps agregan (el resultado de un monitoreo, la detección que atiende un
+        # control). Se suma aquí y no en la clase porque esas apps se registran después de que
+        # esta se importa.
+        return {**super().get_fields(), **activity_detail_fields()}
 
     def _state(self, activity):
         # Una sola fecha de hoy por respuesta: si la petición cruza la medianoche, todas las
@@ -199,6 +206,7 @@ class ActivityListQuerySerializer(serializers.Serializer):
 class PendingQuerySerializer(serializers.Serializer):
     through = serializers.DateField()
     producer = serializers.UUIDField(required=False)
+    activity_type = serializers.ChoiceField(choices=ActivityType.choices, required=False)
 
 
 class ActivityListSerializer(serializers.Serializer):

@@ -5,17 +5,24 @@ se hacen con un empleado de la finca A, uno sin finca y el Productor, contra dat
 recurso nuevo que cuelgue de una finca agrega aquí su caso.
 """
 
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 
 from apps.accounts.tests.role_helpers import make_delegate, make_producer_owner
+from apps.activities.choices import ActivityType
 from apps.activities.state import today_in_bogota
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.crops.tests.factories import CacaoVarietyFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.harvests.tests.factories import HarvestFactory, characterized_plot
+from apps.health.tests.factories import (
+    DetectionFactory,
+    PhytosanitaryMonitoringFactory,
+    done_monitoring,
+)
 from apps.lots.tests.factories import LotFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
@@ -484,3 +491,91 @@ def test_the_producer_writes_in_any_of_its_farms_for_harvests(auth_client, harve
             format="json",
         )
         assert response.status_code == 200
+
+
+# --- Sanidad ---
+
+
+def recorded_monitoring(plot, assignee):
+    """Un monitoreo de `plot` ya registrado, con una detección que espera un control."""
+    monitoring = PhytosanitaryMonitoringFactory(
+        activity=done_monitoring(plot=plot, assignee=assignee)
+    )
+    return DetectionFactory(monitoring=monitoring, requested=True)
+
+
+def test_an_employee_sees_the_health_of_its_farm_only(auth_client, world):
+    own = recorded_monitoring(world.plot_a, world.owner)
+    foreign = recorded_monitoring(world.plot_b, world.owner)
+    client = auth_client(world.employee)
+
+    waiting = ids(client.get("/api/phytosanitary-detections/without-control"))
+    history = "/api/phytosanitary-history"
+
+    assert waiting == {str(own.pk)}
+    assert str(foreign.pk) not in waiting
+    assert client.get(history, {"plot": str(world.plot_a.pk)}).status_code == 200
+    assert client.get(history, {"plot": str(world.plot_b.pk)}).status_code == 404
+    # Sin acotar, solo trae lo de su finca.
+    assert ids(client.get(history)) == {str(own.monitoring.activity_id)}
+
+
+def test_an_employee_without_a_farm_sees_no_health_record(auth_client, world):
+    recorded_monitoring(world.plot_a, world.owner)
+    client = auth_client(world.unassigned)
+
+    assert ids(client.get("/api/phytosanitary-detections/without-control")) == set()
+    plot = {"plot": str(world.plot_a.pk)}
+    assert client.get("/api/phytosanitary-history", plot).status_code == 404
+
+
+def test_the_producer_sees_the_health_of_every_farm(auth_client, world):
+    own = recorded_monitoring(world.plot_a, world.owner)
+    foreign = recorded_monitoring(world.plot_b, world.owner)
+
+    waiting = ids(auth_client(world.owner).get("/api/phytosanitary-detections/without-control"))
+
+    assert waiting == {str(own.pk), str(foreign.pk)}
+
+
+def test_an_employee_records_monitorings_and_controls_only_in_its_farm(auth_client, world):
+    def monitoring_in(plot):
+        return AgriculturalActivityFactory(
+            plot=plot,
+            activity_type=ActivityType.PHYTOSANITARY_MONITORING,
+            scheduled_date=today_in_bogota(),
+            assignee=world.employee,
+        )
+
+    def result():
+        return {
+            "done_date": str(today_in_bogota()),
+            "sampling_unit": "trees",
+            "evaluated_units": 50,
+            "no_presence": True,
+        }
+
+    def control():
+        return {
+            "id": str(uuid.uuid4()),
+            "mode": "scheduled",
+            "scheduled_date": str(today_in_bogota() + timedelta(days=2)),
+            "assignee_id": str(world.employee.pk),
+        }
+
+    client = auth_client(world.employee)
+    record = "/api/agricultural-activities/{}/monitoring"
+    controls = "/api/phytosanitary-detections/{}/controls"
+    detection_a = recorded_monitoring(world.plot_a, world.owner)
+    detection_b = recorded_monitoring(world.plot_b, world.owner)
+
+    own = client.post(record.format(monitoring_in(world.plot_a).pk), result(), format="json")
+    foreign = client.post(record.format(monitoring_in(world.plot_b).pk), result(), format="json")
+
+    assert (own.status_code, foreign.status_code) == (201, 404)
+    assert (
+        client.post(controls.format(detection_a.pk), control(), format="json").status_code == 201
+    )
+    assert (
+        client.post(controls.format(detection_b.pk), control(), format="json").status_code == 404
+    )

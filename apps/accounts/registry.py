@@ -65,6 +65,9 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "lots.view_lot": PermissionInfo(area="lots", delegable=True),
     "lots.add_lot": PermissionInfo(area="lots", delegable=True),
     "lots.delete_lot": PermissionInfo(area="lots", delegable=True),
+    # No delegable: el catálogo de plagas y enfermedades es común a toda la asociación, como el de
+    # variedades.
+    "health.manage_pestdisease": PermissionInfo(area="health", delegable=False),
 }
 
 

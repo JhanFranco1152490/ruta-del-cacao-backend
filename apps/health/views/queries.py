@@ -65,6 +65,8 @@ class HistoryView(APIView):
             OpenApiParameter("to", str, description="Fecha final (incluida)."),
             OpenApiParameter("pest_disease", str, description="Una plaga o enfermedad."),
             OpenApiParameter("other", bool, description="Solo las detecciones de Otra."),
+            OpenApiParameter("page", int, description="Página, desde 1."),
+            OpenApiParameter("page_size", int, description="De 1 a 100; 20 por defecto."),
         ],
         responses={
             200: inline_serializer(

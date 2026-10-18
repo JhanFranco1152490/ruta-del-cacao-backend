@@ -13,6 +13,10 @@ class HistoryQuerySerializer(serializers.Serializer):
     def get_fields(self):
         # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
         return {
+            "farm": serializers.UUIDField(required=False),
+            "plot": serializers.UUIDField(required=False),
+            # Solo lo usa la cuenta técnica: las demás cuentas ya están acotadas a su productor.
+            "producer": serializers.UUIDField(required=False),
             "from": serializers.DateField(required=False),
             "to": serializers.DateField(required=False),
             "pest_disease": serializers.UUIDField(required=False),

@@ -7,10 +7,10 @@ from .views import (
     EvidenceDetailView,
     EvidenceFileView,
     EvidenceView,
+    HistoryView,
     MonitoringResultView,
     NoControlNeededView,
     PestDiseaseViewSet,
-    PlotHistoryView,
 )
 
 router = SimpleRouter(trailing_slash=False, use_regex_path=False)
@@ -38,9 +38,9 @@ urlpatterns = [
         name="detection-controls",
     ),
     path(
-        "plots/<uuid:pk>/phytosanitary-history",
-        PlotHistoryView.as_view(),
-        name="plot-phytosanitary-history",
+        "phytosanitary-history",
+        HistoryView.as_view(),
+        name="phytosanitary-history",
     ),
     path(
         "agricultural-activities/<uuid:pk>/evidence",

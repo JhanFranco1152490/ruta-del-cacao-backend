@@ -164,7 +164,7 @@ DOCUMENTED_OPERATIONS = {
     ("patch", "/api/pests-diseases/{id}"),
     ("post", "/api/agricultural-activities/{id}/monitoring"),
     ("post", "/api/phytosanitary-detections/{id}/controls"),
-    ("get", "/api/plots/{id}/phytosanitary-history"),
+    ("get", "/api/phytosanitary-history"),
     ("get", "/api/phytosanitary-detections/without-control"),
     ("post", "/api/phytosanitary-detections/{id}/no-control-needed"),
     ("get", "/api/agricultural-activities/{id}/evidence"),

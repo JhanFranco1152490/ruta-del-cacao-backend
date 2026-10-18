@@ -306,12 +306,14 @@ def test_an_employee_sees_the_health_of_its_farm_only(auth_client, world):
     client = auth_client(world.employee)
 
     waiting = ids(client.get("/api/phytosanitary-detections/without-control"))
-    history = "/api/plots/{}/phytosanitary-history"
+    history = "/api/phytosanitary-history"
 
     assert waiting == {str(own.pk)}
     assert str(foreign.pk) not in waiting
-    assert client.get(history.format(world.plot_a.pk)).status_code == 200
-    assert client.get(history.format(world.plot_b.pk)).status_code == 404
+    assert client.get(history, {"plot": str(world.plot_a.pk)}).status_code == 200
+    assert client.get(history, {"plot": str(world.plot_b.pk)}).status_code == 404
+    # Sin acotar, solo trae lo de su finca.
+    assert ids(client.get(history)) == {str(own.monitoring.activity_id)}
 
 
 def test_an_employee_without_a_farm_sees_no_health_record(auth_client, world):
@@ -319,7 +321,8 @@ def test_an_employee_without_a_farm_sees_no_health_record(auth_client, world):
     client = auth_client(world.unassigned)
 
     assert ids(client.get("/api/phytosanitary-detections/without-control")) == set()
-    assert client.get(f"/api/plots/{world.plot_a.pk}/phytosanitary-history").status_code == 404
+    plot = {"plot": str(world.plot_a.pk)}
+    assert client.get("/api/phytosanitary-history", plot).status_code == 404
 
 
 def test_the_producer_sees_the_health_of_every_farm(auth_client, world):

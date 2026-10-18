@@ -316,9 +316,13 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     vínculo con la detección, qué se hizo (`method`) y el insumo previsto, que no descuenta. Uno
     realizado no puede ser futuro ni anterior al monitoreo; sus insumos se descuentan como en la
     realización. Una detección tiene varios.
-  - **Historial** (`GET /api/plots/{id}/phytosanitary-history`) y **detecciones que esperan un
-    control** (`GET /api/phytosanitary-detections/without-control`, solo para quien programa):
-    sin paginar. El aviso lista solo las detecciones en que alguien **pidió** un control y nadie
+  - **Historial** (`GET /api/phytosanitary-history`): los monitoreos realizados de todo lo que
+    alcanza la cuenta, paginado, del más reciente al más antiguo. `farm`, `plot`, `from`, `to`,
+    `pest_disease` y `other` lo acotan; una finca o parcela que no alcanza es `404`. `summary` (la
+    última incidencia de cada plaga y la anterior) solo viene con `plot`, y cuenta con todas las
+    páginas: comparar parcelas distintas no dice si una plaga sube o baja.
+  - **Detecciones que esperan un control** (`GET /api/phytosanitary-detections/without-control`,
+    solo para quien programa), sin paginar. El aviso lista solo las detecciones en que alguien **pidió** un control y nadie
     lo ha atendido: salen al programar uno o con `POST …/{id}/no-control-needed` (quien programa
     decide que no requiere control; queda quién y cuándo). "Ninguno por ahora" no avisa.
     El resumen del historial compara la última incidencia con la anterior **del mismo tipo de

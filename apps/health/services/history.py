@@ -1,27 +1,37 @@
 from collections.abc import Callable
 
+from django.db.models import QuerySet
+
 from apps.common.ownership import owner_filter
 
-from ..exceptions import PlotNotFound
-from .shared import AgriculturalActivity
+from ..exceptions import FarmNotFound, PlotNotFound
+from .shared import AgriculturalActivity, activity_scope
 
-# El modelo de la parcela se toma de la relación y no de su app: ninguna app importa de otra.
+# Los modelos de la parcela y de la finca se toman de las relaciones y no de sus apps: ninguna app
+# importa de otra.
 Plot = AgriculturalActivity._meta.get_field("plot").related_model
+Farm = Plot._meta.get_field("farm").related_model
 
 
-def plot_history(actor, plot_id, filters: dict) -> tuple[list, Callable]:
-    """Los monitoreos realizados de una parcela, del más reciente al más antiguo, y la función que
-    dice qué detecciones mostrar de cada uno. Con un filtro de plaga (o de Otra) solo vienen los
-    monitoreos donde se detectó, y de cada uno solo esa detección."""
-    plot = Plot.objects.filter(
-        pk=plot_id, **owner_filter(actor, "farm__producer_id", farm="farm_id")
-    ).first()
-    if plot is None:
+def monitoring_history(actor, filters: dict) -> tuple[QuerySet, Callable]:
+    """Los monitoreos realizados de todo lo que `actor` alcanza, del más reciente al más antiguo, y
+    la función que dice qué detecciones mostrar de cada uno. `farm` y `plot` los acotan (una finca
+    o una parcela que no alcanza es 404, como lo de otro productor). Con un filtro de plaga (o de
+    Otra) solo vienen los monitoreos donde se detectó, y de cada uno solo esa detección."""
+    if filters.get("plot") is not None and not _reaches(Plot, filters["plot"], actor, "farm"):
         raise PlotNotFound()
+    if filters.get("farm") is not None and not _reaches(Farm, filters["farm"], actor, ""):
+        raise FarmNotFound()
 
     activities = AgriculturalActivity.objects.filter(
-        plot=plot, phytosanitary_monitoring__isnull=False
+        phytosanitary_monitoring__isnull=False, **activity_scope(actor)
     )
+    if actor.is_superuser and filters.get("producer") is not None:
+        activities = activities.filter(plot__farm__producer_id=filters["producer"])
+    if filters.get("plot") is not None:
+        activities = activities.filter(plot_id=filters["plot"])
+    if filters.get("farm") is not None:
+        activities = activities.filter(plot__farm_id=filters["farm"])
     if filters.get("from") is not None:
         activities = activities.filter(done_date__gte=filters["from"])
     if filters.get("to") is not None:
@@ -50,7 +60,15 @@ def plot_history(actor, plot_id, filters: dict) -> tuple[list, Callable]:
             return True
 
     ordered = activities.order_by("-done_date", "-id")
-    return list(AgriculturalActivity.with_representation(ordered)), keep
+    return AgriculturalActivity.with_representation(ordered), keep
+
+
+def _reaches(model, pk, actor, farm_path: str) -> bool:
+    """Si `actor` alcanza la finca (`farm_path` vacío) o la parcela (`"farm"`) con ese id."""
+    prefix = f"{farm_path}__" if farm_path else ""
+    farm = f"{farm_path}_id" if farm_path else "id"
+    scope = owner_filter(actor, f"{prefix}producer_id", farm=farm)
+    return model.objects.filter(pk=pk, **scope).exists()
 
 
 def pest_summary(activities: list, keep: Callable) -> list[dict]:

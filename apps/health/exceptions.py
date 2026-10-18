@@ -115,6 +115,13 @@ class PlannedInputInactive(ApiError):
         )
 
 
+class FarmNotFound(ApiError):
+    # También cubre la finca de otro productor o una a la que la cuenta no llega.
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "La finca no existe."
+    default_code = "not_found"
+
+
 class PlotNotFound(ApiError):
     # También cubre la parcela de otro productor o de otra finca: responder distinto confirmaría
     # que existe.

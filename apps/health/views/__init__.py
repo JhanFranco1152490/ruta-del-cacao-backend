@@ -6,8 +6,8 @@ from .evidence import (
 )
 from .queries import (
     DetectionsWithoutControlView,
+    HistoryView,
     NoControlNeededView,
-    PlotHistoryView,
 )
 from .records import (
     DetectionControlsView,
@@ -20,8 +20,8 @@ __all__ = [
     "EvidenceDetailView",
     "EvidenceFileView",
     "EvidenceView",
+    "HistoryView",
     "MonitoringResultView",
     "NoControlNeededView",
     "PestDiseaseViewSet",
-    "PlotHistoryView",
 ]

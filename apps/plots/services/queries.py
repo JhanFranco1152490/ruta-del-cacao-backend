@@ -2,6 +2,7 @@ from django.contrib.postgres.lookups import Unaccent
 from django.db.models import Count, OuterRef, Q, QuerySet
 from django.db.models.functions import Lower
 
+from apps.common.codes import number_from_query
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 from apps.common.plot_characterization import characterized
@@ -23,7 +24,9 @@ def _by_name(field: str):
 # Los órdenes de la lista. Cada nivel desempata por su id: con nombres repetidos el orden sigue
 # siendo el mismo en cada consulta, y ninguna parcela salta de una página a otra.
 PLOT_ORDERINGS = {
-    "code": ("code_normalized", "id"),
+    # Por finca y dentro de ella por consecutivo: el código solo identifica a la parcela dentro
+    # de su finca.
+    "code": ("farm__name_normalized", "farm_id", "number", "id"),
     # Para agrupar por productor y luego por finca: la lista se pagina por parcela, así que los
     # grupos solo salen completos si el servidor ya las entrega en ese orden.
     "producer,farm,code": (
@@ -32,7 +35,7 @@ PLOT_ORDERINGS = {
         "farm__producer_id",
         "farm__name_normalized",
         "farm_id",
-        "code_normalized",
+        "number",
         "id",
     ),
 }
@@ -61,7 +64,10 @@ def list_plots(
         plots = plots.filter(is_active=is_active)
     term = (search or "").strip()
     if term:
-        plots = plots.filter(code__unaccent__icontains=term)
+        match = Q(name__unaccent__icontains=term)
+        if (number := number_from_query("P", term)) is not None:
+            match |= Q(number=number)
+        plots = plots.filter(match)
     return plots
 
 

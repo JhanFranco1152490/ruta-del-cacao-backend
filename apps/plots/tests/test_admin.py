@@ -54,8 +54,8 @@ def form_data(plot, **overrides):
 
 
 def test_the_list_shows_the_plot_with_its_farm_and_producer_and_searches_them(client):
-    plot = PlotFactory(code="P-LOTE", farm=FarmFactory(name="Finca El Pórtico"))
-    PlotFactory(code="P-OTRO")
+    plot = PlotFactory(name="P-LOTE", farm=FarmFactory(name="Finca El Pórtico"))
+    PlotFactory(name="P-OTRO")
 
     by_farm = client.get(changelist_url(), {"q": "portico"}).content.decode()
     by_producer = client.get(
@@ -69,13 +69,13 @@ def test_the_list_shows_the_plot_with_its_farm_and_producer_and_searches_them(cl
 def test_saving_goes_through_the_service_and_leaves_the_history_with_the_admin_as_actor(
     client, superuser
 ):
-    plot = PlotFactory(code="P-01")
+    plot = PlotFactory(name="P-01")
 
-    response = client.post(change_url(plot), form_data(plot, code="P-01 Alta"))
+    response = client.post(change_url(plot), form_data(plot, name="P-01 Alta"))
 
     assert response.status_code == 302
     plot.refresh_from_db()
-    assert (plot.code, plot.version) == ("P-01 Alta", 2)
+    assert (plot.name, plot.version) == ("P-01 Alta", 2)
     event = PlotAuditEvent.objects.get(plot=plot, action=PlotAuditEvent.Action.UPDATED)
     assert event.actor == superuser
 
@@ -117,15 +117,15 @@ def test_the_change_page_shows_the_measured_area_and_the_boundary_as_read_only(c
 
 
 def test_a_stale_form_is_rejected_and_changes_nothing(client):
-    plot = PlotFactory(code="P-01")
-    stale = form_data(plot, code="Tardío")
+    plot = PlotFactory(name="P-01")
+    stale = form_data(plot, name="Tardío")
     Plot.objects.filter(pk=plot.pk).update(version=2)
 
     response = client.post(change_url(plot), stale)
 
     assert "Otra persona modificó este registro" in response.content.decode()
     plot.refresh_from_db()
-    assert (plot.code, plot.version) == ("P-01", 2)
+    assert (plot.name, plot.version) == ("P-01", 2)
 
 
 def test_an_area_the_farm_cannot_give_is_refused_with_the_services_message(client):
@@ -139,14 +139,14 @@ def test_an_area_the_farm_cannot_give_is_refused_with_the_services_message(clien
     assert (plot.area_hectares, plot.version) == (Decimal("1.00"), 1)
 
 
-def test_a_repeated_code_is_refused_with_the_services_message(client):
+def test_a_repeated_name_is_refused_with_the_services_message(client):
     farm = FarmFactory()
-    plot = PlotFactory(farm=farm, code="P-01")
-    PlotFactory(farm=farm, code="P-02")
+    plot = PlotFactory(farm=farm, name="P-01")
+    PlotFactory(farm=farm, name="P-02")
 
-    response = client.post(change_url(plot), form_data(plot, code="P-02"), follow=True)
+    response = client.post(change_url(plot), form_data(plot, name="P-02"), follow=True)
 
-    assert "Ya existe una parcela con este código" in response.content.decode()
+    assert "Ya existe una parcela con este nombre" in response.content.decode()
     plot.refresh_from_db()
     assert plot.version == 1
 
@@ -185,8 +185,8 @@ def test_the_bulk_delete_action_is_not_offered(client):
 
 
 def test_staff_who_is_not_the_technical_account_only_reaches_its_own_producers_plots():
-    mine = PlotFactory(code="P-MIA")
-    theirs = PlotFactory(code="P-AJENA")
+    mine = PlotFactory(name="P-MIA")
+    theirs = PlotFactory(name="P-AJENA")
     staff = UserFactory(
         is_staff=True,
         producer=mine.farm.producer,
@@ -202,7 +202,7 @@ def test_staff_who_is_not_the_technical_account_only_reaches_its_own_producers_p
 
 def test_the_history_is_read_only_and_only_for_the_superuser(client):
     plot = PlotFactory()
-    client.post(change_url(plot), form_data(plot, code="P-NUEVO"))
+    client.post(change_url(plot), form_data(plot, name="P-NUEVO"))
     event = PlotAuditEvent.objects.get(action=PlotAuditEvent.Action.UPDATED)
     url = reverse("admin:plots_plotauditevent_change", args=[event.pk])
 

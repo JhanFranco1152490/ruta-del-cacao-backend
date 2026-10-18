@@ -28,6 +28,7 @@ class FarmAuditServiceTests(TestCase):
         )
         self.farm = Farm.objects.create(
             producer=producer,
+            number=1,
             name="La Esperanza",
             name_normalized="la esperanza",
             department_code="54",

@@ -60,6 +60,8 @@ INSTALLED_APPS = [
     "apps.crops",
     "apps.inputs",
     "apps.activities",
+    "apps.harvests",
+    "apps.lots",
     "apps.health",
     "apps.notifications",
     "apps.demo_data",
@@ -239,6 +241,7 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "StatusEnum": "apps.producers.models.Producer.Status",
         "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
+        "LotStatusEnum": "apps.lots.choices.LotStatus",
         "PestDiseaseKindEnum": "apps.health.choices.PestDiseaseKind",
         "ControlMethodEnum": "apps.health.choices.ControlMethod",
         "SamplingUnitEnum": "apps.health.choices.SamplingUnit",

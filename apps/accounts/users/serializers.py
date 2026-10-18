@@ -39,6 +39,7 @@ class AccountFarmSerializer(serializers.Serializer):
     # Una finca en la que trabaja un empleado. Tampoco es un `ModelSerializer`, por lo mismo.
 
     id = serializers.UUIDField()
+    code = serializers.CharField()
     name = serializers.CharField()
     is_active = serializers.BooleanField()
 

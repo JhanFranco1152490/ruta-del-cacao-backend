@@ -57,7 +57,7 @@ PRODUCERS = [
                 "longitude": Decimal("-72.7398000"),
                 "plots": [
                     {
-                        "code": "L-01",
+                        "name": "L-01",
                         "area_hectares": Decimal("3.00"),
                         "shape": {"east_m": 120, "north_m": 0, "width_m": 200, "height_m": 150},
                         "characterization": {
@@ -70,7 +70,7 @@ PRODUCERS = [
                         },
                     },
                     {
-                        "code": "L-02",
+                        "name": "L-02",
                         "area_hectares": Decimal("2.50"),
                         "shape": {"east_m": -120, "north_m": 0, "width_m": 200, "height_m": 125},
                         "characterization": {
@@ -90,7 +90,7 @@ PRODUCERS = [
                         },
                     },
                     {
-                        "code": "L-03",
+                        "name": "L-03",
                         "area_hectares": Decimal("1.50"),
                         "shape": None,
                     },
@@ -106,7 +106,7 @@ PRODUCERS = [
                 "longitude": Decimal("-73.0942000"),
                 "plots": [
                     {
-                        "code": "M-01",
+                        "name": "M-01",
                         "area_hectares": Decimal("2.00"),
                         "shape": {"east_m": 0, "north_m": 60, "width_m": 160, "height_m": 125},
                         "characterization": {
@@ -140,7 +140,7 @@ PRODUCERS = [
                 "longitude": Decimal("-72.8015000"),
                 "plots": [
                     {
-                        "code": "VR-1",
+                        "name": "VR-1",
                         "area_hectares": Decimal("4.00"),
                         "shape": {"east_m": 0, "north_m": 110, "width_m": 250, "height_m": 160},
                         "characterization": {
@@ -152,7 +152,7 @@ PRODUCERS = [
                         },
                     },
                     {
-                        "code": "VR-2",
+                        "name": "VR-2",
                         "area_hectares": Decimal("2.00"),
                         "shape": {"east_m": 0, "north_m": -110, "width_m": 160, "height_m": 125},
                     },
@@ -179,7 +179,7 @@ PRODUCERS = [
                 "longitude": Decimal("-72.6024000"),
                 "plots": [
                     {
-                        "code": "G-01",
+                        "name": "G-01",
                         "area_hectares": Decimal("3.50"),
                         "shape": {"east_m": 0, "north_m": 0, "width_m": 250, "height_m": 140},
                         "characterization": {

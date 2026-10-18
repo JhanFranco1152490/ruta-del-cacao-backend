@@ -60,7 +60,7 @@ def as_json(vertices):
 
 
 def body(farm, vertices=None, **overrides):
-    data = {"farm_id": str(farm.pk), "code": "P1 · El Mango", "area_hectares": "1.00"}
+    data = {"farm_id": str(farm.pk), "name": "P1 · El Mango", "area_hectares": "1.00"}
     if vertices is not None:
         data["boundary"] = as_json(vertices)
         data["area_hectares"] = str(measured(vertices).quantize(Decimal("0.01")))
@@ -127,11 +127,13 @@ def test_create_returns_the_plot_in_the_contract_shape(client, farm):
         "id": str(plot_id),
         "farm": {
             "id": str(farm.pk),
+            "code": "F01",
             "name": "La Esperanza",
             "is_active": True,
             "producer": result["farm"]["producer"],
         },
-        "code": "P1 · El Mango",
+        "code": "P01",
+        "name": "P1 · El Mango",
         "area_hectares": data["area_hectares"],
         "measured_area_hectares": str(measured(vertices)),
         "boundary": result["boundary"],
@@ -175,11 +177,11 @@ def test_resending_an_id_with_other_content_returns_the_current_plot(client, far
     data = body(farm, id=str(uuid.uuid4()))
     client.post("/api/plots", data, format="json")
 
-    response = client.post("/api/plots", {**data, "code": "Otro"}, format="json")
+    response = client.post("/api/plots", {**data, "name": "Otro"}, format="json")
 
     assert response.status_code == 409
     assert response.data["code"] == "plot_id_conflict"
-    assert response.data["current"]["code"] == "P1 · El Mango"
+    assert response.data["current"]["name"] == "P1 · El Mango"
 
 
 def test_an_id_of_another_producer_is_a_conflict_without_its_data(client, farm):
@@ -238,16 +240,18 @@ def test_an_invalid_boundary_is_rejected(client, farm, shape):
 
 def test_an_overlap_returns_the_neighbour_and_the_suggested_boundary(client, farm):
     # CA-4 y CA-5: lo que la bandeja necesita para resaltar la zona y aplicar el ajuste.
-    neighbour = drawn_plot(farm, rect(1, 0, 3, 1), code="P2")
+    neighbour = drawn_plot(farm, rect(1, 0, 3, 1), name="P2")
 
     response = client.post("/api/plots", body(farm, rect(0, 0, 2, 1)), format="json")
 
     assert response.status_code == 422
     assert response.data["code"] == "plot_overlap"
-    assert response.data["fields"] == {"boundary": ["El polígono se superpone con la parcela P2."]}
+    assert response.data["fields"] == {
+        "boundary": ["El polígono se superpone con la parcela P01."]
+    }
     (overlap,) = response.data["overlaps"]
     assert overlap["plot_id"] == str(neighbour.pk)
-    assert overlap["code"] == "P2"
+    assert overlap["code"] == "P01"
     assert overlap["overlap_area_hectares"] == str(measured(rect(1, 0, 2, 1)))
     assert len(overlap["boundary"]) == 4
     suggestion = response.data["suggested_boundary"]
@@ -271,7 +275,7 @@ def test_a_boundary_too_far_from_the_farm_point_is_a_422_that_names_the_vertex(c
 def test_an_overlap_without_a_possible_suggestion(client, farm):
     farm.area_hectares = Decimal("50")
     farm.save()
-    drawn_plot(farm, rect(0, 0, 3, 3), code="P2")
+    drawn_plot(farm, rect(0, 0, 3, 3), name="P2")
 
     response = client.post("/api/plots", body(farm, rect(1, 1, 2, 2)), format="json")
 
@@ -280,16 +284,16 @@ def test_an_overlap_without_a_possible_suggestion(client, farm):
     assert response.data["suggested_measured_area_hectares"] is None
 
 
-def test_a_repeated_code_in_the_same_farm_is_rejected(client, farm):
+def test_a_repeated_name_in_the_same_farm_is_rejected(client, farm):
     # CA-11: " p-01 " choca con "P-01" en la misma finca, no en otra.
-    PlotFactory(farm=farm, code="P-01")
+    PlotFactory(farm=farm, name="P-01")
     other_farm = FarmFactory(**NEAR_SHAPES, producer=farm.producer)
 
-    repeated = client.post("/api/plots", body(farm, code=" p-01 "), format="json")
-    elsewhere = client.post("/api/plots", body(other_farm, code=" p-01 "), format="json")
+    repeated = client.post("/api/plots", body(farm, name=" p-01 "), format="json")
+    elsewhere = client.post("/api/plots", body(other_farm, name=" p-01 "), format="json")
 
     assert repeated.status_code == 409
-    assert repeated.data["code"] == "duplicate_plot_code"
+    assert repeated.data["code"] == "duplicate_plot_name"
     assert elsewhere.status_code == 201
 
 
@@ -314,10 +318,8 @@ def test_each_vertex_is_validated(client, farm, vertex_change, field):
     assert "boundary" in response.data["fields"]
 
 
-@pytest.mark.parametrize(
-    "change", [{"code": "   "}, {"area_hectares": "0"}, {"code": "x" * 51}], ids=str
-)
-def test_code_and_area_are_validated(client, farm, change):
+@pytest.mark.parametrize("change", [{"area_hectares": "0"}, {"name": "x" * 61}], ids=str)
+def test_name_and_area_are_validated(client, farm, change):
     response = client.post("/api/plots", body(farm, **change), format="json")
 
     assert response.status_code == 400
@@ -349,30 +351,30 @@ def test_an_inactive_farm_rejects_new_plots(client, farm):
 
 
 def test_list_returns_own_plots_ordered_by_code_and_paginated(client, farm):
-    for code in ["P-03", "P-01", "P-02"]:
-        PlotFactory(farm=farm, code=code)
-    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="P-00")
+    for name in ["Tres", "Uno", "Dos"]:
+        PlotFactory(farm=farm, name=name)
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), name="Ajena")
 
     response = client.get("/api/plots", {"page_size": 2})
 
     assert response.data["count"] == 3
-    assert [plot["code"] for plot in response.data["results"]] == ["P-01", "P-02"]
+    assert [plot["name"] for plot in response.data["results"]] == ["Tres", "Uno"]
     assert response.data["next"] is not None
 
 
-def test_list_filters_by_farm_status_and_code(client, farm):
+def test_list_filters_by_farm_status_and_name(client, farm):
     other_farm = FarmFactory(**NEAR_SHAPES, producer=farm.producer)
-    # El prefijo fija el orden: así no depende de cómo ordene las tildes la base de datos.
-    PlotFactory(farm=farm, code="A1 Árbol")
-    PlotFactory(farm=farm, code="B2 Río", is_active=False)
-    PlotFactory(farm=other_farm, code="C3 árbol viejo")
+    # Se listan por consecutivo, así que el orden no depende de cómo ordene las tildes la base.
+    PlotFactory(farm=farm, name="A1 Árbol")
+    PlotFactory(farm=farm, name="B2 Río", is_active=False)
+    PlotFactory(farm=other_farm, name="C3 árbol viejo")
 
     def codes(**params):
-        return [plot["code"] for plot in client.get("/api/plots", params).data["results"]]
+        return [plot["name"] for plot in client.get("/api/plots", params).data["results"]]
 
     assert codes(farm=farm.pk) == ["A1 Árbol", "B2 Río"]
     assert codes(farm=farm.pk, is_active="false") == ["B2 Río"]
-    assert codes(search="arbol") == ["A1 Árbol", "C3 árbol viejo"]
+    assert sorted(codes(search="arbol")) == ["A1 Árbol", "C3 árbol viejo"]
 
 
 def test_filtering_by_a_farm_of_another_producer_returns_nothing(client):
@@ -393,6 +395,7 @@ def test_the_list_says_the_producer_of_each_plot(client, farm):
     producer = farm.producer
     assert listed["farm"] == {
         "id": str(farm.pk),
+        "code": "F01",
         "name": farm.name,
         "is_active": True,
         "producer": {
@@ -405,12 +408,12 @@ def test_the_list_says_the_producer_of_each_plot(client, farm):
 
 
 def test_filtering_by_the_own_producer_returns_all_its_plots(client, farm):
-    PlotFactory(farm=farm, code="P-01")
-    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=farm.producer), code="P-02")
+    PlotFactory(farm=farm, name="Uno")
+    PlotFactory(farm=FarmFactory(**NEAR_SHAPES, producer=farm.producer), name="Dos")
 
     response = client.get("/api/plots", {"producer": farm.producer.pk})
 
-    assert [plot["code"] for plot in response.data["results"]] == ["P-01", "P-02"]
+    assert sorted(plot["name"] for plot in response.data["results"]) == ["Dos", "Uno"]
 
 
 def test_filtering_by_another_producer_returns_nothing(client):
@@ -462,17 +465,17 @@ def test_retrieve_returns_an_own_plot_with_its_boundary(client, farm):
 def test_a_plot_of_another_producer_does_not_exist(client):
     # CA-14 al consultar y al modificar.
     foreign = PlotFactory(
-        farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), code="Ajena"
+        farm=FarmFactory(**NEAR_SHAPES, producer=ProducerFactory()), name="Ajena"
     )
 
     got = client.get(f"/api/plots/{foreign.pk}")
     patched = client.patch(
-        f"/api/plots/{foreign.pk}", {"code": "Mía", "expected_version": 1}, format="json"
+        f"/api/plots/{foreign.pk}", {"name": "Mía", "expected_version": 1}, format="json"
     )
 
     assert (got.status_code, patched.status_code) == (404, 404)
     foreign.refresh_from_db()
-    assert foreign.code == "Ajena"
+    assert foreign.name == "Ajena"
 
 
 # --- Editar ------------------------------------------------------------------------------
@@ -482,11 +485,11 @@ def test_update_edits_the_plot_and_audits_it(client, owner, farm):
     plot = PlotFactory(farm=farm)
 
     response = client.patch(
-        f"/api/plots/{plot.pk}", {"code": "Nuevo", "expected_version": 1}, format="json"
+        f"/api/plots/{plot.pk}", {"name": "Nuevo", "expected_version": 1}, format="json"
     )
 
     assert response.status_code == 200
-    assert (response.data["code"], response.data["version"]) == ("Nuevo", 2)
+    assert (response.data["name"], response.data["version"]) == ("Nuevo", 2)
     event = PlotAuditEvent.objects.get(plot=plot)
     assert (event.action, event.actor) == ("updated", owner)
 
@@ -540,7 +543,7 @@ def test_update_cannot_move_a_plot_to_another_farm(client, farm):
     assert plot.farm_id == farm.pk
 
 
-@pytest.mark.parametrize("data", [{"code": "Nuevo"}, {"expected_version": 1}], ids=str)
+@pytest.mark.parametrize("data", [{"name": "Nuevo"}, {"expected_version": 1}], ids=str)
 def test_update_requires_a_version_and_a_change(client, farm, data):
     plot = PlotFactory(farm=farm)
 
@@ -553,16 +556,16 @@ def test_update_requires_a_version_and_a_change(client, farm, data):
 def test_an_outdated_version_returns_the_current_plot(client, farm):
     plot = PlotFactory(farm=farm)
     client.patch(
-        f"/api/plots/{plot.pk}", {"code": "Primero", "expected_version": 1}, format="json"
+        f"/api/plots/{plot.pk}", {"name": "Primero", "expected_version": 1}, format="json"
     )
 
     response = client.patch(
-        f"/api/plots/{plot.pk}", {"code": "Segundo", "expected_version": 1}, format="json"
+        f"/api/plots/{plot.pk}", {"name": "Segundo", "expected_version": 1}, format="json"
     )
 
     assert response.status_code == 409
     assert response.data["code"] == "stale_version"
-    assert (response.data["current"]["code"], response.data["current"]["version"]) == (
+    assert (response.data["current"]["name"], response.data["current"]["version"]) == (
         "Primero",
         2,
     )
@@ -618,7 +621,7 @@ def test_delete_requires_the_version_in_the_url(client, farm, query):
 
 def test_delete_with_an_outdated_version_returns_the_current_plot(client, farm):
     plot = PlotFactory(farm=farm)
-    client.patch(f"/api/plots/{plot.pk}", {"code": "Nuevo", "expected_version": 1}, format="json")
+    client.patch(f"/api/plots/{plot.pk}", {"name": "Nuevo", "expected_version": 1}, format="json")
 
     response = client.delete(f"/api/plots/{plot.pk}?expected_version=1")
 

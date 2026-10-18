@@ -108,7 +108,7 @@ class PlotCharacterizationAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("plot", "management_system", "shade_type", "version", "updated_at")
     list_filter = ("management_system", "shade_type")
     list_select_related = ("plot__farm",)
-    search_fields = ("plot__code", "plot__farm__name__unaccent")
+    search_fields = ("plot__name__unaccent", "plot__farm__name__unaccent")
     inlines = [PlotPlantingInline]
 
 

@@ -76,7 +76,7 @@ def test_an_employee_with_field_permissions_is_created_in_its_farm(auth_client, 
 
     assert response.status_code == 201
     assert response.data["farms"] == [
-        {"id": str(farm.pk), "name": "La Esperanza", "is_active": True}
+        {"id": str(farm.pk), "code": "F01", "name": "La Esperanza", "is_active": True}
     ]
     assert response.data["needs_farm"] is False
     assert list(User.objects.get(pk=response.data["id"]).farms.all()) == [farm]
@@ -389,7 +389,9 @@ def test_the_session_tells_the_farm_of_an_employee(auth_client, owner, farm):
 
     user = auth_client(employee).get("/api/auth/me").data["user"]
 
-    assert user["farms"] == [{"id": str(farm.pk), "name": "La Esperanza", "is_active": True}]
+    assert user["farms"] == [
+        {"id": str(farm.pk), "code": "F01", "name": "La Esperanza", "is_active": True}
+    ]
     assert user["all_farms"] is False
 
 

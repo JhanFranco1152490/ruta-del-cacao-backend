@@ -304,7 +304,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     la detección guarda quién lo pidió y cuándo.
     Todo en una transacción. El reenvío idéntico (también con las detecciones en otro orden)
     responde `200`; otro resultado, `409 activity_already_done`. Una plaga inexistente es `400` en
-    `detections`, no `404`.
+    `detections`, no `404`. Evaluar **árboles** no puede pasar de los que suma la ficha de la
+    parcela (`400` en `evaluated_units`); las mazorcas no tienen tope, y una parcela sin ficha o
+    sin siembras no limita. `sanidad` lo pregunta por `apps/common/plot_trees.py`, que `crops`
+    llena en su `ready()`, y solo lo revisa en un resultado nuevo, no en un reenvío.
   - **Controles** desde una detección (`POST /api/phytosanitary-detections/{id}/controls`): el
     control es una actividad `phytosanitary_control` y `PhytosanitaryTreatment` guarda solo el
     vínculo con la detección, qué se hizo (`method`) y el insumo previsto, que no descuenta. Uno

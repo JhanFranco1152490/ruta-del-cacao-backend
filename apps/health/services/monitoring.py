@@ -4,8 +4,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.common.locks import lock_aggregate_root
+from apps.common.plot_trees import tree_count
 from apps.common.text import normalize_catalog_name
 
+from ..choices import SamplingUnit
 from ..exceptions import (
     InvalidResult,
     MonitoringAlreadyRecorded,
@@ -51,6 +53,7 @@ def record_monitoring(actor, activity_id, data: dict):
             return activity, False
         raise MonitoringAlreadyRecorded()
 
+    _ensure_within_the_plot(activity, data)
     pests = _active_pests(detections)
     _ensure_new_ids(detections)
     requested_at = timezone.now()
@@ -111,6 +114,22 @@ def incidence(affected: int, evaluated: int) -> Decimal:
     return (Decimal(affected) * 100 / Decimal(evaluated)).quantize(
         PERCENT_PLACES, rounding=ROUND_HALF_UP
     )
+
+
+def _ensure_within_the_plot(activity, data: dict) -> None:
+    """No se evalúan más árboles de los que tiene la parcela según su ficha. Las mazorcas no
+    tienen un tope que la ficha conozca, y una parcela sin siembras registradas no limita nada:
+    el monitoreo no debe esperar a la caracterización. Un resultado que ya se guardó no vuelve a
+    revisarse (se llega aquí solo con uno nuevo), así que reenviarlo desde la cola sigue
+    funcionando aunque la ficha cambie después."""
+    if data["sampling_unit"] != SamplingUnit.TREES:
+        return
+    trees = tree_count(activity.plot_id)
+    if trees is not None and data["evaluated_units"] > trees:
+        raise InvalidResult(
+            "evaluated_units",
+            f"No puedes evaluar más árboles de los que tiene la parcela ({trees}).",
+        )
 
 
 def _clean_detections(data: dict) -> list[dict]:

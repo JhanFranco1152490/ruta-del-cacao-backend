@@ -16,6 +16,7 @@ from apps.activities.choices import ActivityStatus, ActivityType
 from apps.activities.models import AgriculturalActivity
 from apps.activities.state import today_in_bogota
 from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.crops.tests.factories import PlotCharacterizationFactory, PlotPlantingFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.health.models import Detection, PestDisease, PhytosanitaryMonitoring
 from apps.health.tests.factories import DetectionFactory, PestDiseaseFactory
@@ -224,6 +225,56 @@ def test_the_affected_units_cannot_overflow_the_column(client, monitoring, monil
 
     assert response.status_code == 400, response.data
     assert_nothing_saved(monitoring)
+
+
+def plant(plot, *tree_counts):
+    ficha = PlotCharacterizationFactory(plot=plot)
+    for trees in tree_counts:
+        PlotPlantingFactory(characterization=ficha, tree_count=trees)
+
+
+def test_the_trees_evaluated_cannot_exceed_the_trees_of_the_plot(
+    client, monitoring, monilia, plot
+):
+    plant(plot, 60, 40)
+    body = result(detection(monilia, 5), evaluated_units=101)
+
+    response = client.post(url(monitoring), body, format="json")
+
+    assert_rejected(response, "evaluated_units")
+    assert "(100)" in str(response.data["fields"]["evaluated_units"])
+    assert_nothing_saved(monitoring)
+
+
+def test_all_the_trees_of_the_plot_can_be_evaluated(client, monitoring, monilia, plot):
+    plant(plot, 60, 40)
+    body = result(detection(monilia, 5), evaluated_units=100)
+
+    assert client.post(url(monitoring), body, format="json").status_code == 201
+
+
+def test_pods_are_not_limited_by_the_trees_of_the_plot(client, monitoring, monilia, plot):
+    plant(plot, 10)
+    body = result(detection(monilia, 5), sampling_unit="pods", evaluated_units=400)
+
+    assert client.post(url(monitoring), body, format="json").status_code == 201
+
+
+def test_a_plot_without_a_ficha_does_not_limit_the_trees(client, monitoring, monilia):
+    body = result(detection(monilia, 5), evaluated_units=100_000)
+
+    assert client.post(url(monitoring), body, format="json").status_code == 201
+
+
+def test_a_recorded_result_is_still_accepted_if_the_plot_has_fewer_trees_later(
+    client, monitoring, monilia, plot
+):
+    plant(plot, 600)
+    body = result(detection(monilia, 5), evaluated_units=50)
+    assert client.post(url(monitoring), body, format="json").status_code == 201
+    plot.characterization.plantings.update(tree_count=10)
+
+    assert client.post(url(monitoring), body, format="json").status_code == 200
 
 
 @pytest.mark.parametrize("affected", [0, -1])

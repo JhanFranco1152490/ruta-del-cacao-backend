@@ -4,7 +4,7 @@ from django.contrib.auth.base_user import AbstractBaseUser
 
 from apps.common.audit import field_changes
 
-from ..models import PostharvestFacility, PostharvestFacilityAuditEvent
+from ..models import CAPACITY_DECIMAL_PLACES, PostharvestFacility, PostharvestFacilityAuditEvent
 
 
 def record_facility_audit_event(
@@ -22,6 +22,7 @@ def record_facility_audit_event(
         before or {},
         {name: getattr(facility, name) for name in fields},
         fields=fields,
+        decimal_places=CAPACITY_DECIMAL_PLACES,
     )
     return _record(facility, actor, action, fields, changes)
 

@@ -106,7 +106,7 @@ def test_a_facility_is_shown_with_its_farm_status_and_records(auth_client, owner
         "producer_id": str(box.farm.producer_id),
         "facility_type": "fermentation_box",
         "name": "C-02",
-        "capacity_kg": 600,
+        "capacity_kg": "600.0",
         "is_active": True,
         "status": "available",
         "occupied_by": None,
@@ -218,8 +218,9 @@ def test_every_field_is_required(auth_client, owner, farm, missing):
         ("name", "   "),
         ("name", "x" * 41),
         ("capacity_kg", 0),
+        ("capacity_kg", "-5"),
         ("capacity_kg", 10_001),
-        ("capacity_kg", "600.5"),
+        ("capacity_kg", "600.55"),
     ],
 )
 def test_invalid_values_are_rejected_in_their_field(auth_client, owner, farm, field, value):
@@ -228,6 +229,12 @@ def test_invalid_values_are_rejected_in_their_field(auth_client, owner, farm, fi
     assert (response.status_code, response.data["code"]) == (400, "validation_error")
     assert field in response.data["fields"]
     assert PostharvestFacility.objects.count() == 0
+
+
+def test_the_capacity_takes_one_decimal(auth_client, owner, farm):
+    response = auth_client(owner).post(URL, body(farm, capacity_kg="12.5"), format="json")
+
+    assert (response.status_code, response.data["capacity_kg"]) == (201, "12.5")
 
 
 def test_an_unknown_field_is_rejected(auth_client, owner, farm):
@@ -295,7 +302,7 @@ def test_the_foreman_edits_and_deactivates(auth_client, foreman, box):
     assert (edited.status_code, edited.data["name"], edited.data["capacity_kg"]) == (
         200,
         "C-20",
-        700,
+        "700.0",
     )
     assert (deactivated.data["status"], deactivated.data["version"]) == ("inactive", 3)
 
@@ -329,7 +336,7 @@ def test_a_stale_version_answers_with_the_current_facility(auth_client, owner, b
     response = patch(client, box, expected_version=1, capacity_kg=700)
 
     assert (response.status_code, response.data["code"]) == (409, "stale_version")
-    assert response.data["current"]["capacity_kg"] == 650
+    assert response.data["current"]["capacity_kg"] == "650.0"
 
 
 def test_the_type_of_a_used_facility_is_locked_in_the_api(auth_client, used_facility):

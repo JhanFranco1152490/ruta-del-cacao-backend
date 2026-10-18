@@ -54,7 +54,7 @@ def test_the_creation_leaves_its_event_with_every_value(owner, farm):
         farm.pk,
     )
     assert event.changes == {
-        "capacity_kg": {"before": None, "after": 600},
+        "capacity_kg": {"before": None, "after": "600.0"},
         "facility_type": {"before": None, "after": "fermentation_box"},
         "is_active": {"before": None, "after": True},
         "name": {"before": None, "after": "C-04"},

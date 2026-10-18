@@ -37,7 +37,7 @@ def test_name_and_capacity_change_and_the_version_goes_up(owner, box):
     assert (updated.name, updated.capacity_kg, updated.version) == ("C-2", 650, 2)
     event = events(box, "updated").get()
     assert event.changes == {
-        "capacity_kg": {"before": 600, "after": 650},
+        "capacity_kg": {"before": "600.0", "after": "650.0"},
         "name": {"before": "C-02", "after": "C-2"},
     }
 

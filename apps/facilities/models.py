@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -8,9 +9,12 @@ from apps.common.audit import AuditEventBase
 from apps.common.text import normalize_catalog_name
 
 NAME_MAX_LENGTH = 40
-MIN_CAPACITY_KG = 1
+# Un decimal, como el peso de la cosecha en la báscula: así la capacidad se compara con el lote sin
+# redondear.
+CAPACITY_DECIMAL_PLACES = 1
+MIN_CAPACITY_KG = Decimal("0.1")
 # Un cajón ronda los 300 a 1.000 kg de cacao en baba: el límite solo atrapa un cero de más.
-MAX_CAPACITY_KG = 10_000
+MAX_CAPACITY_KG = Decimal("10000")
 OCCUPIED_IS_ACTIVE_CONSTRAINT = "facilities_facility_occupied_is_active"
 
 
@@ -32,8 +36,10 @@ class PostharvestFacility(models.Model):
     name = models.CharField(max_length=NAME_MAX_LENGTH)
     # Sin acotar a 40: la normalización de Unicode puede expandir algunos caracteres.
     name_normalized = models.CharField(max_length=120, editable=False)
-    capacity_kg = models.PositiveIntegerField(
-        validators=[MinValueValidator(MIN_CAPACITY_KG), MaxValueValidator(MAX_CAPACITY_KG)]
+    capacity_kg = models.DecimalField(
+        max_digits=6,
+        decimal_places=CAPACITY_DECIMAL_PLACES,
+        validators=[MinValueValidator(MIN_CAPACITY_KG), MaxValueValidator(MAX_CAPACITY_KG)],
     )
     is_active = models.BooleanField(default=True)
     # El lote que está adentro, fermentando o secándose. Solo lo cambian `occupy` y `release`.

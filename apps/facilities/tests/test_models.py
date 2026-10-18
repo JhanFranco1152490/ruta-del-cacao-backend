@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -46,12 +48,16 @@ def test_a_one_character_name_is_accepted():
     assert clean(build(name="A")).name == "A"
 
 
-@pytest.mark.parametrize("capacity", [0, MAX_CAPACITY_KG + 1])
-def test_the_capacity_must_be_between_1_and_10000(capacity):
+@pytest.mark.parametrize("capacity", [0, MAX_CAPACITY_KG + 1, Decimal("12.55")])
+def test_the_capacity_is_above_zero_up_to_10000_with_one_decimal(capacity):
     with pytest.raises(ValidationError) as error:
         clean(build(capacity_kg=capacity))
 
     assert "capacity_kg" in error.value.message_dict
+
+
+def test_the_capacity_takes_one_decimal():
+    assert clean(build(capacity_kg=Decimal("12.5"))).capacity_kg == Decimal("12.5")
 
 
 @pytest.mark.parametrize("capacity", [0, MAX_CAPACITY_KG + 1])

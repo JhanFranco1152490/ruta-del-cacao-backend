@@ -7,7 +7,13 @@ from apps.common.serializers import (
     RequireVersionedChangeMixin,
 )
 
-from .models import MAX_CAPACITY_KG, MIN_CAPACITY_KG, NAME_MAX_LENGTH, PostharvestFacility
+from .models import (
+    CAPACITY_DECIMAL_PLACES,
+    MAX_CAPACITY_KG,
+    MIN_CAPACITY_KG,
+    NAME_MAX_LENGTH,
+    PostharvestFacility,
+)
 from .status import FacilityStatus, facility_status
 
 # Las opciones del estado del lote se toman de su campo por la relación, sin importar su app: así
@@ -88,12 +94,22 @@ class PostharvestFacilityListQuerySerializer(serializers.Serializer):
     producer = serializers.UUIDField(required=False)
 
 
+def capacity_field(**kwargs) -> serializers.DecimalField:
+    return serializers.DecimalField(
+        max_digits=6,
+        decimal_places=CAPACITY_DECIMAL_PLACES,
+        min_value=MIN_CAPACITY_KG,
+        max_value=MAX_CAPACITY_KG,
+        **kwargs,
+    )
+
+
 class PostharvestFacilityCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     farm_id = serializers.UUIDField()
     facility_type = serializers.ChoiceField(choices=PostharvestFacility.FacilityType.choices)
     # Un nombre que solo tiene guiones lo rechaza el modelo (`clean`), que lo normaliza.
     name = serializers.CharField(max_length=NAME_MAX_LENGTH)
-    capacity_kg = serializers.IntegerField(min_value=MIN_CAPACITY_KG, max_value=MAX_CAPACITY_KG)
+    capacity_kg = capacity_field()
 
 
 class PostharvestFacilityUpdateSerializer(
@@ -105,9 +121,7 @@ class PostharvestFacilityUpdateSerializer(
         choices=PostharvestFacility.FacilityType.choices, required=False
     )
     name = serializers.CharField(max_length=NAME_MAX_LENGTH, required=False)
-    capacity_kg = serializers.IntegerField(
-        min_value=MIN_CAPACITY_KG, max_value=MAX_CAPACITY_KG, required=False
-    )
+    capacity_kg = capacity_field(required=False)
     is_active = serializers.BooleanField(required=False)
     expected_version = serializers.IntegerField(min_value=1, write_only=True)
 

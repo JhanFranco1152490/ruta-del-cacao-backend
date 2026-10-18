@@ -93,12 +93,14 @@ def api_exception_handler(exc, context):
     return response
 
 
-def log_unhandled_error(exc):
+def log_unhandled_error(exc, where: str | None = None):
     # No se pasa exc_info: el mensaje de la excepción puede traer datos del usuario (un
     # IntegrityError con el valor duplicado, un fallo de envío con el destinatario). La clase
-    # y las líneas del traceback bastan para ubicar el fallo.
+    # y las líneas del traceback bastan para ubicar el fallo. `where` dice qué parte falló
+    # cuando no hay una petición que lo diga (una tarea programada).
     logger.error(
-        "Error no controlado: %s\n%s",
+        "Error no controlado%s: %s\n%s",
+        f" en {where}" if where else "",
         type(exc).__name__,
         "".join(traceback.format_tb(exc.__traceback__)),
     )

@@ -4,6 +4,8 @@ from factory.django import DjangoModelFactory
 from apps.common.text import normalize_catalog_name
 from apps.facilities.models import PostharvestFacility
 from apps.farms.tests.factories import FarmFactory
+from apps.harvests.tests.factories import characterized_plot
+from apps.lots.tests.factories import LotFactory
 
 
 class PostharvestFacilityFactory(DjangoModelFactory):
@@ -27,3 +29,8 @@ def facility_data(farm, **overrides) -> dict:
     }
     data.update(overrides)
     return data
+
+
+def lot_in(farm):
+    """Un lote de una cosecha de una parcela de `farm`, para ocupar sus cajones y marquesinas."""
+    return LotFactory(harvest__plot=characterized_plot(farm=farm))

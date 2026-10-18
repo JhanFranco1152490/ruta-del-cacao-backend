@@ -97,13 +97,19 @@ def test_a_facility_is_shown_with_its_farm_status_and_records(auth_client, owner
     assert response.status_code == 200
     assert response.data == {
         "id": str(box.pk),
-        "farm": {"id": str(box.farm.pk), "name": box.farm.name, "is_active": True},
+        "farm": {
+            "id": str(box.farm.pk),
+            "code": box.farm.code,
+            "name": box.farm.name,
+            "is_active": True,
+        },
         "producer_id": str(box.farm.producer_id),
         "facility_type": "fermentation_box",
         "name": "C-02",
         "capacity_kg": 600,
         "is_active": True,
         "status": "available",
+        "occupied_by": None,
         "has_records": False,
         "version": 1,
         "created_at": response.data["created_at"],

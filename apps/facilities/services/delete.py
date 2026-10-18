@@ -5,7 +5,12 @@ from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 from apps.common.versioning import check_expected_version
 
-from ..exceptions import FacilityHasRecords, FacilityNotFound, StaleFacilityVersion
+from ..exceptions import (
+    FacilityHasRecords,
+    FacilityNotFound,
+    FacilityOccupied,
+    StaleFacilityVersion,
+)
 from ..models import PostharvestFacility, PostharvestFacilityAuditEvent
 from ..usage import is_used
 from .audit import record_facility_audit_event
@@ -29,17 +34,29 @@ def delete_facility(actor, facility_id, expected_version: int) -> None:
 def remove_facility(facility: PostharvestFacility, actor) -> None:
     """Elimina `facility` y deja el rastro. Quien llama ya validó quién puede hacerlo: aquí solo se
     aplica la regla. Si algo lo usa, `FacilityHasRecords` y no se toca nada."""
+    if facility.current_lot_id is not None:
+        raise FacilityOccupied(facility.current_lot)
     if is_used(facility):
         raise FacilityHasRecords()
     record_facility_audit_event(
         facility=facility, actor=actor, action=PostharvestFacilityAuditEvent.Action.DELETED
     )
     try:
-        facility.delete()
+        # Solo si sigue libre: ocupar no toma el bloqueo de esta finca, y un proceso de otra finca
+        # pudo ocuparlo después de la revisión.
+        deleted, _ = PostharvestFacility.objects.filter(
+            pk=facility.pk, current_lot__isnull=True
+        ).delete()
     except ProtectedError:
         # Un registro que apunta al elemento apareció entre la revisión y el borrado: la base es
         # la garantía final. La transacción de quien llama deshace también el evento.
         raise FacilityHasRecords() from None
+    if not deleted:
+        raise FacilityOccupied(
+            PostharvestFacility.objects.select_related("current_lot")
+            .get(pk=facility.pk)
+            .current_lot
+        )
 
 
 def _stale(facility: PostharvestFacility) -> StaleFacilityVersion:

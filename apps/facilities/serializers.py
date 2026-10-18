@@ -10,11 +10,31 @@ from apps.common.serializers import (
 from .models import MAX_CAPACITY_KG, MIN_CAPACITY_KG, NAME_MAX_LENGTH, PostharvestFacility
 from .status import FacilityStatus, facility_status
 
+# Las opciones del estado del lote se toman de su campo por la relación, sin importar su app: así
+# el esquema las reconoce como el mismo enum de los lotes.
+LOT_STATUS_CHOICES = (
+    PostharvestFacility._meta.get_field("current_lot")
+    .related_model._meta.get_field("status")
+    .choices
+)
+
 
 class FacilityFarmSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    code = serializers.CharField()
     name = serializers.CharField()
     is_active = serializers.BooleanField()
+
+
+class OccupyingLotSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    code = serializers.CharField()
+    status = serializers.ChoiceField(choices=LOT_STATUS_CHOICES)
+
+
+class OccupiedBySerializer(serializers.Serializer):
+    lot = OccupyingLotSerializer(source="current_lot")
+    since = serializers.DateTimeField(source="occupied_since")
 
 
 class PostharvestFacilitySerializer(serializers.ModelSerializer):
@@ -22,6 +42,8 @@ class PostharvestFacilitySerializer(serializers.ModelSerializer):
     farm = FacilityFarmSerializer(read_only=True)
     producer_id = serializers.UUIDField(source="farm.producer_id", read_only=True)
     status = serializers.SerializerMethodField()
+    # El lote que está adentro y desde cuándo, o `null`. Lo cambian solo fermentación y secado.
+    occupied_by = serializers.SerializerMethodField()
     # Si algún registro lo usa: lo deja el servicio, que lo calcula en la misma consulta.
     has_records = serializers.BooleanField(read_only=True)
 
@@ -36,6 +58,7 @@ class PostharvestFacilitySerializer(serializers.ModelSerializer):
             "capacity_kg",
             "is_active",
             "status",
+            "occupied_by",
             "has_records",
             "version",
             "created_at",
@@ -46,6 +69,12 @@ class PostharvestFacilitySerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.ChoiceField(choices=FacilityStatus.choices))
     def get_status(self, facility) -> str:
         return facility_status(facility)
+
+    @extend_schema_field(OccupiedBySerializer(allow_null=True))
+    def get_occupied_by(self, facility) -> dict | None:
+        if facility.current_lot_id is None:
+            return None
+        return OccupiedBySerializer(facility).data
 
 
 # Sin `many=False`, el esquema envolvería la respuesta de una acción `list` en un arreglo, y

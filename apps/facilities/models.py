@@ -11,6 +11,7 @@ NAME_MAX_LENGTH = 40
 MIN_CAPACITY_KG = 1
 # Un cajón ronda los 300 a 1.000 kg de cacao en baba: el límite solo atrapa un cero de más.
 MAX_CAPACITY_KG = 10_000
+OCCUPIED_IS_ACTIVE_CONSTRAINT = "facilities_facility_occupied_is_active"
 
 
 class PostharvestFacility(models.Model):
@@ -35,6 +36,16 @@ class PostharvestFacility(models.Model):
         validators=[MinValueValidator(MIN_CAPACITY_KG), MaxValueValidator(MAX_CAPACITY_KG)]
     )
     is_active = models.BooleanField(default=True)
+    # El lote que está adentro, fermentando o secándose. Solo lo cambian `occupy` y `release`.
+    # Uno a uno: un lote ocupa un solo elemento a la vez. PROTECT: un lote adentro no se borra.
+    current_lot = models.OneToOneField(
+        "lots.Lot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="occupied_facility",
+    )
+    occupied_since = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,
@@ -61,6 +72,17 @@ class PostharvestFacility(models.Model):
                 ),
                 name="facilities_facility_capacity_range",
             ),
+            models.CheckConstraint(
+                condition=models.Q(current_lot__isnull=True, occupied_since__isnull=True)
+                | models.Q(current_lot__isnull=False, occupied_since__isnull=False),
+                name="facilities_facility_occupancy_both_or_none",
+            ),
+            # Así un desactivar y un ocupar que se cruzan nunca dejan un elemento inactivo con un
+            # lote adentro, aunque cada uno haya leído el elemento libre y activo.
+            models.CheckConstraint(
+                condition=models.Q(current_lot__isnull=True) | models.Q(is_active=True),
+                name=OCCUPIED_IS_ACTIVE_CONSTRAINT,
+            ),
         ]
         indexes = [
             models.Index(fields=["farm", "facility_type"], name="facilities_farm_type_idx"),
@@ -82,6 +104,22 @@ class PostharvestFacility(models.Model):
     def __str__(self):
         return self.name
 
+    def occupy(self, lot, *, kind, actor):
+        """Deja `lot` adentro de este elemento. Lo llaman fermentación (con un cajón) y secado
+        (con una marquesina) al iniciar, dentro de su transacción y con la finca del lote ya
+        bloqueada. Otras apps lo usan por la relación de su propia clave foránea, sin importar
+        esta. No revisa permisos: los pide el proceso que lo llama."""
+        from .services.occupancy import occupy_facility
+
+        return occupy_facility(self, lot, kind=kind, actor=actor)
+
+    def release(self, lot, *, actor):
+        """Deja el elemento libre al finalizar el proceso de `lot`, que debe ser el que está
+        adentro."""
+        from .services.occupancy import release_facility
+
+        return release_facility(self, lot, actor=actor)
+
     def clean(self):
         if isinstance(self.name, str):
             self.name = self.name.strip()
@@ -101,6 +139,8 @@ class PostharvestFacilityAuditEvent(AuditEventBase):
         CREATED = "created", "Elemento registrado"
         UPDATED = "updated", "Elemento actualizado"
         STATUS_CHANGED = "status_changed", "Estado de elemento modificado"
+        OCCUPIED = "occupied", "Elemento ocupado por un lote"
+        RELEASED = "released", "Elemento liberado"
         DELETED = "deleted", "Elemento eliminado"
 
     # El historial sobrevive al elemento: uno registrado por error se puede eliminar, y sus

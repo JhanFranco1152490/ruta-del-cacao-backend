@@ -75,3 +75,43 @@ class FacilityHasRecords(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El elemento ya se usó en un proceso: no se puede eliminar. Desactívalo."
     default_code = "facility_has_records"
+
+
+def lot_summary(lot) -> dict | None:
+    """El lote como lo nombran los errores y la representación: lo que la interfaz necesita para
+    decir cuál es y enlazar a su ficha."""
+    if lot is None:
+        return None
+    return {"id": str(lot.pk), "code": lot.code, "status": lot.status}
+
+
+class FacilityOccupied(ApiError):
+    # Desactivar o eliminar un elemento con un lote adentro: se podrá cuando termine su proceso.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El elemento está ocupado por un lote: se podrá cuando termine su proceso."
+    default_code = "facility_occupied"
+
+    def __init__(self, lot):
+        super().__init__(extra={"lot": lot_summary(lot)})
+
+
+class FacilityUnavailable(ApiError):
+    # Para fermentación y secado: el elemento que eligieron se ocupó o se desactivó.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El elemento no está disponible."
+    default_code = "facility_unavailable"
+
+    def __init__(self, facility_status: str, lot=None):
+        super().__init__(extra={"status": facility_status, "lot": lot_summary(lot)})
+
+
+class FacilityWrongType(ApiError):
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "El elemento no es del tipo que pide el proceso."
+    default_code = "facility_wrong_type"
+
+
+class FacilityNotOccupiedByLot(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El lote no ocupa este elemento."
+    default_code = "facility_not_occupied_by_lot"

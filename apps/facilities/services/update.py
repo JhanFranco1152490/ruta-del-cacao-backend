@@ -2,15 +2,25 @@ import copy
 from functools import partial
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from apps.common.audit import record_update_events
+from apps.common.db import constraint_name
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 from apps.common.versioning import check_expected_version, save_next_version
 
-from ..exceptions import FacilityFieldsLocked, FacilityNotFound, StaleFacilityVersion
-from ..models import PostharvestFacility, PostharvestFacilityAuditEvent
+from ..exceptions import (
+    FacilityFieldsLocked,
+    FacilityNotFound,
+    FacilityOccupied,
+    StaleFacilityVersion,
+)
+from ..models import (
+    OCCUPIED_IS_ACTIVE_CONSTRAINT,
+    PostharvestFacility,
+    PostharvestFacilityAuditEvent,
+)
 from ..usage import is_used
 from .audit import record_facility_audit_event
 from .create import CONTENT_FIELDS, NAME_UNIQUE_CONSTRAINT, duplicate_error
@@ -49,18 +59,28 @@ def update_facility(actor, facility_id, expected_version: int, data: dict) -> Po
     if not changed:
         return _with_usage(facility)
 
+    occupied = facility.current_lot_id is not None
+    if occupied and "is_active" in changed:
+        raise FacilityOccupied(facility.current_lot)
     used = is_used(facility)
     for name in LOCKED_WHEN_USED:
-        if used and name in changed:
+        if (used or occupied) and name in changed:
             raise FacilityFieldsLocked(name)
 
     update_fields = [*changed, "name_normalized"] if "name" in changed else changed
-    save_next_version(
-        facility,
-        update_fields,
-        constraint=NAME_UNIQUE_CONSTRAINT,
-        duplicate=lambda: duplicate_error(facility),
-    )
+    try:
+        save_next_version(
+            facility,
+            update_fields,
+            constraint=NAME_UNIQUE_CONSTRAINT,
+            duplicate=lambda: duplicate_error(facility),
+        )
+    except IntegrityError as error:
+        # Un proceso de otra finca lo ocupó entre la lectura y el guardado (ocupar no toma el
+        # bloqueo de esta finca): la base no deja un elemento inactivo con un lote adentro.
+        if constraint_name(error) != OCCUPIED_IS_ACTIVE_CONSTRAINT:
+            raise
+        raise FacilityOccupied(_current_lot(facility.pk)) from None
     record_update_events(
         partial(record_facility_audit_event, facility=facility, actor=actor, before=before),
         changed,
@@ -69,6 +89,12 @@ def update_facility(actor, facility_id, expected_version: int, data: dict) -> Po
     )
     facility.has_records = used
     return facility
+
+
+def _current_lot(facility_id):
+    return (
+        PostharvestFacility.objects.select_related("current_lot").get(pk=facility_id).current_lot
+    )
 
 
 def _apply(facility: PostharvestFacility, data: dict) -> None:

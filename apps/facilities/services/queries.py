@@ -14,7 +14,7 @@ def readable_facilities(actor) -> QuerySet[PostharvestFacility]:
         PostharvestFacility.objects.filter(
             **owner_filter(actor, "farm__producer_id", farm="farm_id")
         )
-        .select_related("farm")
+        .select_related("farm", "current_lot")
         .annotate(has_records=used_expression())
     )
 

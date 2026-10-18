@@ -60,9 +60,10 @@ def attach_evidence(actor, activity_id, data: dict):
     """Adjunta una foto a un monitoreo o a un control realizados. Devuelve `(foto, creada)`: la
     misma foto reenviada por la cola responde sin duplicarla.
 
-    El archivo ya llegó completo antes de esta función: la transacción solo revisa las reglas
-    con la finca bloqueada y guarda, así el bloqueo dura milisegundos y no lo que tarda la
-    subida. Si algo falla, la foto no queda guardada.
+    El archivo ya llegó completo antes de esta función, así que el bloqueo no dura lo que tarda
+    la subida por la red. Sí incluye la escritura de la foto (hasta 5 MB) en la base de datos:
+    se acepta porque el teléfono la reduce a unos cientos de KB y la finca atiende una escritura
+    a la vez durante milisegundos. Si algo falla, la foto no queda guardada.
     """
     uploaded = data["file"]
     if uploaded.size > MAX_BYTES:

@@ -323,7 +323,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     (`PhytosanitaryMonitoringEvidence`, `PhytosanitaryTreatmentEvidence`) sobre un modelo
     abstracto. El límite del cuerpo se revisa en `initial()` de la vista, **antes de autenticar**,
     porque la revisión de CSRF lee el cuerpo. La transacción bloquea la finca, revisa y después
-    guarda la foto (milisegundos: la subida ya terminó). El archivo se entrega solo por la vista,
+    guarda la foto: la subida por la red ya terminó, pero la escritura de hasta 5 MB en la base
+    ocurre bajo el bloqueo (excepción conocida a "nada lento dentro de un bloqueo", aceptada
+    porque el teléfono reduce la foto a unos cientos de KB). El archivo se entrega solo por la vista,
     que revisa el alcance, con `nosniff`; no hay URL pública. La elimina quien la subió, quien
     programa en la finca o el Productor, y el archivo se borra del almacenamiento con
     `transaction.on_commit`. `HealthEvidenceAuditEvent` registra quién adjuntó o eliminó cada una.
@@ -351,7 +353,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     críticas sin leer y después por fecha, con el id como desempate. `activity` usa la
     representación registrada de la actividad, la del calendario.
   - **Push** (`…/push-config`, `POST …/push-subscriptions`, `POST …/push-subscriptions/remove`):
-    sin `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`, `public_key` es `null` y no se envía nada. El
+    sin `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT`, `public_key` es `null` y no se envía nada. El
     `endpoint` debe ser `https` de un servicio de push de navegador (Google, Mozilla, Apple o
     Microsoft, `PUSH_SERVICE_HOSTS`): el servidor le hace peticiones. Quitar un dispositivo es un
     `POST` con el `endpoint` en el cuerpo (un `DELETE` no lleva cuerpo y en la URL quedaría en los
@@ -579,7 +581,7 @@ las variables con valores de ejemplo.
 | `AUTH_JWT_SIGNING_KEY`, `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAMESITE` | Sesión. La llave por defecto es `SECRET_KEY`; `AUTH_COOKIE_SECURE` es `not DEBUG` por defecto |
 | `TRUSTED_PROXY_COUNT` | Proxies de confianza delante de la app (`0` por defecto). Ver la advertencia arriba |
 | `MAILER_BACKEND` | Correo: consola por defecto. `anymail.backends.resend.EmailBackend` exige `RESEND_API_KEY`; `django.core.mail.backends.smtp.EmailBackend` exige `MAILER_HOST`, `MAILER_USERNAME`, `MAILER_PASSWORD` (y admite `MAILER_PORT`, `MAILER_USE_TLS`) |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notificaciones push, opcionales: sin las dos llaves no se ofrecen, y sin las dos llaves y el `VAPID_SUBJECT` no se envían. Se generan una sola vez con `python manage.py generate_vapid_keys`; si cambian, cada dispositivo debe volver a activarlas. `VAPID_SUBJECT` es un `mailto:` del equipo. En despliegue van en el servicio web y en la tarea programada |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Notificaciones push, opcionales: sin las dos llaves y el `VAPID_SUBJECT` no se ofrecen (`push-config` devuelve `public_key` nulo) ni se envían. Se generan una sola vez con `python manage.py generate_vapid_keys`; si cambian, cada dispositivo debe volver a activarlas. `VAPID_SUBJECT` es un `mailto:` del equipo. En despliegue van en el servicio web y en la tarea programada |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | Monitoreo de errores, opcional: solo se activa con `SENTRY_DSN` (no lo pongas en tu `.env` local al correr las pruebas: las activaría contra el proyecto real). `SENTRY_ENVIRONMENT` es `production` si `DEBUG` es falso y `development` si no. `init_sentry` (en `apps/common/sentry.py`) apaga usuario/IP/cookies, cuerpo de las peticiones, variables locales, breadcrumbs, métricas y tracing, y no propaga `sentry-trace` ni `baggage` en las llamadas salientes (por ejemplo al proveedor de correo). `scrub_event` deja pasar solo una lista de campos y descarta cualquier evento con forma inesperada. Lo que sí puede llegar a Sentry, y solo en errores: de la petición, el método, la **ruta** de la URL (nunca query ni fragmento; en una ruta que no resuelve es lo que envió el cliente) y las cabeceras `Host`, `User-Agent`, `Accept`, `Origin`, `Content-Type` y `Content-Length`; el nombre de la transacción (patrón de ruta o, si no resuelve, la ruta); de la excepción, tipo y traceback con el mensaje vacío; **el mensaje de log y sus parámetros tal cual, si los escribe un logger de `apps.`** (por eso no se ponen datos personales en logs, regla del proyecto); y metadatos (nivel, `environment`, `release`, `server_name`, versión de Python y del SDK). Los ids de traza no se envían |
 
 ### Configurar correo
@@ -708,7 +710,8 @@ nada. Ruff y Black usan `line-length = 99`.
     lo que gastan con el mismo orden (finca primero, que ya tienen bloqueada), y con un orden fijo
     no hay esperas cruzadas. Un flujo nuevo que bloquee un insumo debe tomar antes la finca.
   - **Dentro de un bloqueo no va nada lento:** subir una foto o un archivo, llamar a un servicio
-    externo o generar un reporte se hace antes o después, fuera de la transacción. Un archivo se
+    externo o generar un reporte se hace antes o después, fuera de la transacción. Excepción
+    conocida: la foto de evidencia de sanidad se escribe bajo el bloqueo (la reduce el teléfono). Un archivo se
     sube primero y una transacción corta registra sus metadatos; si no, se retienen una conexión
     de la base y el bloqueo de la finca mientras dura la subida.
   - **Guardar un registro con una restricción única** (un nombre o un código repetido) se hace

@@ -47,7 +47,18 @@ def test_any_account_with_a_session_reads_the_catalog_sorted_by_name(auth_client
     assert response.status_code == 200
     assert [item["name"] for item in response.data["results"]] == ["Monilia", "Trips"]
     monilia = response.data["results"][0]
-    assert set(monilia) == {"id", "name", "kind", "scientific_name", "description", "is_active"}
+    assert set(monilia) == {
+        "id",
+        "name",
+        "kind",
+        "scientific_name",
+        "description",
+        "is_active",
+        "suggested_sampling_unit",
+        "suggested_control_method",
+    }
+    assert monilia["suggested_sampling_unit"] is None
+    assert monilia["suggested_control_method"] is None
     assert (monilia["kind"], monilia["scientific_name"]) == ("disease", None)
     assert monilia["description"] == "Solo ataca la mazorca."
 
@@ -105,6 +116,60 @@ def test_the_association_registers_one_trimming_the_texts(admin_client):
     assert response.data["scientific_name"] == "Nezara viridula"
     assert response.data["is_active"] is True
     assert PestDisease.objects.get().normalized_name == "chincheverde"
+
+
+def test_the_suggestions_are_stored_and_returned(admin_client):
+    body = valid_body(suggested_sampling_unit="pods", suggested_control_method="fruit_removal")
+
+    response = admin_client.post(URL, body, format="json")
+
+    assert response.status_code == 201
+    assert response.data["suggested_sampling_unit"] == "pods"
+    assert response.data["suggested_control_method"] == "fruit_removal"
+    stored = PestDisease.objects.get()
+    assert (stored.suggested_sampling_unit, stored.suggested_control_method) == (
+        "pods",
+        "fruit_removal",
+    )
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [("suggested_sampling_unit", "leaves"), ("suggested_control_method", "burn")],
+)
+def test_a_suggestion_outside_the_options_is_a_400(admin_client, field, value):
+    response = admin_client.post(URL, valid_body(**{field: value}), format="json")
+
+    assert response.status_code == 400
+    assert field in response.data["fields"]
+
+
+def test_the_suggestions_can_be_changed_and_cleared(admin_client):
+    pest = PestDiseaseFactory(
+        suggested_sampling_unit="pods", suggested_control_method="fruit_removal"
+    )
+
+    changed = admin_client.patch(
+        item_url(pest),
+        {"suggested_sampling_unit": "trees", "suggested_control_method": None},
+        format="json",
+    )
+
+    assert changed.status_code == 200
+    assert changed.data["suggested_sampling_unit"] == "trees"
+    assert changed.data["suggested_control_method"] is None
+
+
+def test_editing_something_else_keeps_the_suggestions(admin_client):
+    pest = PestDiseaseFactory(
+        suggested_sampling_unit="pods", suggested_control_method="fruit_removal"
+    )
+
+    response = admin_client.patch(item_url(pest), {"description": "Otra."}, format="json")
+
+    assert response.status_code == 200
+    assert response.data["suggested_sampling_unit"] == "pods"
+    assert response.data["suggested_control_method"] == "fruit_removal"
 
 
 def test_the_scientific_name_is_optional(admin_client):

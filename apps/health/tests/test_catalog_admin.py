@@ -62,6 +62,20 @@ def test_adding_from_the_admin_normalizes_the_name():
     assert pest.scientific_name is None
 
 
+def test_the_admin_saves_the_suggestions():
+    response = staff(MANAGE).post(
+        add_url(),
+        form(suggested_sampling_unit="pods", suggested_control_method="fruit_removal"),
+    )
+
+    assert response.status_code == 302
+    pest = PestDisease.objects.get()
+    assert (pest.suggested_sampling_unit, pest.suggested_control_method) == (
+        "pods",
+        "fruit_removal",
+    )
+
+
 def test_the_admin_rejects_a_repeated_name_without_saving():
     PestDiseaseFactory(name="Chinche verde")
 

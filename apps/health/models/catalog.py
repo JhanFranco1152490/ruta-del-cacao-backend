@@ -5,7 +5,7 @@ from django.db import models
 
 from apps.common.text import normalize_catalog_name
 
-from ..choices import PestDiseaseKind
+from ..choices import ControlMethod, PestDiseaseKind, SamplingUnit
 
 
 class PestDisease(models.Model):
@@ -22,6 +22,14 @@ class PestDisease(models.Model):
     scientific_name = models.CharField(max_length=100, null=True, blank=True)
     # Lo que se ve y dónde, en palabras del capataz.
     description = models.CharField(max_length=300)
+    # Lo que la planilla del monitoreo propone al elegirla: qué se cuenta para medirla y qué
+    # control se suele aplicar. Son una ayuda y no una regla: quien registra puede elegir otra.
+    suggested_sampling_unit = models.CharField(
+        max_length=16, choices=SamplingUnit.choices, null=True, blank=True
+    )
+    suggested_control_method = models.CharField(
+        max_length=32, choices=ControlMethod.choices, null=True, blank=True
+    )
     # El nombre y el nombre científico normalizados, separados por `|`: la búsqueda los compara
     # como el nombre, y el separador evita que un término una el final de uno con el inicio del
     # otro.

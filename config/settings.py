@@ -241,6 +241,7 @@ SPECTACULAR_SETTINGS = {
         "ActivityStatusEnum": "apps.activities.choices.ActivityStatus",
         "PestDiseaseKindEnum": "apps.health.choices.PestDiseaseKind",
         "ControlMethodEnum": "apps.health.choices.ControlMethod",
+        "SamplingUnitEnum": "apps.health.choices.SamplingUnit",
         "ControlModeEnum": "apps.health.choices.ControlMode",
     },
 }

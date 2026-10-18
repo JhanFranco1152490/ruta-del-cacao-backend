@@ -8,7 +8,15 @@ from ..exceptions import DuplicatePestDiseaseName, PestDiseaseInUse, PestDisease
 from ..models import PestDisease
 
 NAME_UNIQUE_CONSTRAINT = "health_pestdisease_name_unique"
-EDITABLE_FIELDS = ("name", "kind", "scientific_name", "description", "is_active")
+EDITABLE_FIELDS = (
+    "name",
+    "kind",
+    "scientific_name",
+    "description",
+    "suggested_sampling_unit",
+    "suggested_control_method",
+    "is_active",
+)
 
 
 def list_pests_diseases(is_active: bool | None = None, search: str | None = None) -> QuerySet:

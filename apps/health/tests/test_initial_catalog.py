@@ -11,12 +11,14 @@ pytestmark = pytest.mark.django_db
 # Las pruebas con `transaction=True` vacían las tablas al terminar, también las que llenó una
 # migración, así que se llama a la función de la migración en vez de confiar en lo que dejó.
 seed = import_module("apps.health.migrations.0002_initial_catalog")
+suggestions = import_module("apps.health.migrations.0007_initial_suggestions")
 
 
 @pytest.fixture(autouse=True)
 def initial_catalog():
     PestDisease.objects.all().delete()
     seed.add_initial_catalog(installed_apps, None)
+    suggestions.add_suggestions(installed_apps, None)
 
 
 INITIAL_CATALOG = {
@@ -45,6 +47,39 @@ def test_the_initial_catalog_is_loaded():
     }
 
     assert loaded == INITIAL_CATALOG
+
+
+def test_every_initial_one_suggests_what_to_measure():
+    assert not PestDisease.objects.filter(suggested_sampling_unit__isnull=True).exists()
+
+
+@pytest.mark.parametrize(
+    "name, unit, method",
+    [
+        ("Monilia", "pods", "fruit_removal"),
+        ("Mazorca negra", "pods", "fruit_removal"),
+        ("Escoba de bruja", "trees", "sanitary_pruning"),
+        ("Hormiga arriera", "trees", None),
+    ],
+)
+def test_the_suggestions_of_the_common_ones(name, unit, method):
+    pest = PestDisease.objects.get(name=name)
+
+    assert (pest.suggested_sampling_unit, pest.suggested_control_method) == (unit, method)
+
+
+def test_the_suggestions_do_not_overwrite_what_the_association_chose():
+    PestDisease.objects.filter(name="Monilia").update(
+        suggested_sampling_unit="trees", suggested_control_method="other"
+    )
+
+    suggestions.add_suggestions(installed_apps, None)
+
+    monilia = PestDisease.objects.get(name="Monilia")
+    assert (monilia.suggested_sampling_unit, monilia.suggested_control_method) == (
+        "trees",
+        "other",
+    )
 
 
 def test_every_initial_one_has_a_field_description_and_can_be_searched():

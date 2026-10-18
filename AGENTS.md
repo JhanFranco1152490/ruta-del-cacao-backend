@@ -292,7 +292,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
     `health.manage_pestdisease`, que no es delegable (es de toda la asociación). El nombre se
     compara sin mayúsculas, tildes, espacios ni guiones, y la búsqueda incluye el nombre
-    científico. Sin historial. No se elimina por la API; desde el admin, solo una que ningún
+    científico. Cada una puede traer `suggested_sampling_unit` (árboles o mazorcas) y
+    `suggested_control_method`, opcionales: la planilla del monitoreo los propone al elegirla y
+    quien registra puede cambiarlos; la migración inicial los llena para las 12 del catálogo sin
+    pisar lo que la asociación ya haya elegido. Sin historial. No se elimina por la API; desde el admin, solo una que ningún
     monitoreo usa.
   - **Resultado del monitoreo** (`POST /api/agricultural-activities/{id}/monitoring`): tipo de
     muestreo (árboles o mazorcas), unidades evaluadas, método, observaciones y detecciones (una

@@ -108,8 +108,8 @@ def test_deleting_an_occupied_facility_in_the_api_is_refused(auth_client, owner,
 
 
 def occupy_in_the_middle(facility, lot):
-    """Ocupa el elemento en la base mientras el servicio ya lo leyó libre: lo que hace un proceso
-    de otra finca, que no toma el bloqueo de la finca del elemento."""
+    """Ocupa el elemento en la base mientras el servicio ya lo leyó libre: lo que pasaría si quien
+    llama a `occupy` no tomara el bloqueo de la finca."""
 
     def is_used(_):
         PostharvestFacility.objects.filter(pk=facility.pk).update(
@@ -120,7 +120,7 @@ def occupy_in_the_middle(facility, lot):
     return is_used
 
 
-def test_deactivating_while_another_farm_occupies_it_answers_occupied(owner, lot):
+def test_deactivating_while_it_gets_occupied_answers_occupied(owner, lot):
     free = PostharvestFacilityFactory(farm=lot.harvest.plot.farm, name="C-05")
 
     with mock.patch(
@@ -132,7 +132,7 @@ def test_deactivating_while_another_farm_occupies_it_answers_occupied(owner, lot
     assert error.value.extra["lot"]["id"] == str(lot.pk)
 
 
-def test_deleting_while_another_farm_occupies_it_answers_occupied(owner, lot):
+def test_deleting_while_it_gets_occupied_answers_occupied(owner, lot):
     free = PostharvestFacilityFactory(farm=lot.harvest.plot.farm, name="C-06")
 
     with mock.patch(

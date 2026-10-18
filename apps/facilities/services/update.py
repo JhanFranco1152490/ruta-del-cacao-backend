@@ -76,8 +76,8 @@ def update_facility(actor, facility_id, expected_version: int, data: dict) -> Po
             duplicate=lambda: duplicate_error(facility),
         )
     except IntegrityError as error:
-        # Un proceso de otra finca lo ocupó entre la lectura y el guardado (ocupar no toma el
-        # bloqueo de esta finca): la base no deja un elemento inactivo con un lote adentro.
+        # Lo ocuparon entre la lectura y el guardado (ocupar no toma un bloqueo propio: confía en
+        # que quien lo llama bloqueó la finca): la base no deja un elemento inactivo y ocupado.
         if constraint_name(error) != OCCUPIED_IS_ACTIVE_CONSTRAINT:
             raise
         raise FacilityOccupied(_current_lot(facility.pk)) from None

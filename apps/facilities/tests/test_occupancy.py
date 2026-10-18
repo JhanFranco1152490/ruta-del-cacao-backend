@@ -9,11 +9,13 @@ from apps.common.tests.concurrency import run_in_parallel
 from apps.facilities.exceptions import (
     FacilityNotFound,
     FacilityNotOccupiedByLot,
+    FacilityOtherFarm,
     FacilityUnavailable,
     FacilityWrongType,
 )
 from apps.facilities.models import PostharvestFacility, PostharvestFacilityAuditEvent
 from apps.facilities.status import facility_status
+from apps.farms.tests.factories import FarmFactory
 from apps.lots.tests.factories import LotFactory
 
 from .factories import PostharvestFacilityFactory, lot_in
@@ -143,3 +145,14 @@ def test_two_simultaneous_occupations_of_the_same_box_leave_one():
     box.refresh_from_db()
     assert box.current_lot_id in {first.pk, second.pk}
     assert PostharvestFacilityAuditEvent.objects.filter(action="occupied").count() == 1
+
+
+def test_a_lot_only_enters_a_facility_of_its_own_farm(owner, lot):
+    other_farm = FarmFactory(producer=lot.harvest.plot.farm.producer)
+    elsewhere = PostharvestFacilityFactory(farm=other_farm)
+
+    with pytest.raises(FacilityOtherFarm):
+        elsewhere.occupy(lot, kind=BOX, actor=owner)
+
+    elsewhere.refresh_from_db()
+    assert elsewhere.current_lot is None

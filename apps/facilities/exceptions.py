@@ -111,6 +111,14 @@ class FacilityWrongType(ApiError):
     default_code = "facility_wrong_type"
 
 
+class FacilityOtherFarm(ApiError):
+    # Un cajón o una marquesina se usa en la finca donde está: el cacao se fermenta y se seca en la
+    # finca donde se cosechó.
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    default_detail = "El elemento es de otra finca: el lote solo puede usar los de su finca."
+    default_code = "facility_other_farm"
+
+
 class FacilityNotOccupiedByLot(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "El lote no ocupa este elemento."

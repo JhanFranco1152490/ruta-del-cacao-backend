@@ -42,8 +42,8 @@ def remove_facility(facility: PostharvestFacility, actor) -> None:
         facility=facility, actor=actor, action=PostharvestFacilityAuditEvent.Action.DELETED
     )
     try:
-        # Solo si sigue libre: ocupar no toma el bloqueo de esta finca, y un proceso de otra finca
-        # pudo ocuparlo después de la revisión.
+        # Solo si sigue libre: ocupar no toma un bloqueo propio (confía en que quien lo llama
+        # bloqueó la finca), así que se vuelve a mirar en el mismo borrado.
         deleted, _ = PostharvestFacility.objects.filter(
             pk=facility.pk, current_lot__isnull=True
         ).delete()

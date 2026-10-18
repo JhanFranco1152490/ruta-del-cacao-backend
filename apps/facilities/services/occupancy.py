@@ -1,7 +1,8 @@
 """Ocupar y liberar un cajón o una marquesina.
 
 No toman un bloqueo propio: quien las llama (fermentación, secado) ya tiene bloqueada la finca del
-lote, como toda escritura bajo una finca. El cambio es una sola actualización condicional de la
+lote, que es la del elemento (un lote solo usa los de su finca), como toda escritura bajo una
+finca. El cambio es una sola actualización condicional de la
 fila: solo ocupa si en ese instante el elemento es del tipo pedido, está activo y está libre, y
 solo libera si adentro está ese lote. Dos que se cruzan no pueden ganar los dos: PostgreSQL vuelve
 a evaluar la condición del segundo cuando el primero confirma.
@@ -13,6 +14,7 @@ from django.utils import timezone
 from ..exceptions import (
     FacilityNotFound,
     FacilityNotOccupiedByLot,
+    FacilityOtherFarm,
     FacilityUnavailable,
     FacilityWrongType,
 )
@@ -24,10 +26,13 @@ from .audit import record_occupancy_event
 def occupy_facility(
     facility: PostharvestFacility, lot, *, kind: str, actor
 ) -> PostharvestFacility:
-    if facility.farm.producer_id != lot.harvest.plot.farm.producer_id:
+    lot_farm = lot.harvest.plot.farm
+    if facility.farm.producer_id != lot_farm.producer_id:
         # Un elemento de otro productor no existe para este lote: responder distinto
         # confirmaría que existe.
         raise FacilityNotFound()
+    if facility.farm_id != lot_farm.pk:
+        raise FacilityOtherFarm()
     now = timezone.now()
     occupied = PostharvestFacility.objects.filter(
         pk=facility.pk, facility_type=kind, is_active=True, current_lot__isnull=True

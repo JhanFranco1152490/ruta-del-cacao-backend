@@ -12,7 +12,7 @@ pytestmark = pytest.mark.django_db
 def schema(tmp_path):
     path = tmp_path / "schema.yml"
     call_command("spectacular", "--validate", "--fail-on-warn", "--file", str(path))
-    return yaml.safe_load(path.read_text())
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def test_schema_is_valid_and_documents_the_api(schema):
@@ -38,6 +38,8 @@ def test_producer_list_documents_filters_and_pagination(schema):
         "/api/plot-characterizations",
         "/api/agricultural-inputs",
         "/api/input-stocks",
+        "/api/pests-diseases",
+        "/api/phytosanitary-detections/without-control",
     ],
 )
 def test_unpaginated_lists_document_an_object_with_results(schema, path):
@@ -157,6 +159,18 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/cacao-varieties"),
     ("post", "/api/cacao-varieties"),
     ("patch", "/api/cacao-varieties/{id}"),
+    ("get", "/api/pests-diseases"),
+    ("post", "/api/pests-diseases"),
+    ("patch", "/api/pests-diseases/{id}"),
+    ("post", "/api/agricultural-activities/{id}/monitoring"),
+    ("post", "/api/phytosanitary-detections/{id}/controls"),
+    ("get", "/api/phytosanitary-history"),
+    ("get", "/api/phytosanitary-detections/without-control"),
+    ("post", "/api/phytosanitary-detections/{id}/no-control-needed"),
+    ("get", "/api/agricultural-activities/{id}/evidence"),
+    ("post", "/api/agricultural-activities/{id}/evidence"),
+    ("get", "/api/evidence/{id}/file"),
+    ("delete", "/api/evidence/{id}"),
     ("get", "/api/plot-characterizations"),
     ("get", "/api/plot-characterizations/{id}"),
     ("get", "/api/plot-characterizations/{id}/history"),
@@ -176,6 +190,16 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/agricultural-activities/{id}/completion"),
     ("get", "/api/agricultural-activities/assignees"),
     ("get", "/api/agricultural-activities/pending"),
+    ("get", "/api/notifications"),
+    ("get", "/api/notifications/unread-count"),
+    ("post", "/api/notifications/{id}/read"),
+    ("post", "/api/notifications/read-all"),
+    ("delete", "/api/notifications/{id}"),
+    ("post", "/api/notifications/{id}/restore"),
+    ("post", "/api/notifications/dismiss-read"),
+    ("get", "/api/notifications/push-config"),
+    ("post", "/api/notifications/push-subscriptions"),
+    ("post", "/api/notifications/push-subscriptions/remove"),
 }
 
 

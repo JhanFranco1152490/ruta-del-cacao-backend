@@ -56,6 +56,8 @@ class AgriculturalActivity(models.Model):
         ordering = ["scheduled_date", "activity_type", "id"]
         indexes = [
             models.Index(fields=["plot", "scheduled_date"], name="activities_plot_date_idx"),
+            # La evaluación de los avisos busca las sin realizar por fecha.
+            models.Index(fields=["status", "scheduled_date"], name="activities_status_date_idx"),
         ]
         constraints = [
             models.CheckConstraint(
@@ -99,6 +101,56 @@ class AgriculturalActivity(models.Model):
                 "Puede eliminar actividades agrícolas programadas por error",
             ),
         ]
+
+    # Lo que sanidad hace sobre una actividad, sin importar esta app. Quien llama ya bloqueó la
+    # finca de la parcela y revisó que quien actúa pueda hacerlo; aquí se aplican las reglas de la
+    # actividad, su versión y su historial.
+
+    @classmethod
+    def with_representation(cls, activities):
+        """`activities` con lo que necesita su representación ya precargado, para listarlas sin
+        una consulta por fila."""
+        from .services.queries import with_representation
+
+        return with_representation(activities)
+
+    def state_today(self) -> str:
+        """El estado que se muestra hoy (programada, retrasada, vencida o realizada)."""
+        from .state import activity_state, today_in_bogota
+
+        return activity_state(self, today_in_bogota())[0]
+
+    def ensure_completable_by(self, actor):
+        """Lanza `permission_denied` si `actor` no puede registrar esta actividad: la registra el
+        responsable, quien programa labores en la finca o el Productor."""
+        from .services.queries import ensure_can_complete
+
+        ensure_can_complete(actor, self)
+
+    def complete_with_result(self, actor, done_date, captured_at):
+        """Marca realizado este monitoreo; su resultado lo guarda sanidad."""
+        from .services.linked import complete_monitoring
+
+        complete_monitoring(self, actor, done_date, captured_at)
+
+    @classmethod
+    def schedule_control(cls, actor, plot, control_id, scheduled_date, assignee_id):
+        """Programa un control fitosanitario en `plot` y lo devuelve."""
+        from .services.linked import schedule_control
+
+        return schedule_control(actor, plot, control_id, scheduled_date, assignee_id)
+
+    @classmethod
+    def record_done_control(
+        cls, actor, plot, control_id, done_date, not_before, assignee_id, inputs, captured_at
+    ):
+        """Crea un control fitosanitario ya realizado, descuenta sus insumos y lo devuelve.
+        `not_before` es la fecha del monitoreo que atiende."""
+        from .services.linked import record_done_control
+
+        return record_done_control(
+            actor, plot, control_id, done_date, not_before, assignee_id, inputs, captured_at
+        )
 
 
 class AgriculturalActivityInput(models.Model):

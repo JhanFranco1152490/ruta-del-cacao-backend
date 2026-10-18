@@ -47,6 +47,29 @@ def test_an_open_activity_older_than_the_period_limit_is_listed(client, plot):
     assert listed(client.get(URL, THROUGH)) == [str(old.pk)]
 
 
+def test_a_type_keeps_only_the_pending_of_that_type(client, plot):
+    monitoring = on(plot, date(2026, 10, 2), activity_type=ActivityType.PHYTOSANITARY_MONITORING)
+    on(plot, date(2026, 10, 3), activity_type=ActivityType.PRUNING)
+
+    response = client.get(URL, {**THROUGH, "activity_type": "phytosanitary_monitoring"})
+
+    assert listed(response) == [str(monitoring.pk)]
+
+
+def test_without_a_type_every_pending_activity_is_listed(client, plot):
+    first = on(plot, date(2026, 10, 2), activity_type=ActivityType.PHYTOSANITARY_MONITORING)
+    second = on(plot, date(2026, 10, 3), activity_type=ActivityType.PRUNING)
+
+    assert set(listed(client.get(URL, THROUGH))) == {str(first.pk), str(second.pk)}
+
+
+def test_a_type_that_does_not_exist_is_a_400(client):
+    response = client.get(URL, {**THROUGH, "activity_type": "dancing"})
+
+    assert response.status_code == 400
+    assert "activity_type" in response.json()["fields"]
+
+
 def test_done_activities_are_not_listed(client, plot):
     pending = on(plot, date(2026, 10, 2))
     done_activity(plot=plot, scheduled_date=date(2026, 10, 1))

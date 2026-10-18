@@ -196,6 +196,7 @@ DOCUMENTED_OPERATIONS = {
     ("delete", "/api/harvests/{id}"),
     ("get", "/api/harvests/collectors"),
     ("get", "/api/lots"),
+    ("get", "/api/lots/summary"),
     ("post", "/api/lots"),
     ("delete", "/api/lots/{id}"),
     ("get", "/api/notifications"),

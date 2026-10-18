@@ -27,8 +27,15 @@ def body(**overrides):
 # La llave pública.
 
 
-def test_the_public_key_comes_from_the_settings(auth_client, settings):
+@pytest.fixture
+def vapid(settings):
     settings.VAPID_PUBLIC_KEY = "BPublica"
+    settings.VAPID_PRIVATE_KEY = "privada"
+    settings.VAPID_SUBJECT = "mailto:equipo@example.com"
+
+
+@pytest.mark.usefixtures("vapid")
+def test_the_public_key_comes_from_the_settings(auth_client):
 
     response = auth_client(UserFactory()).get(CONFIG_URL)
 
@@ -36,8 +43,10 @@ def test_the_public_key_comes_from_the_settings(auth_client, settings):
     assert response.data == {"public_key": "BPublica"}
 
 
-def test_without_keys_push_is_off(auth_client, settings):
-    settings.VAPID_PUBLIC_KEY = ""
+@pytest.mark.usefixtures("vapid")
+@pytest.mark.parametrize("missing", ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"])
+def test_push_is_not_offered_unless_it_can_be_sent(auth_client, settings, missing):
+    setattr(settings, missing, "")
 
     assert auth_client(UserFactory()).get(CONFIG_URL).data == {"public_key": None}
 

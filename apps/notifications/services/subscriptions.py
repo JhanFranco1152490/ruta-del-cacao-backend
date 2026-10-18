@@ -2,10 +2,13 @@ from django.conf import settings
 from django.db import transaction
 
 from ..models import PushSubscription
+from ..push.send import push_enabled
 
 
 def public_key() -> str | None:
-    return settings.VAPID_PUBLIC_KEY or None
+    """La llave que el navegador usa para suscribirse, solo si el servidor puede enviar: ofrecer
+    activar los avisos sin poder mandarlos dejaría a la persona esperando algo que no llega."""
+    return settings.VAPID_PUBLIC_KEY if push_enabled() else None
 
 
 def subscribe(actor, data) -> tuple[PushSubscription, bool]:

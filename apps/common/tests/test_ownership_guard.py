@@ -8,6 +8,10 @@ RESOURCE_SERVICES = (
     "crops/services",
     "inputs/services",
     "activities/services",
+    "harvests/services",
+    "lots/services",
+    "health/services",
+    "notifications/services",
     "facilities/services",
 )
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin
@@ -19,10 +23,6 @@ ALLOWED: dict[str, str] = {
     "farms/services/scope.py": (
         "`readable_farms` devuelve todas las fincas a la cuenta técnica y a la asociación antes "
         "de llegar a la línea que filtra por el productor propio"
-    ),
-    "activities/services/queries.py": (
-        "`assignee_options` atiende primero a la cuenta técnica (que elige el productor) y solo "
-        "después toma el productor propio de las demás cuentas"
     ),
 }
 

@@ -29,6 +29,8 @@ class Producer(models.Model):
     municipality_code = models.CharField(max_length=20, validators=[validate_municipality_code])
     joined_on = models.DateField(validators=[validate_not_future])
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.ACTIVE)
+    # Último número de finca asignado. Solo sube: una finca eliminada no devuelve su número.
+    farm_sequence = models.PositiveIntegerField(default=0, editable=False)
     version = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

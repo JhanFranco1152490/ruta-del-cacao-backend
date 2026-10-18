@@ -25,6 +25,7 @@ class FarmModelTests(TestCase):
     def create_farm(self, **overrides):
         fields = {
             "producer": self.producer,
+            "number": 1,
             "name": "La Esperanza",
             "name_normalized": "la esperanza",
             "department_code": "54",

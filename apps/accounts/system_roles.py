@@ -33,6 +33,7 @@ SYSTEM_ROLES = {
             # de los empleados a los que él se lo delegue.
             "farms.view_farm",
             "crops.manage_cacaovariety",
+            "health.manage_pestdisease",
         ],
     },
     PRODUCER: {
@@ -65,6 +66,13 @@ SYSTEM_ROLES = {
             "activities.change_agriculturalactivity",
             "activities.complete_agriculturalactivity",
             "activities.delete_agriculturalactivity",
+            "harvests.view_harvest",
+            "harvests.add_harvest",
+            "harvests.change_harvest",
+            "harvests.delete_harvest",
+            "lots.view_lot",
+            "lots.add_lot",
+            "lots.delete_lot",
             "facilities.view_postharvestfacility",
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
@@ -91,6 +99,11 @@ SYSTEM_ROLES = {
             "activities.add_agriculturalactivity",
             "activities.change_agriculturalactivity",
             "activities.complete_agriculturalactivity",
+            "harvests.view_harvest",
+            "harvests.add_harvest",
+            "harvests.change_harvest",
+            "lots.view_lot",
+            "lots.add_lot",
             # Es quien está en la finca y conoce sus cajones y marquesinas.
             "facilities.view_postharvestfacility",
             "facilities.add_postharvestfacility",

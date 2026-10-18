@@ -13,12 +13,12 @@ from ..geometry import (
 )
 from ..models import Plot
 
-CODE_UNIQUE_CONSTRAINT = "plots_farm_code_normalized_unique"
+NAME_UNIQUE_CONSTRAINT = "plots_farm_name_normalized_unique"
 # Lo que se guarda tal cual del cliente al crear. `boundary` se valida y se convierte aparte, y
 # `farm_id` fija la finca bloqueada.
-WRITABLE_FIELDS = ("code", "area_hectares", "captured_at")
+WRITABLE_FIELDS = ("name", "area_hectares", "captured_at")
 # Lo que acepta una edición. `farm_id` no está: una parcela no cambia de finca.
-UPDATABLE_FIELDS = ("code", "area_hectares", "is_active")
+UPDATABLE_FIELDS = ("name", "area_hectares", "is_active")
 
 
 def apply_boundary(plot: Plot, vertices: list[dict] | None) -> Boundary | None:
@@ -58,7 +58,7 @@ def matches(plot: Plot, data: dict, fields) -> bool:
     espacios alrededor o coordenadas escritas con más ceros no son contenido distinto.
     """
     candidate = Plot(
-        farm=plot.farm, code=plot.code, area_hectares=plot.area_hectares, is_active=plot.is_active
+        farm=plot.farm, name=plot.name, area_hectares=plot.area_hectares, is_active=plot.is_active
     )
     for name in (*WRITABLE_FIELDS, *UPDATABLE_FIELDS):
         if name in data:

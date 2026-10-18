@@ -1,16 +1,17 @@
 from django.db import transaction
 
+from apps.common.codes import next_number
 from apps.common.db import save_translating_unique
 from apps.common.ownership import owns, reaches_farm
 
-from ..exceptions import DuplicatePlotCode, PlotIdConflict
+from ..exceptions import DuplicatePlotName, PlotIdConflict
 from ..models import Plot, PlotAuditEvent
 from . import rules
 from .audit import record_plot_audit_event
-from .content import CODE_UNIQUE_CONSTRAINT, apply_boundary, matches, writable
+from .content import NAME_UNIQUE_CONSTRAINT, apply_boundary, matches, writable
 
 # Lo que describe a la parcela, para decidir si un reenvío trae el mismo contenido.
-CONTENT_FIELDS = ("code", "area_hectares", "boundary")
+CONTENT_FIELDS = ("name", "area_hectares", "boundary")
 
 
 @transaction.atomic
@@ -43,12 +44,14 @@ def create_plot(actor, data: dict) -> tuple[Plot, bool]:
         rules.check_within_farm_reach(farm, boundary)
         rules.check_no_overlap(farm, boundary)
 
+    plot.number = next_number(type(farm), farm.pk, "plot_sequence")
+
     # El mismo `id` en otra finca no pasa por el mismo bloqueo: el choque llega como clave
     # primaria repetida.
     existing = save_translating_unique(
         lambda: plot.save(force_insert=True),
-        constraint=CODE_UNIQUE_CONSTRAINT,
-        duplicate=DuplicatePlotCode,
+        constraint=NAME_UNIQUE_CONSTRAINT,
+        duplicate=DuplicatePlotName,
         find_existing=lambda: _existing(plot.pk) if plot_id is not None else None,
     )
     if existing is not None:

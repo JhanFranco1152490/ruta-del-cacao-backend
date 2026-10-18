@@ -44,6 +44,7 @@ class FarmSerializer(serializers.ModelSerializer):
         model = Farm
         fields = [
             "id",
+            "code",
             "name",
             "producer",
             "department",

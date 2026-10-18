@@ -5,12 +5,12 @@ from django.db import transaction
 from apps.common.audit import record_update_events
 from apps.common.versioning import check_expected_version, save_next_version
 
-from ..exceptions import DuplicatePlotCode, StalePlotVersion
+from ..exceptions import DuplicatePlotName, StalePlotVersion
 from ..models import Plot, PlotAuditEvent
 from . import rules
 from .audit import record_plot_audit_event
 from .content import (
-    CODE_UNIQUE_CONSTRAINT,
+    NAME_UNIQUE_CONSTRAINT,
     UPDATABLE_FIELDS,
     apply_boundary,
     check_declared_area,
@@ -65,12 +65,12 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
         rules.check_no_overlap(farm, boundary, exclude_plot_id=plot.pk)
 
     update_fields = list(changed)
-    if "code" in changed:
-        update_fields.append("code_normalized")
+    if "name" in changed:
+        update_fields.append("name_normalized")
     if "boundary" in changed:
         update_fields.append("measured_area_hectares")
     save_next_version(
-        plot, update_fields, constraint=CODE_UNIQUE_CONSTRAINT, duplicate=DuplicatePlotCode
+        plot, update_fields, constraint=NAME_UNIQUE_CONSTRAINT, duplicate=DuplicatePlotName
     )
     record_update_events(
         partial(record_plot_audit_event, plot=plot, actor=actor),

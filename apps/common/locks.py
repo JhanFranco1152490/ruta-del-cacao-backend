@@ -4,7 +4,8 @@ La finca es la raíz de todo lo que cuelga de ella (parcelas, fichas, cosechas).
 bajo una finca toma **solo** el bloqueo de la finca, y nunca el de las filas de abajo: con un único
 bloqueo no puede haber dos operaciones esperándose una a la otra, y una entidad nueva no tiene que
 acordarse de ningún orden. El costo es que dos escrituras bajo la misma finca se atienden una tras
-otra; duran milisegundos. Lo lento (subir un archivo, un reporte) va fuera de la transacción.
+otra; duran milisegundos. Lo lento (un reporte, una llamada externa) va fuera de la transacción;
+guardar una foto reducida es la excepción conocida (ver la evidencia de sanidad).
 """
 
 from django.db import models

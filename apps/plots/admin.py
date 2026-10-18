@@ -25,6 +25,7 @@ class PlotAdmin(ServiceAdminMixin, admin.ModelAdmin):
     form = PlotAdminForm
     list_display = (
         "code",
+        "name",
         "farm",
         "producer",
         "area_hectares",
@@ -34,7 +35,7 @@ class PlotAdmin(ServiceAdminMixin, admin.ModelAdmin):
     list_filter = ("is_active",)
     list_select_related = ("farm__producer",)
     search_fields = (
-        "code",
+        "name__unaccent",
         "farm__name__unaccent",
         "farm__producer__member_code",
         "farm__producer__identity_document",
@@ -44,6 +45,7 @@ class PlotAdmin(ServiceAdminMixin, admin.ModelAdmin):
     # El contorno se dibuja en la pantalla con el mapa: un polígono escrito a mano en un campo de
     # texto es la vía más fácil para dejar una parcela superpuesta o sin sentido.
     readonly_fields = (
+        "code",
         "farm",
         "producer",
         "boundary",
@@ -53,7 +55,7 @@ class PlotAdmin(ServiceAdminMixin, admin.ModelAdmin):
         "updated_at",
     )
     fieldsets = (
-        (None, {"fields": ("farm", "producer", *UPDATABLE_FIELDS, "expected_version")}),
+        (None, {"fields": ("code", "farm", "producer", *UPDATABLE_FIELDS, "expected_version")}),
         ("Contorno", {"fields": ("boundary", "measured_area_hectares")}),
         ("Registro", {"fields": ("version", "created_at", "updated_at")}),
     )

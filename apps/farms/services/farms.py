@@ -9,8 +9,10 @@ from django.db.models.functions import Coalesce
 from rest_framework.exceptions import ValidationError as FieldError
 
 from apps.common.audit import record_update_events
+from apps.common.codes import next_number, number_from_query
 from apps.common.db import has_dependent_rows, save_translating_unique
 from apps.common.farm_dependents import registered_dependents
+from apps.common.locks import lock_root_row
 from apps.common.ownership import (
     owner_filter,
     reaches_all_farms,
@@ -70,8 +72,12 @@ def filter_farms(farms, *, search=None, producer=None, municipality=None) -> Que
         farms = farms.filter(municipality_code=municipality)
     term = (search or "").strip()
     if term:
-        # Solo el nombre: el municipio tiene su propio filtro y los detalles no se buscan.
-        farms = farms.filter(name__unaccent__icontains=term)
+        # El nombre o el código (`F02`): el municipio tiene su propio filtro y los detalles no
+        # se buscan.
+        match = Q(name__unaccent__icontains=term)
+        if (number := number_from_query("F", term)) is not None:
+            match |= Q(number=number)
+        farms = farms.filter(match)
     return farms
 
 
@@ -122,6 +128,13 @@ def create_farm(actor, data: dict) -> tuple[Farm, bool]:
 
     farm = Farm(producer_id=producer_id, **_without_empty_id(data))
     _validate(farm, check_operating_area=True, check_altitude=True)
+    # El contador de números vive en el productor: se bloquea su fila antes de repetir la búsqueda
+    # del `id`, así un reenvío que llegó a la vez ya la encuentra creada y no gasta un número.
+    producer_model = Farm._meta.get_field("producer").related_model
+    lock_root_row(producer_model, producer_id)
+    if farm_id is not None and (existing := Farm.objects.filter(pk=farm_id).first()) is not None:
+        return _resent_farm(actor, existing, producer_id, data), False
+    farm.number = next_number(producer_model, producer_id, "farm_sequence")
     # Dos sincronizaciones simultáneas del mismo registro: la otra ganó la carrera.
     existing = save_translating_unique(
         lambda: farm.save(force_insert=True),

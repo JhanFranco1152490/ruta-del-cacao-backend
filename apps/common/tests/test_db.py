@@ -86,7 +86,7 @@ class NameTaken(Exception):
 
 
 def new_farm(producer, name):
-    return FarmFactory.build(producer=producer, name=name, name_normalized=name.lower())
+    return FarmFactory.build(producer=producer, name=name, name_normalized=name.lower(), number=99)
 
 
 def test_a_free_name_is_saved_and_nothing_is_returned():

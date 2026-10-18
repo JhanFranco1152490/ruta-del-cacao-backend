@@ -57,11 +57,14 @@ from .services.queries import CHARACTERIZATION_STATES, PLOT_ORDERINGS
                 str,
                 enum=list(PLOT_ORDERINGS),
                 description=(
-                    "`code` (por defecto) o `producer,farm,code`: por nombre del productor, "
-                    "nombre de la finca y código, para agrupar. Cada nivel desempata por su id."
+                    "`code` (por defecto): por finca y, dentro de ella, por código. "
+                    "`producer,farm,code`: por nombre del productor, nombre de la finca y "
+                    "código, para agrupar. Cada nivel desempata por su id."
                 ),
             ),
-            OpenApiParameter("search", str, description="Busca en el código, sin tildes."),
+            OpenApiParameter(
+                "search", str, description="Busca por código (`P05`) o por nombre, sin tildes."
+            ),
         ],
         # 400: un filtro mal formado. 404: página fuera de rango.
         responses={200: PlotSerializer(many=True), **error_responses(400, 401, 403, 404)},

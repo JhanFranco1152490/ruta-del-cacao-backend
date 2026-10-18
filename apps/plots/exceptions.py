@@ -82,13 +82,13 @@ class PlotOverlap(ApiError):
         self.suggested_measured_area_hectares = suggested_measured_area_hectares
 
 
-class DuplicatePlotCode(ApiError):
+class DuplicatePlotName(ApiError):
     status_code = status.HTTP_409_CONFLICT
-    default_detail = "Ya existe una parcela con este código en la finca."
-    default_code = "duplicate_plot_code"
+    default_detail = "Ya existe una parcela con este nombre en la finca."
+    default_code = "duplicate_plot_name"
 
     def __init__(self):
-        super().__init__(fields={"code": [self.default_detail]})
+        super().__init__(fields={"name": [self.default_detail]})
 
 
 class StalePlotVersion(ApiError):

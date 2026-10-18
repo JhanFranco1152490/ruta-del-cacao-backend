@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import pytest
 from django.contrib.auth.models import Permission
-from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 
@@ -22,16 +21,16 @@ BOUNDARY = [
 
 
 def test_code_is_unique_within_a_farm_after_normalization():
-    plot = PlotFactory(code="P-01")
+    plot = PlotFactory(name="P-01")
 
     with pytest.raises(IntegrityError), transaction.atomic():
-        PlotFactory(farm=plot.farm, code=" p-01 ")
+        PlotFactory(farm=plot.farm, name=" p-01 ")
 
 
 def test_the_same_code_can_be_used_in_another_farm():
-    plot = PlotFactory(code="P-01")
+    plot = PlotFactory(name="P-01")
 
-    PlotFactory(farm=FarmFactory(producer=plot.farm.producer), code="P-01")
+    PlotFactory(farm=FarmFactory(producer=plot.farm.producer), name="P-01")
 
 
 def test_area_must_be_positive():
@@ -64,21 +63,22 @@ def test_a_plot_keeps_its_boundary_and_measured_area():
     assert plot.measured_area_hectares == Decimal("0.6125")
 
 
-def test_clean_trims_and_normalizes_the_code():
-    plot = Plot(code="  P-01 · El Mango ", area_hectares=Decimal("1.00"))
+def test_clean_trims_and_normalizes_the_name():
+    plot = Plot(name="  P-01 · El Mango ", area_hectares=Decimal("1.00"))
 
     plot.clean()
 
-    assert plot.code == "P-01 · El Mango"
-    assert plot.code_normalized == "p-01 · el mango"
+    assert plot.name == "P-01 · El Mango"
+    assert plot.name_normalized == "p-01 · el mango"
 
 
-@pytest.mark.parametrize("code", ["", "   "])
-def test_clean_requires_a_code(code):
-    with pytest.raises(ValidationError) as error:
-        Plot(code=code, area_hectares=Decimal("1.00")).clean()
+@pytest.mark.parametrize("name", [None, "", "   "])
+def test_clean_leaves_a_blank_name_as_no_name(name):
+    plot = Plot(name=name, area_hectares=Decimal("1.00"))
 
-    assert "code" in error.value.message_dict
+    plot.clean()
+
+    assert (plot.name, plot.name_normalized) == (None, None)
 
 
 def test_a_farm_with_plots_cannot_be_deleted():

@@ -5,7 +5,7 @@ from .services.delete import has_business_records, remove_plot
 
 
 def _plots_of(farm):
-    return Plot.objects.filter(farm_id=farm.pk).order_by("code_normalized", "id")
+    return Plot.objects.filter(farm_id=farm.pk).order_by("number", "id")
 
 
 def _important_record(farm) -> str | None:

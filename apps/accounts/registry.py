@@ -57,6 +57,17 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "activities.change_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.complete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
     "activities.delete_agriculturalactivity": PermissionInfo(area="activities", delegable=True),
+    "harvests.view_harvest": PermissionInfo(area="harvests", delegable=True),
+    # Quien lo tiene puede ser nombrado recolector de una cosecha.
+    "harvests.add_harvest": PermissionInfo(area="harvests", delegable=True),
+    "harvests.change_harvest": PermissionInfo(area="harvests", delegable=True),
+    "harvests.delete_harvest": PermissionInfo(area="harvests", delegable=True),
+    "lots.view_lot": PermissionInfo(area="lots", delegable=True),
+    "lots.add_lot": PermissionInfo(area="lots", delegable=True),
+    "lots.delete_lot": PermissionInfo(area="lots", delegable=True),
+    # No delegable: el catálogo de plagas y enfermedades es común a toda la asociación, como el de
+    # variedades.
+    "health.manage_pestdisease": PermissionInfo(area="health", delegable=False),
     "facilities.view_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
     "facilities.add_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
     "facilities.change_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
@@ -66,7 +77,9 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
 
 # Las áreas de lo que cuelga de una finca. Un empleado con algún permiso de estas necesita una
 # finca asignada: sin ella no alcanza nada de lo que el permiso le deja hacer.
-FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities", "facilities"})
+FIELD_AREAS = frozenset(
+    {"farms", "plots", "crops", "inputs", "activities", "harvests", "lots", "facilities"}
+)
 
 
 def is_field_permission(code: str) -> bool:
@@ -128,6 +141,15 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "activities.change_agriculturalactivity": "activities.view_agriculturalactivity",
     "activities.complete_agriculturalactivity": "activities.view_agriculturalactivity",
     "activities.delete_agriculturalactivity": "activities.view_agriculturalactivity",
+    # Las cosechas se registran y se consultan desde una parcela.
+    "harvests.view_harvest": "plots.view_plot",
+    "harvests.add_harvest": "harvests.view_harvest",
+    "harvests.change_harvest": "harvests.view_harvest",
+    "harvests.delete_harvest": "harvests.view_harvest",
+    # La ficha del lote muestra su origen: sin ver cosechas no hay cómo leerla.
+    "lots.view_lot": "harvests.view_harvest",
+    "lots.add_lot": "lots.view_lot",
+    "lots.delete_lot": "lots.view_lot",
     # Los cajones y marquesinas se consultan eligiendo primero la finca: sin verlas no hay cómo
     # llegar a ellos.
     "facilities.view_postharvestfacility": "farms.view_farm",

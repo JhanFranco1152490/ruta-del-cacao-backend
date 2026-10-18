@@ -28,27 +28,28 @@ def labels(client, **params):
 
 def test_orders_by_code_by_default(client):
     farm = farm_of(ProducerFactory(), "La Esperanza")
-    for code in ["P-03", "P-01", "P-02"]:
-        PlotFactory(farm=farm, code=code)
+    # El orden es el del consecutivo, no el del texto del nombre.
+    for name in ["Zeta", "Alfa", None]:
+        PlotFactory(farm=farm, name=name)
 
-    assert [label.rsplit("/", 1)[1] for label in labels(client)] == ["P-01", "P-02", "P-03"]
+    assert [label.rsplit("/", 1)[1] for label in labels(client)] == ["P01", "P02", "P03"]
     assert labels(client) == labels(client, ordering="code")
 
 
 def test_groups_by_producer_name_then_farm_name_then_code(client):
     zapata = ProducerFactory(last_name="Zapata", first_name="Ana")
     alvarez = ProducerFactory(last_name="Álvarez", first_name="Luis")
-    PlotFactory(farm=farm_of(zapata, "Bella Vista"), code="A1")
-    PlotFactory(farm=farm_of(alvarez, "Monteverde"), code="A1")
+    PlotFactory(farm=farm_of(zapata, "Bella Vista"))
+    PlotFactory(farm=farm_of(alvarez, "Monteverde"))
     esperanza = farm_of(alvarez, "La Esperanza")
-    PlotFactory(farm=esperanza, code="B2")
-    PlotFactory(farm=esperanza, code="A1")
+    PlotFactory(farm=esperanza)
+    PlotFactory(farm=esperanza)
 
     assert labels(client, ordering="producer,farm,code") == [
-        "Álvarez/La Esperanza/A1",
-        "Álvarez/La Esperanza/B2",
-        "Álvarez/Monteverde/A1",
-        "Zapata/Bella Vista/A1",
+        "Álvarez/La Esperanza/P01",
+        "Álvarez/La Esperanza/P02",
+        "Álvarez/Monteverde/P01",
+        "Zapata/Bella Vista/P01",
     ]
 
 
@@ -59,7 +60,7 @@ def test_equal_names_keep_a_stable_order_across_pages(client):
     for producer in twins:
         farm = farm_of(producer, "El Mango")
         for code in ["P-01", "P-02", "P-03"]:
-            PlotFactory(farm=farm, code=code)
+            PlotFactory(farm=farm, name=code)
 
     pages = [
         client.get(URL, {"ordering": "producer,farm,code", "page_size": 2, "page": page}).data

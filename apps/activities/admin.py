@@ -19,7 +19,7 @@ class AgriculturalActivityAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ("activity_type", "plot", "scheduled_date", "status", "assignee")
     list_filter = ("status", "activity_type")
     list_select_related = ("plot__farm", "assignee")
-    search_fields = ("plot__code", "plot__farm__name__unaccent")
+    search_fields = ("plot__name__unaccent", "plot__farm__name__unaccent")
     inlines = [ActivityInputInline]
 
 

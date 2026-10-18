@@ -196,11 +196,13 @@ class AgriculturalActivityViewSet(GenericViewSet):
         description=(
             "Las actividades sin realizar con fecha programada hasta `through`, incluida, sin "
             "fecha mínima ni paginar: una vencida sigue pendiente mientras no se registre. "
-            "`state` y `days_late` se calculan con la fecha de hoy en Bogotá."
+            "`activity_type` deja solo las de un tipo. `state` y `days_late` se calculan con la "
+            "fecha de hoy en Bogotá."
         ),
         parameters=[
             OpenApiParameter("through", str, required=True, description="Última fecha incluida."),
             OpenApiParameter("producer", str, description="Solo para la cuenta técnica."),
+            OpenApiParameter("activity_type", str, description="Solo las de este tipo."),
         ],
         responses={200: ActivityListSerializer, **error_responses(400, 401, 403)},
     )
@@ -209,7 +211,9 @@ class AgriculturalActivityViewSet(GenericViewSet):
         query = PendingQuerySerializer(data=request.query_params.dict())
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        activities = pending_activities(request.user, params["through"], params.get("producer"))
+        activities = pending_activities(
+            request.user, params["through"], params.get("producer"), params.get("activity_type")
+        )
         return Response({"results": AgriculturalActivitySerializer(activities, many=True).data})
 
     def handle_exception(self, exc):

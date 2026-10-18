@@ -51,12 +51,17 @@ def list_activities(actor, date_from, date_to, producer_id=None) -> QuerySet[Agr
     return activities.order_by("scheduled_date", "activity_type", "id")
 
 
-def pending_activities(actor, through, producer_id=None) -> QuerySet[AgriculturalActivity]:
+def pending_activities(
+    actor, through, producer_id=None, activity_type=None
+) -> QuerySet[AgriculturalActivity]:
     """Las actividades sin realizar con fecha programada hasta `through`, incluida. No tiene fecha
     mínima: una vencida sigue pendiente mientras no se registre, por viejo que sea su atraso.
-    `producer_id` solo lo usa la cuenta técnica, como en `list_activities`."""
+    `producer_id` solo lo usa la cuenta técnica, como en `list_activities`. `activity_type` deja
+    solo las de un tipo: Sanidad pide así los monitoreos por registrar."""
     activities = visible_activities(actor).filter(scheduled_date__lte=through)
     activities = activities.exclude(status=ActivityStatus.DONE)
+    if activity_type is not None:
+        activities = activities.filter(activity_type=activity_type)
     if actor.is_superuser and producer_id is not None:
         activities = activities.filter(plot__farm__producer_id=producer_id)
     return activities.order_by("scheduled_date", "activity_type", "id")

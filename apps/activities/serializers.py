@@ -207,6 +207,7 @@ class ActivityListQuerySerializer(serializers.Serializer):
 class PendingQuerySerializer(serializers.Serializer):
     through = serializers.DateField()
     producer = serializers.UUIDField(required=False)
+    activity_type = serializers.ChoiceField(choices=ActivityType.choices, required=False)
 
 
 class ActivityListSerializer(serializers.Serializer):

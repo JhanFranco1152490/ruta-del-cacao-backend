@@ -269,8 +269,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     catálogo del productor, `400` (no `404`: la cola lo leería como actividad eliminada). Una
     actividad de tipo Inventario no lleva insumos.
   - **Listado** (`GET ?from=&to=`) de hasta 120 días, sin paginar; **pendientes**
-    (`GET …/pending?through=`) las que siguen sin realizar hasta esa fecha, sin fecha mínima ni
-    paginar, para que una vencida vieja no se pierda por el límite del listado; **responsables**
+    (`GET …/pending?through=`, y `activity_type=` para quedarse con un tipo) las que siguen sin realizar
+    hasta esa fecha, sin fecha mínima ni paginar, para que una vencida vieja no se pierda por el límite del listado; **responsables**
     (`GET …/assignees`) con id, nombre, si está activa, sus fincas y si se le puede asignar.
   - El responsable (`assignee`) es `PROTECT`: una cuenta responsable de alguna actividad no se
     elimina (`account_has_activity`).

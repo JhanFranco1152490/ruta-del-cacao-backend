@@ -53,12 +53,14 @@ class WaitingMonitoringSerializer(serializers.Serializer):
 
 class WaitingFarmSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    code = serializers.CharField()
     name = serializers.CharField()
 
 
 class WaitingPlotSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     code = serializers.CharField()
+    name = serializers.CharField(allow_null=True)
     farm = WaitingFarmSerializer()
 
 

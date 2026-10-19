@@ -209,6 +209,10 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/notifications/push-config"),
     ("post", "/api/notifications/push-subscriptions"),
     ("post", "/api/notifications/push-subscriptions/remove"),
+    ("get", "/api/postharvest-facilities"),
+    ("post", "/api/postharvest-facilities"),
+    ("patch", "/api/postharvest-facilities/{id}"),
+    ("delete", "/api/postharvest-facilities/{id}"),
 }
 
 

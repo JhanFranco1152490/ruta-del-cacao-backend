@@ -73,3 +73,21 @@ def test_input_actions_bring_the_permission_to_see_the_catalog():
     ):
         assert with_dependencies({code}) == {code, "inputs.view_agriculturalinput"}
     assert registry.area_of("inputs.view_agriculturalinput") == "inputs"
+
+
+def test_facility_actions_bring_the_permission_to_see_them_and_their_farms():
+    view = "facilities.view_postharvestfacility"
+    for code in (
+        "facilities.add_postharvestfacility",
+        "facilities.change_postharvestfacility",
+        "facilities.delete_postharvestfacility",
+    ):
+        assert with_dependencies({code}) == {code, view, "farms.view_farm"}
+    # La lista se abre eligiendo una finca: sin verlas no hay cómo llegar a sus cajones.
+    assert with_dependencies({view}) == {view, "farms.view_farm"}
+    assert registry.area_of(view) == "facilities"
+
+
+def test_facility_permissions_are_field_permissions():
+    assert registry.is_field_permission("facilities.view_postharvestfacility")
+    assert registry.is_field_permission("facilities.delete_postharvestfacility")

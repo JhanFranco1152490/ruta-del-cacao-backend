@@ -1,4 +1,6 @@
 from collections.abc import Callable
+from functools import reduce
+from operator import or_
 
 from django.db import IntegrityError, models, transaction
 
@@ -60,3 +62,19 @@ def has_dependent_rows(instance: models.Model, *, ignore=()) -> bool:
         relation.related_model._base_manager.filter(**{relation.field.name: instance}).exists()
         for relation in dependent_relations(type(instance), ignore=ignore)
     )
+
+
+def has_dependent_rows_expression(model: type[models.Model], *, ignore=()):
+    """Lo mismo que `has_dependent_rows`, como expresión para anotar una consulta de `model`: un
+    `Exists` por tabla, sin una consulta por fila."""
+    exists = [
+        models.Exists(
+            relation.related_model._base_manager.filter(
+                **{relation.field.name: models.OuterRef("pk")}
+            )
+        )
+        for relation in dependent_relations(model, ignore=ignore)
+    ]
+    if not exists:
+        return models.Value(False, output_field=models.BooleanField())
+    return models.ExpressionWrapper(reduce(or_, exists), output_field=models.BooleanField())

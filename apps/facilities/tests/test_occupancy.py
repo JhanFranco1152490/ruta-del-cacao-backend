@@ -12,6 +12,7 @@ from apps.facilities.exceptions import (
     FacilityOtherFarm,
     FacilityUnavailable,
     FacilityWrongType,
+    LotAlreadyInFacility,
 )
 from apps.facilities.models import PostharvestFacility, PostharvestFacilityAuditEvent
 from apps.facilities.status import facility_status
@@ -114,8 +115,31 @@ def test_a_lot_occupies_one_facility_at_a_time(owner, box, lot):
     box.occupy(lot, kind=BOX, actor=owner)
     second = PostharvestFacilityFactory(farm=box.farm, name="C-03")
 
+    with pytest.raises(LotAlreadyInFacility):
+        second.occupy(lot, kind=BOX, actor=owner)
+
+    second.refresh_from_db()
+    assert second.current_lot_id is None
+    assert PostharvestFacilityAuditEvent.objects.filter(facility=second).count() == 0
+
+
+def test_the_database_keeps_a_lot_in_one_facility(owner, box, lot):
+    box.occupy(lot, kind=BOX, actor=owner)
+    second = PostharvestFacilityFactory(farm=box.farm, name="C-03")
+
     with pytest.raises(IntegrityError), transaction.atomic():
         PostharvestFacility.objects.filter(pk=second.pk).update(current_lot=lot)
+
+
+def test_a_lot_that_left_its_box_enters_the_next_facility(owner, box, lot):
+    dryer = PostharvestFacilityFactory(farm=box.farm, name="M-01", facility_type=DRYER)
+    box.occupy(lot, kind=BOX, actor=owner)
+    box.release(lot, actor=owner)
+
+    dryer.occupy(lot, kind=DRYER, actor=owner)
+
+    dryer.refresh_from_db()
+    assert dryer.current_lot_id == lot.pk
 
 
 def test_the_database_never_keeps_an_inactive_facility_occupied(owner, box, lot):

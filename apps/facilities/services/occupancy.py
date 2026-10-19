@@ -17,6 +17,7 @@ from ..exceptions import (
     FacilityOtherFarm,
     FacilityUnavailable,
     FacilityWrongType,
+    LotAlreadyInFacility,
 )
 from ..models import PostharvestFacility, PostharvestFacilityAuditEvent
 from ..status import FacilityStatus
@@ -33,6 +34,11 @@ def occupy_facility(
         raise FacilityNotFound()
     if facility.farm_id != lot_farm.pk:
         raise FacilityOtherFarm()
+    # La base también lo exige (el lote es único en `current_lot`), pero ese choque dejaría rota la
+    # transacción de quien llama. Con la finca del lote bloqueada, nadie más puede ocuparlo entre
+    # esta lectura y la actualización.
+    if PostharvestFacility.objects.filter(current_lot=lot).exclude(pk=facility.pk).exists():
+        raise LotAlreadyInFacility()
     now = timezone.now()
     occupied = PostharvestFacility.objects.filter(
         pk=facility.pk, facility_type=kind, is_active=True, current_lot__isnull=True

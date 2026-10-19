@@ -105,6 +105,14 @@ class FacilityUnavailable(ApiError):
         super().__init__(extra={"status": facility_status, "lot": lot_summary(lot)})
 
 
+class LotAlreadyInFacility(ApiError):
+    # Un lote está en un solo cajón o marquesina a la vez: el anterior se libera al finalizar su
+    # proceso, antes de ocupar el siguiente.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El lote ya está en otro cajón o marquesina."
+    default_code = "lot_already_in_facility"
+
+
 class FacilityWrongType(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El elemento no es del tipo que pide el proceso."

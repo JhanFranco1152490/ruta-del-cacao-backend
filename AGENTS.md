@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) los puntos de encuentro de la representación de una actividad (`activity_details.py`, `activity_representation.py`), el de las alertas (`alerts.py`: evaluadores y `notify`) y quién puede programar en una finca (`schedulers.py`) |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) los puntos de encuentro de la representación de una actividad (`activity_details.py`, `activity_representation.py`), el de las alertas (`alerts.py`: evaluadores y `notify`) y quién puede programar en una finca (`schedulers.py`) |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -56,6 +56,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
 | `apps/harvests/`   | Cosechas: una recolección en una parcela y fecha, con su peso en verde, su variedad (de la ficha de la parcela) y su recolector. Registrar (también desde la cola sin conexión), consultar por mes, corregir y eliminar mientras no formen un lote, con su historial de valor anterior y nuevo |
 | `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`advance_lot_status`). Conformar es solo en línea |
+| `apps/facilities/` | Infraestructura de poscosecha: los cajones de fermentación y las marquesinas de secado de cada finca, con su capacidad en kg de cacao en baba. Alta (solo en línea), consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial, que sobrevive al borrado. Fermentación y secado los ocupan y liberan con `occupy` y `release`, que son métodos del modelo |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`) |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
@@ -338,6 +339,25 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   status.py`), que exige estar en `expected` y que `new` sea el siguiente; los demás módulos la
   llaman dentro de su transacción con el lote ya bloqueado (la finca de su parcela). El historial
   (`LotAuditEvent`) guarda el código y la cosecha de origen y sobrevive al lote.
+- **Infraestructura de poscosecha** (`/api/postharvest-facilities`): cajones de fermentación y
+  marquesinas de secado, cada uno de **una sola finca** (no cambia de finca). Permisos
+  `facilities.{view,add,change,delete}_postharvestfacility`, delegables y de campo; consultar
+  depende de consultar fincas. El listado se entrega completo, sin paginar, con los tres estados
+  (`available`, `occupied`, `inactive`): la finca y los filtros corren en el dispositivo. El nombre
+  no se repite dentro de la finca, sin importar el tipo (`409 duplicate_facility_name` con el
+  existente en `existing`). La capacidad va con un decimal, de 0,1 a 10.000. El tipo no cambia si el
+  elemento ya se usó o está ocupado (`422 facility_fields_locked`); eliminar solo lo que ningún
+  registro usa (`409 facility_has_records`). Toda escritura bloquea solo la finca.
+  **Ocupar y liberar** son `facility.occupy(lot, kind=..., actor=...)` y `facility.release(lot,
+  actor=...)` (`apps/facilities/services/occupancy.py`), que fermentación y secado llaman al iniciar
+  y al finalizar dentro de su transacción y con la finca del lote ya bloqueada; no piden permiso de
+  esta app. `occupy` es una actualización condicional de la fila y rechaza un elemento de otro tipo
+  (`422 facility_wrong_type`), de otro productor (`404`), de otra finca que la del lote (`422
+  facility_other_farm`), no disponible (`409 facility_unavailable`) o un lote que ya está en otro
+  elemento (`409 lot_already_in_facility`): el cajón se libera al finalizar la fermentación, antes
+  de ocupar la marquesina. `release` exige que adentro esté ese lote (`409
+  facility_not_occupied_by_lot`). Un elemento ocupado no se desactiva ni se elimina (`409
+  facility_occupied`, con el lote en `lot`); la base lo respalda con un `CHECK`.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden

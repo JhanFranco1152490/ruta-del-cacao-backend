@@ -7,20 +7,11 @@ en qué finca está el insumo, y existe desde que alguien lo registra allí. Lo 
 son sus movimientos.
 """
 
-from functools import reduce
-from operator import or_
-
-from django.db.models import BooleanField, Exists, ExpressionWrapper, OuterRef, Value
-
-from apps.common.db import dependent_relations, has_dependent_rows
+from apps.common.db import has_dependent_rows, has_dependent_rows_expression
 
 from .models import AgriculturalInput, AgriculturalInputAuditEvent, InputStock
 
 NOT_USAGE = (AgriculturalInputAuditEvent, InputStock)
-
-
-def usage_relations():
-    return dependent_relations(AgriculturalInput, ignore=NOT_USAGE)
 
 
 def is_used(item: AgriculturalInput) -> bool:
@@ -28,13 +19,5 @@ def is_used(item: AgriculturalInput) -> bool:
 
 
 def used_expression():
-    """`has_records` para anotar una consulta: un `Exists` por tabla, sin una consulta por fila."""
-    exists = [
-        Exists(
-            relation.related_model._base_manager.filter(**{relation.field.name: OuterRef("pk")})
-        )
-        for relation in usage_relations()
-    ]
-    if not exists:
-        return Value(False, output_field=BooleanField())
-    return ExpressionWrapper(reduce(or_, exists), output_field=BooleanField())
+    """`has_records` para anotar una consulta."""
+    return has_dependent_rows_expression(AgriculturalInput, ignore=NOT_USAGE)

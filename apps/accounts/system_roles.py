@@ -73,6 +73,10 @@ SYSTEM_ROLES = {
             "lots.view_lot",
             "lots.add_lot",
             "lots.delete_lot",
+            "facilities.view_postharvestfacility",
+            "facilities.add_postharvestfacility",
+            "facilities.change_postharvestfacility",
+            "facilities.delete_postharvestfacility",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -100,6 +104,10 @@ SYSTEM_ROLES = {
             "harvests.change_harvest",
             "lots.view_lot",
             "lots.add_lot",
+            # Es quien está en la finca y conoce sus cajones y marquesinas.
+            "facilities.view_postharvestfacility",
+            "facilities.add_postharvestfacility",
+            "facilities.change_postharvestfacility",
         ],
     },
     QUALITY_MANAGER: {

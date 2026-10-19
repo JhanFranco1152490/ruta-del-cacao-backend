@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.lots",
     "apps.health",
     "apps.notifications",
+    "apps.facilities",
     "apps.demo_data",
 ]
 
@@ -246,6 +247,7 @@ SPECTACULAR_SETTINGS = {
         "ControlMethodEnum": "apps.health.choices.ControlMethod",
         "SamplingUnitEnum": "apps.health.choices.SamplingUnit",
         "ControlModeEnum": "apps.health.choices.ControlMode",
+        "PostharvestFacilityStatusEnum": "apps.facilities.status.FacilityStatus",
     },
 }
 

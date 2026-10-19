@@ -68,12 +68,18 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     # No delegable: el catálogo de plagas y enfermedades es común a toda la asociación, como el de
     # variedades.
     "health.manage_pestdisease": PermissionInfo(area="health", delegable=False),
+    "facilities.view_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    "facilities.add_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    "facilities.change_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    "facilities.delete_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
 }
 
 
 # Las áreas de lo que cuelga de una finca. Un empleado con algún permiso de estas necesita una
 # finca asignada: sin ella no alcanza nada de lo que el permiso le deja hacer.
-FIELD_AREAS = frozenset({"farms", "plots", "crops", "inputs", "activities", "harvests", "lots"})
+FIELD_AREAS = frozenset(
+    {"farms", "plots", "crops", "inputs", "activities", "harvests", "lots", "facilities"}
+)
 
 
 def is_field_permission(code: str) -> bool:
@@ -144,6 +150,12 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "lots.view_lot": "harvests.view_harvest",
     "lots.add_lot": "lots.view_lot",
     "lots.delete_lot": "lots.view_lot",
+    # Los cajones y marquesinas se consultan eligiendo primero la finca: sin verlas no hay cómo
+    # llegar a ellos.
+    "facilities.view_postharvestfacility": "farms.view_farm",
+    "facilities.add_postharvestfacility": "facilities.view_postharvestfacility",
+    "facilities.change_postharvestfacility": "facilities.view_postharvestfacility",
+    "facilities.delete_postharvestfacility": "facilities.view_postharvestfacility",
 }
 
 

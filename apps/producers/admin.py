@@ -135,7 +135,7 @@ class ProducerAdmin(ServiceAdminMixin, admin.ModelAdmin):
         changed = skipped = 0
         for producer in queryset.exclude(status=status):
             try:
-                change_producer_status(producer.pk, producer.version, status)
+                change_producer_status(producer.pk, producer.version, status, actor=request.user)
                 changed += 1
             except StaleVersion:
                 skipped += 1

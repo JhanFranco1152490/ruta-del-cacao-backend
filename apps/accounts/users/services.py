@@ -4,8 +4,9 @@ from typing import NamedTuple
 from django.contrib.auth.models import Group
 from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, ProtectedError, QuerySet
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from apps.common.producer_reactivation import reactivate_producer
 from apps.common.validators import strip_document_separators
 
 from ..access import get_producer_model, is_association_admin, roles_of
@@ -245,10 +246,14 @@ def create_account(actor, data: dict, request_id) -> CreatedAccount:
     return CreatedAccount(user=user, activation_email_sent=activation_email_sent)
 
 
+def _is_producer_account(user) -> bool:
+    return user.groups.filter(role__code=PRODUCER).exists()
+
+
 def update_account(actor, user_id, data: dict, request_id) -> User:
     user = _managed_account(actor, user_id)
 
-    if user.groups.filter(role__code=PRODUCER).exists():
+    if _is_producer_account(user):
         _forbid(data, *PERSONAL_FIELDS, message="Lo gobierna el expediente del productor.")
     if "identity_document" in data:
         # Mismo motivo que en create_account: normalizar antes de full_clean().
@@ -339,14 +344,35 @@ def _record_farm_change(actor, user: User, request_id) -> None:
     )
 
 
+# El permiso con que se cambia el estado de un productor (HU-02); esta app no importa la de
+# productores, así que se nombra aquí.
+PRODUCER_STATUS_PERMISSION = "producers.change_status"
+
+
 def set_account_status(actor, user_id, status: str, request_id) -> User:
+    """Activa o desactiva una cuenta. Reactivar la cuenta Productor de un productor inactivo
+    reactiva también al productor: es la misma persona, y sin él la cuenta seguiría sin acceso.
+    Por eso pide además el permiso de cambiar el estado de productores, y lo hace aunque la cuenta
+    ya estuviera activa. La cuenta de un empleado no reactiva a su productor."""
     user = _managed_account(actor, user_id)
 
     is_active = status == "active"
-    if user.is_active == is_active:
+    reactivates_producer = (
+        is_active
+        and user.producer_id is not None
+        and user.producer.status != "active"
+        and _is_producer_account(user)
+    )
+    if user.is_active == is_active and not reactivates_producer:
         return user
+    if reactivates_producer and not actor.has_perm(PRODUCER_STATUS_PERMISSION):
+        raise PermissionDenied()
 
     with transaction.atomic():
+        # Primero el productor y después la cuenta: el mismo orden en que bloquea reactivar el
+        # productor, para no interbloquearse si las dos coinciden.
+        if reactivates_producer:
+            reactivate_producer(user.producer_id)
         # ensure_not_last_administrator() bloquea primero: su consulta ya incluye la fila de
         # `user` (antes de excluirlo en Python). Bloquearla aparte antes, como aquí mismo se
         # hacía, y solo después el conjunto completo, deja a dos desactivaciones cruzadas
@@ -354,6 +380,8 @@ def set_account_status(actor, user_id, status: str, request_id) -> User:
         if not is_active and is_association_admin(user):
             ensure_not_last_administrator(user)
         locked = User.objects.select_for_update(of=("self",)).get(pk=user.pk)
+        if locked.is_active == is_active:
+            return locked
         locked.is_active = is_active
         locked.save(update_fields=["is_active"])
         if not is_active:
@@ -369,6 +397,27 @@ def set_account_status(actor, user_id, status: str, request_id) -> User:
             target_user=locked,
         )
     return locked
+
+
+def reactivate_with_producer(producer_id, actor) -> None:
+    """Reactiva la cuenta Productor cuando se reactiva su productor (registrado en el `ready()`),
+    a nombre de `actor`. Corre dentro de la transacción del productor, que ya lo bloqueó. Las
+    cuentas de los empleados no cambian: el estado efectivo les devuelve el acceso."""
+    account = (
+        User.objects.select_for_update(of=("self",))
+        .filter(producer_id=producer_id, groups__role__code=PRODUCER)
+        .first()
+    )
+    if account is None or account.is_active:
+        return
+    account.is_active = True
+    account.save(update_fields=["is_active"])
+    record_account_event(
+        AccountManagementEvent.EventType.ACCOUNT_REACTIVATED,
+        uuid.uuid4(),
+        actor=actor,
+        target_user=account,
+    )
 
 
 def delete_account(actor, user_id, request_id) -> None:

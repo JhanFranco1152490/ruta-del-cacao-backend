@@ -138,7 +138,10 @@ class ProducerViewSet(GenericViewSet):
         serializer = ProducerStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         producer = change_producer_status(
-            pk, serializer.validated_data["expected_version"], serializer.validated_data["status"]
+            pk,
+            serializer.validated_data["expected_version"],
+            serializer.validated_data["status"],
+            actor=request.user,
         )
         return Response(ProducerSerializer(producer).data)
 

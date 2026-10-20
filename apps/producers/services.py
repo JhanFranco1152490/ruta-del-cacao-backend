@@ -2,6 +2,7 @@ from django.db import IntegrityError, connection, transaction
 from django.db.models import Prefetch
 
 from apps.common.producer_dependents import registered_dependents
+from apps.common.producer_reactivation import reactivate_producer_account
 
 from .exceptions import DuplicateDocument, ProducerHasRecords, ProducerNotFound, StaleVersion
 from .models import DOCUMENT_UNIQUE_CONSTRAINT, PRODUCER_ROLE_CODE, Producer, ProducerAuditEvent
@@ -66,14 +67,32 @@ def update_producer(producer_id, expected_version: int, data: dict) -> Producer:
 
 
 @transaction.atomic
-def change_producer_status(producer_id, expected_version: int, status: str) -> Producer:
+def change_producer_status(
+    producer_id, expected_version: int, status: str, actor=None
+) -> Producer:
+    """Cambia el estado del expediente. Reactivarlo también reactiva su cuenta Productor si estaba
+    desactivada, a nombre de `actor`: es la misma persona. Desactivarlo no toca ninguna cuenta: el
+    estado efectivo ya corta el acceso de él y de sus empleados."""
     producer = _lock_at_version(producer_id, expected_version)
     if producer.status == status:
         return producer
     producer.status = status
     producer.version += 1
     producer.save(update_fields=["status", "version", "updated_at"])
+    if status == Producer.Status.ACTIVE:
+        reactivate_producer_account(producer.pk, actor)
     return producer
+
+
+def reactivate_with_account(producer_id) -> None:
+    """Reactiva el productor cuando se reactiva su cuenta Productor (registrado en el `ready()`).
+    Corre dentro de la transacción de la cuenta, que bloquea su fila después de esta."""
+    producer = Producer.objects.select_for_update().get(pk=producer_id)
+    if producer.status == Producer.Status.ACTIVE:
+        return
+    producer.status = Producer.Status.ACTIVE
+    producer.version += 1
+    producer.save(update_fields=["status", "version", "updated_at"])
 
 
 @transaction.atomic

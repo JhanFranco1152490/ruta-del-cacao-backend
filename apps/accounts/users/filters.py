@@ -44,7 +44,14 @@ class AccountFilter(django_filters.FilterSet):
         return missing if value else queryset.exclude(pk__in=missing.values("pk"))
 
     def filter_status(self, queryset, name, value):
-        return queryset.filter(is_active=(value == "active"))
+        # Por el estado efectivo: la cuenta de un productor inactivo no tiene acceso aunque la
+        # cuenta esté activa, así que cuenta entre las inactivas.
+        effectively_active = Q(is_active=True) & (
+            Q(producer__isnull=True) | Q(producer__status="active")
+        )
+        if value == "active":
+            return queryset.filter(effectively_active)
+        return queryset.exclude(effectively_active)
 
     def filter_activation_pending(self, queryset, name, value):
         condition = Q(password__startswith=UNUSABLE_PASSWORD_PREFIX)

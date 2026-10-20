@@ -147,6 +147,14 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   **al revés de como se registraron** (fincas antes que cuentas): cada app se registra después de
   aquellas de las que depende, y lo que apunta a una cuenta con `PROTECT` (el responsable de una
   actividad) tiene que irse antes que ella.
+- **Reactivar un productor y su cuenta Productor van juntos** (las dos direcciones, en una sola
+  transacción): `change_producer_status` reactiva la cuenta Productor si estaba desactivada (con su
+  evento `account_reactivated`), y `set_account_status` reactiva el productor al reactivar su
+  cuenta Productor, aunque la cuenta ya estuviera activa, pidiendo además `producers.change_status`
+  (`403` sin él). Se encuentran en `apps/common/producer_reactivation.py`, donde cada app registra
+  en su `ready()` cómo reactiva lo suyo; las dos bloquean primero el productor y después la cuenta.
+  La cuenta de un empleado no reactiva al productor, y desactivar no toca al otro. El filtro
+  `status` de las cuentas usa el estado efectivo: la de un productor inactivo cuenta como inactiva.
 - **La altitud de una finca debe caber en el terreno de su municipio**, con 100 m de margen y sin
   bajar de 0 (`apps/common/municipality_altitude.py`, calculado sobre un modelo de elevación de
   30 m; el frontend usa la misma tabla). Solo se exige al crear y cuando cambian la altitud o el

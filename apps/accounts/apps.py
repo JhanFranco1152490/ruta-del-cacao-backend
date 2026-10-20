@@ -32,6 +32,14 @@ class AccountsConfig(AppConfig):
 
         register_dependent(accounts_dependent)
 
+        # Reactivar el productor reactiva también su cuenta Productor; la app de productores lo
+        # pide por el registro común, sin importar esta.
+        from apps.common.producer_reactivation import register_account_reactivator
+
+        from .users.services import reactivate_with_producer
+
+        register_account_reactivator(reactivate_with_producer)
+
 
 def last_app_with_models(app_configs):
     # Django no emite post_migrate para una app sin modelos: si la última instalada no tiene,

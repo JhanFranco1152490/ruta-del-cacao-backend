@@ -224,6 +224,7 @@ DOCUMENTED_OPERATIONS = {
     ("patch", "/api/postharvest-facilities/{id}"),
     ("delete", "/api/postharvest-facilities/{id}"),
     ("get", "/api/postharvest-parameters"),
+    ("put", "/api/postharvest-parameters"),
     ("get", "/api/drying"),
     ("get", "/api/drying/{id}"),
     ("post", "/api/drying"),

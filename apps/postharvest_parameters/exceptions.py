@@ -10,6 +10,18 @@ class ProducerNotFound(ApiError):
     default_code = "not_found"
 
 
+class StaleParameters(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Otra persona cambió los parámetros. Revisa los valores actuales antes de guardar."
+    )
+    default_code = "stale_version"
+
+    def __init__(self, current_state):
+        super().__init__()
+        self.current_state = current_state
+
+
 class InvalidParameters(ApiError):
     """Un dato que no cumple una regla de los parámetros, señalado en su campo."""
 

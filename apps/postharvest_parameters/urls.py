@@ -9,4 +9,9 @@ urlpatterns = [
         PostharvestParametersViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="postharvest-parameters",
     ),
+    path(
+        "postharvest-parameters/reset",
+        PostharvestParametersViewSet.as_view({"post": "reset"}),
+        name="postharvest-parameters-reset",
+    ),
 ]

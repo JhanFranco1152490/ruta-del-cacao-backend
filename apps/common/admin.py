@@ -28,6 +28,25 @@ class ReadOnlyAdminMixin:
         return False
 
 
+class ApiPermissionAdminMixin:
+    # Los permisos siguen al de la API (`api_permission`) y no a los que Django genera, para que un
+    # mismo rol pueda lo mismo en los dos lados. Se usa en los catálogos que administra la
+    # asociación: ver, registrar, editar y eliminar van juntos.
+    api_permission: str
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm(self.api_permission)
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.has_perm(self.api_permission)
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.has_perm(self.api_permission)
+
+    def has_add_permission(self, request):
+        return request.user.has_perm(self.api_permission)
+
+
 class SuperuserReadOnlyAdminMixin(ReadOnlyAdminMixin):
     # Solo superusuarios: el admin no filtra por productor, así que con el permiso de la API un
     # empleado de un productor vería los registros de todos, y la asociación no lee algunos de

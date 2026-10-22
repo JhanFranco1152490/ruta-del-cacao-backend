@@ -1,7 +1,11 @@
 from django import forms
 from django.contrib import admin
 
-from apps.common.admin import ReadOnlyInlineMixin, SuperuserReadOnlyAdminMixin
+from apps.common.admin import (
+    ApiPermissionAdminMixin,
+    ReadOnlyInlineMixin,
+    SuperuserReadOnlyAdminMixin,
+)
 
 from .exceptions import DuplicateVarietyName
 from .models import (
@@ -32,27 +36,15 @@ class CacaoVarietyAdminForm(forms.ModelForm):
 
 
 @admin.register(CacaoVariety)
-class CacaoVarietyAdmin(admin.ModelAdmin):
+class CacaoVarietyAdmin(ApiPermissionAdminMixin, admin.ModelAdmin):
+    # Eliminar es solo para lo registrado por error: una variedad que alguna ficha usa no se puede
+    # eliminar, se desactiva.
+    api_permission = MANAGE_PERMISSION
     form = CacaoVarietyAdminForm
     list_display = ("name", "common_names", "description", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name", "search_normalized")
     fields = EDITABLE_FIELDS
-
-    # Los permisos siguen al de la API y no a los que Django genera, para que un mismo rol pueda
-    # lo mismo en los dos lados. Eliminar es solo para lo registrado por error: una variedad que
-    # alguna ficha usa no se puede eliminar, se desactiva.
-    def has_view_permission(self, request, obj=None):
-        return request.user.has_perm(MANAGE_PERMISSION)
-
-    def has_change_permission(self, request, obj=None):
-        return request.user.has_perm(MANAGE_PERMISSION)
-
-    def has_delete_permission(self, request, obj=None):
-        return request.user.has_perm(MANAGE_PERMISSION)
-
-    def has_add_permission(self, request):
-        return request.user.has_perm(MANAGE_PERMISSION)
 
     # Todo pasa por los servicios, para normalizar el nombre y dejar el historial como la API.
     def save_model(self, request, obj, form, change):

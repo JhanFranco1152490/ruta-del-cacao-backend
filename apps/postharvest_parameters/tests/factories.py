@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 import factory
 from factory.django import DjangoModelFactory
 
@@ -17,4 +19,4 @@ class PostharvestParametersFactory(DjangoModelFactory):
 
     @classmethod
     def _adjust_kwargs(cls, **kwargs):
-        return {**DRYING_BASELINE, **kwargs}
+        return {**asdict(DRYING_BASELINE), **kwargs}

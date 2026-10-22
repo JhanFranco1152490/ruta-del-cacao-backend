@@ -76,7 +76,12 @@ sube a `apps/common`. Ninguna app importa de otra y `common` no importa de ningu
 única excepción es `apps/demo_data`, que arma datos que cruzan todas (como `config/` junta sus
 rutas); ninguna app importa de ella. Un módulo
 que pasa de ~250 líneas o mezcla temas se convierte en paquete (`services/__init__.py` + un
-archivo por tema) sin cambiar quién lo importa.
+archivo por tema) sin cambiar quién lo importa, o se parte por responsabilidad cuando son dos cosas:
+`accounts/users/` quedó en `services.py` (consultar y editar), `creation.py` (el alta) y
+`lifecycle.py` (estado, eliminar, reactivar, reenviar la activación). Lo que una app ofrece a las
+demás sin que se importen (registros de dependientes, representaciones, alertas, quién responde por
+una labor) va en `apps/common/contracts/`; la infraestructura (bloqueos, paginación, errores,
+almacenamiento) queda en la raíz de `common`.
 
 Antes de escribir la migración de una tabla nueva del dominio (fincas, parcelas, lotes,
 cosechas, evidencias…), su diseño debe estar aprobado con el equipo. Si tienes el workspace
@@ -769,6 +774,15 @@ python manage.py runserver
   sin permiso, sin sesión, sesión vencida y las respuestas de error.
 - **Sin datos personales reales:** correos `@example.com` y documentos inventados, armados con
   fábricas y helpers, no copiando el mismo `objects.create(...)` en cada test.
+- **Una sola corrida de `pytest` a la vez.** Todas usan la base `test_*`: una segunda corrida la crea y
+  la borra mientras la primera la usa, y esa corrida falla por razones que no son suyas.
+- **Un 401 aleatorio en la primera petición de una sesión recién abierta no es del test:** PyJWT
+  rechaza un token con `iat` en el futuro y el reloj de WSL2 retrocede ~2 s cada ~30. Por eso los
+  tokens se validan con una tolerancia de reloj de 10 s (`SIMPLE_JWT["LEEWAY"]`); no se quita.
+- Cada flujo de la demostración en vivo se prueba por la API contra los datos sembrados
+  (`apps/demo_data/tests/test_demo_flows.py`), con su caso negativo.
+- Al cerrar un sprint se corre la suite **completa** (`pytest`), no solo lo relacionado con lo que
+  cambió, y se anota el resultado en el PR.
 - Una prueba que renderiza una página HTML (el admin, por ejemplo) falla con "Missing
   staticfiles manifest entry" porque en pruebas no corre `collectstatic`: usa la fixture
   `plain_static_files` de `conftest.py`.
@@ -800,7 +814,18 @@ nada. Ruff y Black usan `line-length = 99`.
   criptografía y datos personales se prefiere lo probado por mucha gente). Lo que se decide se
   deja escrito, con lo que se descartó y por qué.
 - **La misma lógica no aparece dos veces:** si va a repetirse, se extrae antes de integrar (un
-  validador, un helper). Una responsabilidad por archivo.
+  validador, un helper). Una responsabilidad por archivo. Ya existen, y se usan en vez de copiarlas:
+  `PeriodQuerySerializer` (`apps/common/serializers.py`) para toda consulta por periodo (`from`/`to`
+  con un máximo de días: cada lista declara su `max_days` y sus filtros), `ApiPermissionAdminMixin`
+  (`apps/common/admin.py`) para el admin de un catálogo de la asociación,
+  `ServiceAdminMixin`/`run_service` para toda escritura del admin, `save_translating_unique` y
+  `lock_aggregate_root`.
+- **Cada HU suma a la semilla de demostración** (`apps/demo_data/`): una cuenta por rol que la usa,
+  datos en todos sus estados (programada, retrasada, vencida, realizada…) con fechas relativas a hoy
+  y creados por los servicios de cada app, idempotente (completa lo que falta, restablece las cuentas
+  y no toca lo que alguien cambió desde la aplicación), con su prueba. Lo que los servicios no dejan
+  crear en el pasado se crea hoy y se corre a su fecha, y un comentario lo dice. Nunca envía correos
+  ni se corre con datos reales.
 - **Concurrencia:** restricción única en la base de datos y bloqueo optimista con `version`;
   toda operación que asigna un recurso escaso corre en `transaction.atomic`.
   - **Toda escritura bajo una finca bloquea solo la finca** (`lock_aggregate_root`,

@@ -6,7 +6,7 @@ from .views import PostharvestParametersViewSet
 urlpatterns = [
     path(
         "postharvest-parameters",
-        PostharvestParametersViewSet.as_view({"get": "retrieve"}),
+        PostharvestParametersViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="postharvest-parameters",
     ),
 ]

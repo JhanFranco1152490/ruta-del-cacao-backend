@@ -6,7 +6,7 @@ import pytest
 from apps.accounts.system_roles import FOREMAN, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_delegate, make_producer_owner
-from apps.common.assignable import assignable_person, person_options
+from apps.common.contracts.assignable import assignable_person, person_options
 from apps.common.exceptions import ProducerRequired
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.tests.factories import PlotFactory

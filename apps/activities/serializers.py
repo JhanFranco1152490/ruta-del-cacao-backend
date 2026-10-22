@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.common.activity_details import activity_detail_fields
+from apps.common.contracts.activity_details import activity_detail_fields
 from apps.common.serializers import (
     ApiErrorSerializer,
     RejectUnknownFieldsMixin,

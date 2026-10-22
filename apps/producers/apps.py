@@ -8,7 +8,7 @@ class ProducersConfig(AppConfig):
     def ready(self):
         # Reactivar la cuenta Productor reactiva también al productor; la app de cuentas lo pide
         # por el registro común, sin importar esta.
-        from apps.common.producer_reactivation import register_producer_reactivator
+        from apps.common.contracts.producer_reactivation import register_producer_reactivator
 
         from .services import reactivate_with_account
 

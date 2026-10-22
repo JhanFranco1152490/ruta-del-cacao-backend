@@ -10,8 +10,8 @@ from rest_framework.exceptions import ValidationError as FieldError
 
 from apps.common.audit import record_update_events
 from apps.common.codes import next_number, number_from_query
+from apps.common.contracts.farm_dependents import registered_dependents
 from apps.common.db import has_dependent_rows, save_translating_unique
-from apps.common.farm_dependents import registered_dependents
 from apps.common.locks import lock_root_row
 from apps.common.ownership import (
     owner_filter,

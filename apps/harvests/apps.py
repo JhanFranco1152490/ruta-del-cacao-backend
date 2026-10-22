@@ -7,7 +7,7 @@ class HarvestsConfig(AppConfig):
 
     def ready(self):
         # Una parcela con cosechas no se elimina: se desactiva.
-        from apps.common.plot_dependents import register_dependent
+        from apps.common.contracts.plot_dependents import register_dependent
 
         from .plot_dependent import harvests_dependent
 

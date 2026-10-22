@@ -8,8 +8,8 @@ una sola vez, por vieja que sea.
 
 from datetime import timedelta
 
-from apps.common.alerts import NotificationDraft
-from apps.common.schedulers import Schedulers
+from apps.common.contracts.alerts import NotificationDraft
+from apps.common.contracts.schedulers import Schedulers
 
 from .choices import ActivityStatus
 from .models import AgriculturalActivity

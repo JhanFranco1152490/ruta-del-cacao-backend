@@ -1,4 +1,4 @@
-from apps.common.producer_dependents import ProducerDependent
+from apps.common.contracts.producer_dependents import ProducerDependent
 
 from .models import Farm
 from .services.farms import has_business_records, remove_unimportant_farm

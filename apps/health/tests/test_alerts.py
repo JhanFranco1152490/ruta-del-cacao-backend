@@ -6,7 +6,7 @@ from django.utils import timezone
 from apps.accounts.system_roles import FOREMAN, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_delegate, make_producer_owner
-from apps.common import alerts
+from apps.common.contracts import alerts
 from apps.farms.tests.factories import FarmFactory
 from apps.health.alerts import evaluate
 from apps.health.tests.factories import (

@@ -1,4 +1,4 @@
-from apps.common.farm_dependents import FarmDependent
+from apps.common.contracts.farm_dependents import FarmDependent
 
 from .models import Plot
 from .services.delete import has_business_records, remove_plot

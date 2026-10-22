@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
-from apps.common.harvest_representation import HarvestRepresentationSerializer
+from apps.common.contracts.harvest_representation import HarvestRepresentationSerializer
 from apps.common.serializers import (
     ApiErrorSerializer,
     RejectUnknownFieldsMixin,

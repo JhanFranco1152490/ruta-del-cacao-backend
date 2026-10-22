@@ -6,7 +6,7 @@ class FarmsConfig(AppConfig):
     name = "apps.farms"
 
     def ready(self):
-        from apps.common.producer_dependents import register_dependent
+        from apps.common.contracts.producer_dependents import register_dependent
 
         from .producer_dependent import farms_dependent
 

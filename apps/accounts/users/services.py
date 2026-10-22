@@ -6,7 +6,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, ProtectedError, QuerySet
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from apps.common.producer_reactivation import reactivate_producer
+from apps.common.contracts.producer_reactivation import reactivate_producer
 from apps.common.validators import strip_document_separators
 
 from ..access import get_producer_model, is_association_admin, roles_of

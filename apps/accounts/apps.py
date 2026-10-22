@@ -26,7 +26,7 @@ class AccountsConfig(AppConfig):
             _create_producer_account, sender=app_registry.get_model("producers", "Producer")
         )
         # Lo que esta app elimina cuando se elimina un productor creado por error.
-        from apps.common.producer_dependents import register_dependent
+        from apps.common.contracts.producer_dependents import register_dependent
 
         from .producer_dependent import accounts_dependent
 
@@ -34,7 +34,7 @@ class AccountsConfig(AppConfig):
 
         # Reactivar el productor reactiva también su cuenta Productor; la app de productores lo
         # pide por el registro común, sin importar esta.
-        from apps.common.producer_reactivation import register_account_reactivator
+        from apps.common.contracts.producer_reactivation import register_account_reactivator
 
         from .users.services import reactivate_with_producer
 

@@ -6,7 +6,7 @@ empleado lo de las fincas en las que trabaja, y la cuenta técnica lo de cualqui
 
 from django.db.models import QuerySet
 
-from apps.common.assignable import person_options
+from apps.common.contracts.assignable import person_options
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 

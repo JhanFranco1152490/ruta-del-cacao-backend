@@ -116,11 +116,14 @@ class PostharvestParametersSerializer(serializers.Serializer):
     updated_by = ParametersAuthorSerializer(allow_null=True)
 
 
-class PostharvestParametersSaveSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+class PostharvestParametersResetSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     # Solo la cuenta técnica, y para ella obligatorio; en otra cuenta se ignora.
     producer = serializers.UUIDField(required=False)
     # 0 si el productor todavía usa la línea base.
     expected_version = serializers.IntegerField(min_value=0)
+
+
+class PostharvestParametersSaveSerializer(PostharvestParametersResetSerializer):
     values = DryingValuesInputSerializer()
 
 

@@ -10,11 +10,13 @@ from apps.common.schema import error_responses
 
 from .exceptions import StaleParameters
 from .serializers import (
+    PostharvestParametersResetSerializer,
     PostharvestParametersSaveSerializer,
     PostharvestParametersSerializer,
     ProducerQuerySerializer,
 )
 from .services.queries import get_parameters
+from .services.reset import reset_parameters
 from .services.save import save_parameters
 
 PRODUCER_PARAMETER = OpenApiParameter(
@@ -67,6 +69,7 @@ class PostharvestParametersViewSet(ViewSet):
     action_permissions = {
         "retrieve": "postharvest_parameters.view_postharvestparameters",
         "update": "postharvest_parameters.change_postharvestparameters",
+        "reset": "postharvest_parameters.change_postharvestparameters",
     }
 
     def retrieve(self, request):
@@ -83,6 +86,26 @@ class PostharvestParametersViewSet(ViewSet):
         state = save_parameters(
             request.user, data.get("producer"), data["expected_version"], dict(data["values"])
         )
+        return Response(PostharvestParametersSerializer(state).data)
+
+    @extend_schema(
+        description=(
+            "Vuelve a la línea base: los parámetros guardados se borran y `is_default` queda "
+            "verdadero. Requiere `expected_version`; si cambiaron entretanto, 409 "
+            "`stale_version` con los vigentes en `current`. Si ya estaba en la línea base, "
+            "responde igual sin registrar nada."
+        ),
+        request=PostharvestParametersResetSerializer,
+        responses={
+            200: PostharvestParametersSerializer,
+            **error_responses(400, 401, 403, 404, 409),
+        },
+    )
+    def reset(self, request):
+        serializer = PostharvestParametersResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        state = reset_parameters(request.user, data.get("producer"), data["expected_version"])
         return Response(PostharvestParametersSerializer(state).data)
 
     def handle_exception(self, exc):

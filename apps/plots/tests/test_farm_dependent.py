@@ -3,7 +3,7 @@ from unittest import mock
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
-from apps.common.farm_dependents import registered_dependents
+from apps.common.contracts.farm_dependents import registered_dependents
 from apps.farms.exceptions import FarmHasRecords
 from apps.farms.models import Farm
 from apps.farms.services import delete_farm

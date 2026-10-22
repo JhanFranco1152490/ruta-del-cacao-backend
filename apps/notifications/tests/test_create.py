@@ -7,8 +7,8 @@ from django.utils import timezone
 
 from apps.accounts.tests.factories import UserFactory
 from apps.activities.tests.factories import AgriculturalActivityFactory
-from apps.common import alerts
-from apps.common.alerts import NotificationDraft
+from apps.common.contracts import alerts
+from apps.common.contracts.alerts import NotificationDraft
 from apps.notifications.models import Notification
 from apps.notifications.services.create import create_notifications
 from apps.notifications.tests.factories import NotificationFactory

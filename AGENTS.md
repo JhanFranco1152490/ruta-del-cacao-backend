@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) los puntos de encuentro de la representación de una actividad (`activity_details.py`, `activity_representation.py`), el de las alertas (`alerts.py`: evaluadores y `notify`) y quién puede programar en una finca (`schedulers.py`) |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), las alertas (`alerts.py`: evaluadores y `notify`), quién puede programar en una finca (`schedulers.py`), quién responde por una labor (`assignable.py`) y lo demás que comparten dos apps |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -141,7 +141,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   delegable): se elimina todo lo que depende de él si nada de eso es importante; si algo lo es
   responde `409 producer_has_records` y no se borra nada. Una app que agrega algo que depende de
   un productor lo declara con `register_dependent(ProducerDependent(...))` de
-  `apps/common/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
+  `apps/common/contracts/producer_dependents.py` en su `ready()` (qué es "importante", cuántos hay, cómo se
   eliminan), como ya hacen `farms` y `accounts`: así `producers` no importa de ninguna. Deja un
   `ProducerAuditEvent` sin relación con el productor, que sobrevive. Los dependientes se eliminan
   **al revés de como se registraron** (fincas antes que cuentas): cada app se registra después de
@@ -151,7 +151,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   transacción): `change_producer_status` reactiva la cuenta Productor si estaba desactivada (con su
   evento `account_reactivated`), y `set_account_status` reactiva el productor al reactivar su
   cuenta Productor, aunque la cuenta ya estuviera activa, pidiendo además `producers.change_status`
-  (`403` sin él). Se encuentran en `apps/common/producer_reactivation.py`, donde cada app registra
+  (`403` sin él). Se encuentran en `apps/common/contracts/producer_reactivation.py`, donde cada app registra
   en su `ready()` cómo reactiva lo suyo; las dos bloquean primero el productor y después la cuenta.
   La cuenta de un empleado no reactiva al productor, y desactivar no toca al otro. El filtro
   `status` de las cuentas usa el estado efectivo: la de un productor inactivo cuenta como inactiva.
@@ -171,14 +171,14 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   La cuenta expone `has_signed_in` para que el frontend sepa si ofrecer eliminar.
 - **Eliminar una finca sigue el mismo patrón:** sus parcelas se eliminan con ella si ninguna
   tiene registros; si alguna los tiene, `409 farm_has_records` y no se borra nada. `plots` lo
-  declara con `register_dependent(FarmDependent(...))` de `apps/common/farm_dependents.py`. Una
+  declara con `register_dependent(FarmDependent(...))` de `apps/common/contracts/farm_dependents.py`. Una
   tabla que apunte a la finca sin estar registrada también la bloquea. **Eliminar una parcela**
-  consulta igual su propio registro (`apps/common/plot_dependents.py`): `activities` se registra
+  consulta igual su propio registro (`apps/common/contracts/plot_dependents.py`): `activities` se registra
   ahí, y las actividades sin realizar se van con la parcela, cada una con su evento `deleted`;
   una realizada responde `409 plot_has_records`. Como el borrado de una finca pasa por el de sus
   parcelas, la regla vale también para fincas y productores. Lo que apunta a la parcela sin
   registrarse (la ficha) sigue bloqueándola. Los tres registros salen de
-  `apps/common/dependents.py`.
+  `apps/common/contracts/dependents.py`.
 - **Paginación única:** `page` (desde 1) y `page_size` (1–100, 20 por defecto); respuesta
   `{"count", "next", "previous", "results"}`. Una página fuera de rango responde 404
   `not_found`.
@@ -206,7 +206,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   y trae `characterization_counts` (`{done, pending}`) junto a `count`, calculados con todos los
   filtros menos ese, para el contador de la interfaz. `ordering` es `code` o
   `producer,farm,code` (para agrupar), con desempate por id en cada nivel. Si una parcela tiene
-  ficha lo dice `crops` con un `Exists` que registra en `apps/common/plot_characterization.py`
+  ficha lo dice `crops` con un `Exists` que registra en `apps/common/contracts/plot_characterization.py`
   desde su `ready()`: `plots` lo usa sin conocer el modelo de fichas.
 - **El historial de una ficha** (`GET /api/plot-characterizations/{id}/history`, paginado, de la
   versión más nueva a la más vieja) devuelve, por versión, `version`, quién la guardó
@@ -295,10 +295,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     (crear un control), `with_representation(queryset)` (las precargas para listarlas) y
     `state_today()`. Lo que hacen está en `services/linked.py`.
   - **La representación crece sin que `activities` conozca a quien la amplía:** otra app registra
-    en `apps/common/activity_details.py` sus campos (una función que crea un serializer leído de
+    en `apps/common/contracts/activity_details.py` sus campos (una función que crea un serializer leído de
     la actividad) y sus rutas de precarga; el serializer los suma en `get_fields()`, y así el
     esquema los documenta tipados. Sanidad agrega `monitoring` y `control_of`. En la otra
-    dirección, `activities` registra su serializer en `apps/common/activity_representation.py`
+    dirección, `activities` registra su serializer en `apps/common/contracts/activity_representation.py`
     para que sanidad responda con la actividad completa.
 - **Código de finca y de parcela:** el servidor asigna a cada finca un número consecutivo dentro de
   su productor (`Farm.number`, código `F02`) y a cada parcela uno dentro de su finca (`Plot.number`,
@@ -319,7 +319,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   los cuatro son permisos de campo. El `POST` llega desde la cola (`id` del dispositivo, reenvío
   idéntico `200` sin volver a validar, otros datos `409 harvest_id_conflict`) y exige una parcela
   con ficha y siembras (`422 plot_not_characterized`), una variedad de esas siembras (`422
-  variety_not_in_plot`), un recolector que cumple la regla de `apps/common/assignable.py`
+  variety_not_in_plot`), un recolector que cumple la regla de `apps/common/contracts/assignable.py`
   (`422 collector_not_available`), una fecha no futura ni anterior a la siembra más antigua de la
   variedad y un peso mayor que cero, de un decimal y de hasta 2.000 kg por hectárea declarada. Una
   parcela o finca inactivas no impiden registrar. Guarda la versión vigente de la ficha
@@ -388,7 +388,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     responde `200`; otro resultado, `409 activity_already_done`. Una plaga inexistente es `400` en
     `detections`, no `404`. Evaluar **árboles** no puede pasar de los que suma la ficha de la
     parcela (`400` en `evaluated_units`); las mazorcas no tienen tope, y una parcela sin ficha o
-    sin siembras no limita. `sanidad` lo pregunta por `apps/common/plot_trees.py`, que `crops`
+    sin siembras no limita. `sanidad` lo pregunta por `apps/common/contracts/plot_trees.py`, que `crops`
     llena en su `ready()`, y solo lo revisa en un resultado nuevo, no en un reenvío.
   - **Controles** desde una detección (`POST /api/phytosanitary-detections/{id}/controls`): el
     control es una actividad `phytosanitary_control` y `PhytosanitaryTreatment` guarda solo el
@@ -420,7 +420,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     `transaction.on_commit`. `HealthEvidenceAuditEvent` registra quién adjuntó o eliminó cada una.
 - **Notificaciones** (`apps/notifications`):
   - **Evaluación:** `python manage.py evaluate_alerts` (cada hora, como tarea programada; `--today
-    AAAA-MM-DD` para probar) corre los evaluadores registrados en `apps/common/alerts.py`, guarda
+    AAAA-MM-DD` para probar) corre los evaluadores registrados en `apps/common/contracts/alerts.py`, guarda
     los avisos nuevos, envía las push y purga lo viejo. Un evaluador que falla no detiene a los
     demás y el comando termina con error. Cada evaluador solo calcula `NotificationDraft`; lo único
     que escribe avisos es `create_notifications` (también desde `notify()`, para una condición que
@@ -433,7 +433,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   - **Condiciones de hoy:** actividad próxima (días 2, 1 y 0, al responsable), retrasada (días 1 y
     2) y vencida (una vez, sin límite), las dos últimas al responsable y a quien programa en la
     finca; control pendiente, cada día durante los 10 primeros desde la solicitud, a quien
-    programa. "Quien programa" sale de `Schedulers` (`apps/common/schedulers.py`), sin la cuenta
+    programa. "Quien programa" sale de `Schedulers` (`apps/common/contracts/schedulers.py`), sin la cuenta
     técnica.
   - **Bandeja** (`/api/notifications`, `…/unread-count`, `…/{id}/read`, `…/read-all`, `DELETE
     …/{id}`, `…/{id}/restore`, `…/dismiss-read`): solo pide sesión. Cada cuenta ve sus avisos, sin
@@ -484,7 +484,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   la lista de códigos (`permissions`). `/api/permissions` solo ofrece los delegables, que son los
   que puede llevar un rol propio, así que no sirve para nombrar los de un rol del sistema.
 - **Mostrar una cosecha:** la representación (sin su lote) vive en
-  `apps/common/harvest_representation.py` porque la usan cosechas y lotes y ninguna app importa de
+  `apps/common/contracts/harvest_representation.py` porque la usan cosechas y lotes y ninguna app importa de
   la otra.
 - **Todo permiso nuevo se declara en `apps/accounts/registry.py` y es delegable por defecto.**
   Si actúa sobre el espacio de un productor (sus fincas, sus cuentas, su operación), el
@@ -537,7 +537,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     fincas, y no se hace mientras tenga actividades programadas o retrasadas en las que deja
     (`409 account_has_pending_work`, con `pending` y `overdue`; las vencidas no bloquean; desde
     «todas», las que deja son todas las del productor fuera de la lista nueva). Cada app que asigne trabajo en una finca lo declara con
-    `register_guard` (`apps/common/farm_change_guards.py`).
+    `register_guard` (`apps/common/contracts/farm_change_guards.py`).
   - **Un empleado que registra una finca** (`farms.add_farm` en su rol) queda asignado a ella. Una
     finca con empleados asignados no se elimina (`409 farm_has_accounts`, con cuántos en `accounts`). Al eliminar un productor creado por error
     la finca se suelta de sus cuentas antes de borrarla.
@@ -551,7 +551,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     está en más de una finca (`409 input_shared`) y nunca le cambia la unidad (`403` con
     `fields.unit`).
   - **Responsables de una actividad y recolectores de una cosecha:** la regla vive en
-    `apps/common/assignable.py` y solo cambia el permiso (`activities.complete_agriculturalactivity`
+    `apps/common/contracts/assignable.py` y solo cambia el permiso (`activities.complete_agriculturalactivity`
     o `harvests.add_harvest`). Para una actividad: una cuenta activa con
     `activities.complete_agriculturalactivity` que trabaje en la finca de la parcela (o en todas),
     o el Productor. Al Productor solo le asigna él mismo o la cuenta técnica. Se decide por el permiso

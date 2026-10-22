@@ -8,8 +8,8 @@ class HealthConfig(AppConfig):
     def ready(self):
         # El resultado del monitoreo y la detección que atiende un control, en la representación de
         # la actividad. Las rutas de precarga van desde la actividad.
-        from apps.common.activity_details import register_activity_details
-        from apps.common.alerts import register_evaluator
+        from apps.common.contracts.activity_details import register_activity_details
+        from apps.common.contracts.alerts import register_evaluator
 
         from .alerts import evaluate
         from .serializers import ActivityMonitoringSerializer, ControlOfSerializer

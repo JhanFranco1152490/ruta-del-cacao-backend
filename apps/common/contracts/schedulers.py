@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.db.models import Q
 
-from .ownership import reaches_all_farms
+from ..ownership import reaches_all_farms
 
 SCHEDULE_APP_LABEL = "activities"
 SCHEDULE_CODENAME = "add_agriculturalactivity"

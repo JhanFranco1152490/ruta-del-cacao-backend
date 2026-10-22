@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from apps.common.farm_change_guards import PendingWork
+from apps.common.contracts.farm_change_guards import PendingWork
 
 from .choices import ActivityStatus
 from .models import AgriculturalActivity

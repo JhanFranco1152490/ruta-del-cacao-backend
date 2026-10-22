@@ -1,4 +1,4 @@
-from apps.common.plot_dependents import PlotDependent
+from apps.common.contracts.plot_dependents import PlotDependent
 
 from .models import Harvest
 

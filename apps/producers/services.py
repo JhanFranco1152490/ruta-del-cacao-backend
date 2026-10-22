@@ -1,8 +1,8 @@
 from django.db import IntegrityError, connection, transaction
 from django.db.models import Prefetch
 
-from apps.common.producer_dependents import registered_dependents
-from apps.common.producer_reactivation import reactivate_producer_account
+from apps.common.contracts.producer_dependents import registered_dependents
+from apps.common.contracts.producer_reactivation import reactivate_producer_account
 
 from .exceptions import DuplicateDocument, ProducerHasRecords, ProducerNotFound, StaleVersion
 from .models import DOCUMENT_UNIQUE_CONSTRAINT, PRODUCER_ROLE_CODE, Producer, ProducerAuditEvent

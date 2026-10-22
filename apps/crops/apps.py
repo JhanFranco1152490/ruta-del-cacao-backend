@@ -6,8 +6,8 @@ class CropsConfig(AppConfig):
     name = "apps.crops"
 
     def ready(self):
-        from apps.common.plot_characterization import register_characterized
-        from apps.common.plot_trees import register_tree_count
+        from apps.common.contracts.plot_characterization import register_characterized
+        from apps.common.contracts.plot_trees import register_tree_count
 
         from .plot_characterization import plot_is_characterized, plot_tree_count
 

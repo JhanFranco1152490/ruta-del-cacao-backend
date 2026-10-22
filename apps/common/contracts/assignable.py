@@ -10,8 +10,8 @@ from collections.abc import Callable
 
 from django.contrib.auth import get_user_model
 
-from .ownership import reaches_all_farms
-from .roles import is_employee
+from ..ownership import reaches_all_farms
+from ..roles import is_employee
 
 
 def person_options(

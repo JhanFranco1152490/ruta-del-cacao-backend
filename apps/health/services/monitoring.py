@@ -3,8 +3,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.db import transaction
 from django.utils import timezone
 
+from apps.common.contracts.plot_trees import tree_count
 from apps.common.locks import lock_aggregate_root
-from apps.common.plot_trees import tree_count
 from apps.common.text import normalize_catalog_name
 
 from ..choices import SamplingUnit

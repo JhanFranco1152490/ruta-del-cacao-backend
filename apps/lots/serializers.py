@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.common.harvest_representation import (
+from apps.common.contracts.harvest_representation import (
     HarvestRecorderSerializer,
     HarvestRepresentationSerializer,
 )

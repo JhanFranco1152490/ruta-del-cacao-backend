@@ -6,7 +6,7 @@ class PlotsConfig(AppConfig):
     name = "apps.plots"
 
     def ready(self):
-        from apps.common.farm_dependents import register_dependent
+        from apps.common.contracts.farm_dependents import register_dependent
 
         from .farm_dependent import plots_dependent
 

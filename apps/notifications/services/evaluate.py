@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.db.models import F, Q
 from django.utils import timezone
 
-from apps.common.alerts import evaluators
+from apps.common.contracts.alerts import evaluators
 from apps.common.exceptions import log_unhandled_error
 
 from ..choices import ACTIVITY_KINDS, NotificationKind

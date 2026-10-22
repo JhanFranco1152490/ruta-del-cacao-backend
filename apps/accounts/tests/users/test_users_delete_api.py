@@ -23,7 +23,7 @@ from apps.accounts.tests.role_helpers import (
     make_delegate,
     make_producer_owner,
 )
-from apps.accounts.users.services import delete_account
+from apps.accounts.users.lifecycle import delete_account
 from apps.producers.tests.factories import ProducerFactory
 
 pytestmark = pytest.mark.django_db

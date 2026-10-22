@@ -11,7 +11,8 @@ from .models import AccountManagementEvent, AuthenticationEvent, Role, User
 from .requests import request_id_from
 from .scope import visible_users
 from .system_roles import PRODUCER
-from .users.services import delete_account, set_account_status, update_account
+from .users.lifecycle import delete_account, set_account_status
+from .users.services import update_account
 
 # Lo que `update_account` guarda. Los datos personales de una cuenta Productor los gobierna su
 # expediente, así que en esa cuenta el admin los muestra sin dejar editarlos, como la API.

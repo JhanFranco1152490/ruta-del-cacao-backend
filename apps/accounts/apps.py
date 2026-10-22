@@ -36,7 +36,7 @@ class AccountsConfig(AppConfig):
         # pide por el registro común, sin importar esta.
         from apps.common.contracts.producer_reactivation import register_account_reactivator
 
-        from .users.services import reactivate_with_producer
+        from .users.lifecycle import reactivate_with_producer
 
         register_account_reactivator(reactivate_with_producer)
 
@@ -56,6 +56,6 @@ def _sync_system_roles(sender, **kwargs):
 def _create_producer_account(sender, instance, created, **kwargs):
     if not created:
         return
-    from .users.services import create_producer_account_automatically
+    from .users.creation import create_producer_account_automatically
 
     create_producer_account_automatically(instance)

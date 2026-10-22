@@ -1,14 +1,22 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.demo_data.catalog import DEMO_ADMIN_EMAIL, DEMO_PASSWORD, DEMO_PRODUCER_EMAIL
+from apps.demo_data.catalog import (
+    DEMO_ADMIN_EMAIL,
+    DEMO_FOREMAN_EMAIL,
+    DEMO_OPERATOR_EMAIL,
+    DEMO_PASSWORD,
+    DEMO_PRODUCER_EMAIL,
+)
 from apps.demo_data.seed import MissingVarietyCatalog, seed_demo_data
 
 
 class Command(BaseCommand):
     help = (
-        "Carga datos de demostración (productores, fincas, parcelas y fichas) y deja dos cuentas "
-        "con una contraseña pública. Se puede repetir: no duplica nada y restablece las dos "
-        "cuentas. No se corre en un despliegue con datos reales."
+        "Carga datos de demostración (productores, fincas, parcelas, fichas y, en La Esperanza, "
+        "empleados, insumos, infraestructura, labores, monitoreos, cosechas y lotes) y deja "
+        "cuentas con una contraseña pública. Se puede repetir: no duplica nada, restablece las "
+        "cuentas y deja otra vez programado el monitoreo de hoy. No se corre en un despliegue "
+        "con datos reales."
     )
 
     def handle(self, *args, **options):
@@ -24,6 +32,10 @@ class Command(BaseCommand):
                 f"ya existían: {report.producers_skipped}."
             )
         )
+        for line in report.operations:
+            self.stdout.write(f"  {line}")
         self.stdout.write(f"Administrador de la asociación: {DEMO_ADMIN_EMAIL}")
         self.stdout.write(f"Productor: {DEMO_PRODUCER_EMAIL}")
-        self.stdout.write(f"Contraseña de ambas: {DEMO_PASSWORD}")
+        self.stdout.write(f"Capataz de La Esperanza: {DEMO_FOREMAN_EMAIL}")
+        self.stdout.write(f"Operario de El Mirador: {DEMO_OPERATOR_EMAIL}")
+        self.stdout.write(f"Contraseña de todas: {DEMO_PASSWORD}")

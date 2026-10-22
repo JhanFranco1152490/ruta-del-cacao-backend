@@ -634,10 +634,19 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   `python manage.py create_association_admin --email a@b.com --document-type CC
   --identity-document 1234567 --first-name Ana --last-name Gómez`.
 - **`seed_demo_data`** (management command) carga productores, fincas, parcelas y fichas
-  inventados y deja dos cuentas con contraseña pública (`administrador@example.com` y
-  `productor@example.com`, la misma que muestra la pantalla de inicio de sesión del frontend).
-  Es idempotente: no toca un productor que ya existe y restablece las dos cuentas. No envía
-  correos. Nunca se corre en un despliegue con datos reales.
+  inventados y deja cuentas con contraseña pública, la misma que muestra la pantalla de inicio de
+  sesión del frontend: `administrador@example.com`, `productor@example.com`, `capataz@example.com`
+  (Capataz/Operario de La Esperanza) y `operario@example.com` (de El Mirador). Además llena **La
+  Esperanza** con lo que se hace en ella (`apps/demo_data/operations.py`): insumos con existencias,
+  cajones y marquesina, labores (programadas, una retrasada, una vencida y realizadas con insumos
+  descontados), monitoreos del pasado (con detecciones, un control hecho y otro pendiente), tres
+  cosechas y dos lotes, y los avisos de la campana (corre `evaluate_alerts`). Todo pasa por los
+  servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
+  fecha. Deja listo lo que piden las demostraciones en vivo: dos monitoreos programados para hoy
+  (P01 y P02), una variedad sembrada en P01 y el nombre `CF-01` libre. Es idempotente: no toca un
+  productor que ya existe, completa solo lo que falte, restablece las cuentas, vuelve a programar el
+  monitoreo de hoy si ya se registró y elimina un `CF-01` de un ensayo anterior. No envía correos.
+  Nunca se corre en un despliegue con datos reales.
 - **`evaluate_alerts`** (management command) es la evaluación de las alertas. En despliegue corre
   cada hora como tarea programada aparte (`5 * * * *`), con las mismas variables de entorno del
   servicio web; no corre `migrate`. Repetirla no duplica nada. **`generate_vapid_keys`** imprime un

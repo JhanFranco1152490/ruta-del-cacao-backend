@@ -9,11 +9,15 @@ from apps.crops.models import CacaoVariety, PlotCharacterization
 from apps.crops.tests.factories import CacaoVarietyFactory
 from apps.demo_data.catalog import (
     DEMO_ADMIN_EMAIL,
+    DEMO_FOREMAN_EMAIL,
+    DEMO_OPERATOR_EMAIL,
     DEMO_PASSWORD,
     DEMO_PRODUCER_EMAIL,
     PRODUCERS,
 )
 from apps.farms.models import Farm
+from apps.health.models import PestDisease
+from apps.health.tests.factories import PestDiseaseFactory
 from apps.plots.models import Plot
 from apps.producers.models import Producer
 
@@ -74,7 +78,9 @@ def test_creates_every_producer_with_its_farms_plots_and_characterizations():
 def test_the_other_producer_accounts_stay_pending_activation():
     seed()
 
-    others = User.objects.filter(producer__isnull=False).exclude(email=DEMO_PRODUCER_EMAIL)
+    others = User.objects.filter(producer__isnull=False).exclude(
+        email__in=[DEMO_PRODUCER_EMAIL, DEMO_FOREMAN_EMAIL, DEMO_OPERATOR_EMAIL]
+    )
     assert others.exists()
     assert not any(account.has_usable_password() for account in others)
 
@@ -133,6 +139,9 @@ def test_sends_no_activation_email():
     for name in VARIETIES_USED:
         if not CacaoVariety.objects.filter(name=name).exists():
             CacaoVarietyFactory(name=name)
+    for name in ("Monilia", "Mazorca negra"):
+        if not PestDisease.objects.filter(name=name).exists():
+            PestDiseaseFactory(name=name, kind="disease")
 
     seed()
 

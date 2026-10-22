@@ -474,7 +474,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (15 min, `Path=/api/`) y `cacao_refresh` (7 días, `Path=/api/auth/`), `Secure` fuera de
   desarrollo y con `SameSite` (`Lax` por defecto). Renovar rota el token de renovación y pone
   el anterior en la lista de bloqueo; cambiar la contraseña invalida los tokens de acceso ya
-  emitidos. Una cookie de acceso vencida o basura da `401`, nunca `403` ni `500`.
+  emitidos. Una cookie de acceso vencida o basura da `401`, nunca `403` ni `500`. Los tokens se
+  validan con una tolerancia de reloj de 10 s (`SIMPLE_JWT["LEEWAY"]`): un reloj que se corrige
+  hacia atrás (el de WSL2 lo hace cada ~30 s) deja un token recién emitido con `iat` en el futuro,
+  y PyJWT lo rechaza con `401` sin ella.
 - **CSRF en toda petición que modifica datos:** `POST`, `PUT`, `PATCH` y `DELETE` exigen el
   header `X-CSRFToken`; el token sale de `GET /api/auth/csrf`. Se aplica en un solo lugar
   (`apps/common/csrf.py`), desde `CookieJWTAuthentication` y `CsrfProtectedMixin`.

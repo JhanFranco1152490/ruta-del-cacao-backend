@@ -77,6 +77,8 @@ SYSTEM_ROLES = {
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
             "facilities.delete_postharvestfacility",
+            "postharvest_parameters.view_postharvestparameters",
+            "postharvest_parameters.change_postharvestparameters",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -108,6 +110,9 @@ SYSTEM_ROLES = {
             "facilities.view_postharvestfacility",
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
+            # Ve la humedad meta y el rango de entrada en la marquesina; cambiarlos es del
+            # Productor.
+            "postharvest_parameters.view_postharvestparameters",
         ],
     },
     QUALITY_MANAGER: {

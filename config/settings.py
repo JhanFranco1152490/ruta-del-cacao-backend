@@ -254,6 +254,10 @@ SPECTACULAR_SETTINGS = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Los relojes de quien emite el token y de quien lo valida no coinciden al segundo (otra
+    # instancia del servidor, o un reloj que se corrige hacia atrás): sin tolerancia, un token
+    # recién emitido llega con `iat` en el futuro y se rechaza con 401 aunque la sesión sea buena.
+    "LEEWAY": timedelta(seconds=10),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     # Al cambiar la contraseña, todos los tokens de acceso ya emitidos dejan de servir.

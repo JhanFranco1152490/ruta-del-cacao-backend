@@ -137,6 +137,27 @@ def test_expired_access_cookie_is_authentication_failed(api_client):
     assert response.data["code"] == "authentication_failed"
 
 
+def test_a_token_issued_a_few_seconds_ahead_of_this_clock_is_still_accepted(api_client):
+    # Un reloj que se corrige hacia atrás justo después de emitir el token lo deja con `iat` en el
+    # futuro: dentro de la tolerancia es una sesión buena.
+    token = AccessToken.for_user(UserFactory())
+    token.set_iat(at_time=timezone.now() + timedelta(seconds=5))
+    api_client.cookies["cacao_access"] = str(token)
+
+    assert api_client.get("/api/auth/me").status_code == 200
+
+
+def test_a_token_issued_far_ahead_of_this_clock_is_rejected(api_client):
+    token = AccessToken.for_user(UserFactory())
+    token.set_iat(at_time=timezone.now() + timedelta(minutes=5))
+    api_client.cookies["cacao_access"] = str(token)
+
+    response = api_client.get("/api/auth/me")
+
+    assert response.status_code == 401
+    assert response.data["code"] == "authentication_failed"
+
+
 def test_garbage_access_cookie_does_not_block_login(api_client):
     api_client.cookies["cacao_access"] = "no-es-un-jwt"
 

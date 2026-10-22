@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from decimal import Decimal
 
 import pytest
@@ -13,7 +14,7 @@ pytestmark = pytest.mark.django_db
 
 
 def test_the_baseline_has_every_parameter_and_nothing_else():
-    assert set(DRYING_BASELINE) == set(FIELDS)
+    assert set(asdict(DRYING_BASELINE)) == set(FIELDS)
     assert len(FIELDS) == 15
 
 
@@ -25,7 +26,7 @@ def test_the_model_stores_every_parameter():
 
 @pytest.mark.parametrize(("low", "high"), RANGE_PAIRS)
 def test_every_baseline_range_starts_below_its_end(low, high):
-    assert DRYING_BASELINE[low] <= DRYING_BASELINE[high]
+    assert getattr(DRYING_BASELINE, low) <= getattr(DRYING_BASELINE, high)
 
 
 def test_the_baseline_passes_every_database_check():

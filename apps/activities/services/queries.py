@@ -6,8 +6,8 @@ empleado lo de la finca en la que trabaja, y la cuenta técnica lo de cualquiera
 
 from django.db.models import QuerySet
 
-from apps.common.activity_details import activity_detail_prefetch
-from apps.common.assignable import assignable_person, person_options
+from apps.common.contracts.activity_details import activity_detail_prefetch
+from apps.common.contracts.assignable import assignable_person, person_options
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter, reaches_all_farms
 

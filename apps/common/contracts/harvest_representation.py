@@ -3,7 +3,7 @@ y ninguna de las dos apps importa de la otra, así que vive aquí."""
 
 from rest_framework import serializers
 
-from .serializers import full_name
+from ..serializers import full_name
 
 
 class HarvestFarmSerializer(serializers.Serializer):

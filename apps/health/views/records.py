@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.common.activity_representation import activity_serializer
+from apps.common.contracts.activity_representation import activity_serializer
 from apps.common.permissions import HasPermission
 from apps.common.schema import error_responses
 

@@ -14,7 +14,10 @@ from apps.common.schema import error_responses
 from ..models import User
 from ..requests import request_id_from
 from ..throttles import ActivationResendThrottle
+from .creation import create_account
 from .filters import AccountFilter
+from .lifecycle import delete_account, set_account_status
+from .lifecycle import resend_activation as resend_activation_service
 from .serializers import (
     AccountCreatedSerializer,
     AccountCreateSerializer,
@@ -26,15 +29,11 @@ from .serializers import (
 )
 from .services import (
     SCOPE_NOT_SENT,
-    create_account,
-    delete_account,
     get_account,
     list_accounts,
     set_account_roles,
-    set_account_status,
     update_account,
 )
-from .services import resend_activation as resend_activation_service
 
 
 @extend_schema_view(

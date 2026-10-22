@@ -12,7 +12,7 @@ from apps.activities.tests.factories import (
     done_activity,
     make_assignee,
 )
-from apps.common import alerts
+from apps.common.contracts import alerts
 from apps.farms.tests.factories import FarmFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory

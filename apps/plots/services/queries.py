@@ -3,9 +3,9 @@ from django.db.models import Count, OuterRef, Q, QuerySet
 from django.db.models.functions import Lower
 
 from apps.common.codes import number_from_query
+from apps.common.contracts.plot_characterization import characterized
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
-from apps.common.plot_characterization import characterized
 
 from ..exceptions import PlotNotFound
 from ..models import Plot

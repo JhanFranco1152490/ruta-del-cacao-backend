@@ -1,7 +1,7 @@
 from django.db import transaction
 
+from apps.common.contracts.plot_dependents import registered_dependents
 from apps.common.db import has_dependent_rows
-from apps.common.plot_dependents import registered_dependents
 from apps.common.versioning import check_expected_version
 
 from ..exceptions import PlotHasRecords, StalePlotVersion

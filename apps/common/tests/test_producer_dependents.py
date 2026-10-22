@@ -1,7 +1,7 @@
 import pytest
 
-from apps.common import producer_dependents as dependents
-from apps.common.producer_dependents import (
+from apps.common.contracts import producer_dependents as dependents
+from apps.common.contracts.producer_dependents import (
     ProducerDependent,
     register_dependent,
     registered_dependents,

@@ -77,3 +77,30 @@ class ApiErrorSerializer(serializers.Serializer):
 
 class DetailSerializer(serializers.Serializer):
     detail = serializers.CharField()
+
+
+class PeriodQuerySerializer(serializers.Serializer):
+    # Una lista que se pide por periodo, `from` y `to` incluidos, hasta `max_days`: cubre lo que se
+    # ve sin abrir la puerta a pedir años enteros sin paginar. Cada lista suma sus filtros en
+    # `extra_fields`.
+    max_days: int
+
+    def extra_fields(self):
+        return {}
+
+    def get_fields(self):
+        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+        return {
+            "from": serializers.DateField(),
+            "to": serializers.DateField(),
+            **self.extra_fields(),
+        }
+
+    def validate(self, attrs):
+        if attrs["to"] < attrs["from"]:
+            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
+        if (attrs["to"] - attrs["from"]).days + 1 > self.max_days:
+            raise serializers.ValidationError(
+                {"to": [f"El periodo no puede pasar de {self.max_days} días."]}
+            )
+        return attrs

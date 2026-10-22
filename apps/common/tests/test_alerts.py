@@ -2,8 +2,8 @@ from datetime import date
 
 import pytest
 
-from apps.common import alerts
-from apps.common.alerts import NotificationDraft
+from apps.common.contracts import alerts
+from apps.common.contracts.alerts import NotificationDraft
 
 
 @pytest.fixture

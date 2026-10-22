@@ -1,4 +1,4 @@
-from apps.common.producer_dependents import ProducerDependent
+from apps.common.contracts.producer_dependents import ProducerDependent
 
 from .models import AgriculturalInput
 from .services import remove_input

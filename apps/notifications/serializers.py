@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.common.activity_representation import activity_serializer
+from apps.common.contracts.activity_representation import activity_serializer
 
 from .models import Notification
 

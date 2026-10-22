@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 
 from apps.common.admin import (
+    ApiPermissionAdminMixin,
     ReadOnlyInlineMixin,
     ServiceAdminMixin,
     SuperuserReadOnlyAdminMixin,
@@ -44,26 +45,15 @@ class PestDiseaseAdminForm(forms.ModelForm):
 
 
 @admin.register(PestDisease)
-class PestDiseaseAdmin(ServiceAdminMixin, admin.ModelAdmin):
+class PestDiseaseAdmin(ApiPermissionAdminMixin, ServiceAdminMixin, admin.ModelAdmin):
+    # Eliminar es solo para lo registrado por error: una que algún monitoreo usa no se elimina, se
+    # desactiva.
+    api_permission = MANAGE_PERMISSION
     form = PestDiseaseAdminForm
     list_display = ("name", "kind", "scientific_name", "is_active")
     list_filter = ("kind", "is_active")
     search_fields = ("name", "search_normalized")
     fields = EDITABLE_FIELDS
-
-    # Los permisos siguen al de la API y no a los que Django genera. Eliminar es solo para lo
-    # registrado por error: una que algún monitoreo usa no se elimina, se desactiva.
-    def has_view_permission(self, request, obj=None):
-        return request.user.has_perm(MANAGE_PERMISSION)
-
-    def has_change_permission(self, request, obj=None):
-        return request.user.has_perm(MANAGE_PERMISSION)
-
-    def has_delete_permission(self, request, obj=None):
-        return request.user.has_perm(MANAGE_PERMISSION)
-
-    def has_add_permission(self, request):
-        return request.user.has_perm(MANAGE_PERMISSION)
 
     def save_model(self, request, obj, form, change):
         data = {name: form.cleaned_data[name] for name in EDITABLE_FIELDS}

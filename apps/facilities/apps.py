@@ -7,7 +7,7 @@ class FacilitiesConfig(AppConfig):
 
     def ready(self):
         # Lo que esta app elimina cuando se elimina una finca creada por error.
-        from apps.common.farm_dependents import register_dependent
+        from apps.common.contracts.farm_dependents import register_dependent
 
         from .farm_dependent import facilities_dependent
 

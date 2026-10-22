@@ -9,7 +9,7 @@ El rol dice qué puede hacer una cuenta; el alcance dice dónde. Cada rol limita
 
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from apps.common.farm_change_guards import PendingWork, pending_work
+from apps.common.contracts.farm_change_guards import PendingWork, pending_work
 from apps.common.ownership import reaches_all_farms
 from apps.common.roles import is_employee
 

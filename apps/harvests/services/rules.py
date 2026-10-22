@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
-from apps.common.assignable import assignable_person
+from apps.common.contracts.assignable import assignable_person
 
 from ..exceptions import (
     CollectorNotAvailable,

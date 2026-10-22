@@ -7,8 +7,8 @@ from django.core.management import CommandError, call_command
 from apps.accounts.tests.factories import UserFactory
 from apps.activities.choices import ActivityStatus
 from apps.activities.tests.factories import AgriculturalActivityFactory
-from apps.common import alerts
-from apps.common.alerts import NotificationDraft
+from apps.common.contracts import alerts
+from apps.common.contracts.alerts import NotificationDraft
 from apps.health.tests.factories import DetectionFactory, PhytosanitaryTreatmentFactory
 from apps.notifications.models import Notification
 from apps.notifications.services.evaluate import evaluate_alerts, evaluation_date

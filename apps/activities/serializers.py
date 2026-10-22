@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.common.contracts.activity_details import activity_detail_fields
 from apps.common.serializers import (
     ApiErrorSerializer,
+    PeriodQuerySerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
     full_name,
@@ -177,30 +178,16 @@ class CompletionSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     captured_at = serializers.DateTimeField(required=False, allow_null=True, default=None)
 
 
-MAX_PERIOD_DAYS = 120
-
-
-class ActivityListQuerySerializer(serializers.Serializer):
+class ActivityListQuerySerializer(PeriodQuerySerializer):
     # Cubre el mes que se ve (hasta 42 días de cuadrícula) sin abrir la puerta a pedir años
     # enteros sin paginar. La copia sin conexión (cuatro meses) no cabe: casi siempre pasa de 120
     # días, así que el dispositivo la pide un mes por petición.
+    max_days = 120
 
-    def get_fields(self):
-        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+    def extra_fields(self):
         return {
-            "from": serializers.DateField(),
-            "to": serializers.DateField(),
             "producer": serializers.UUIDField(required=False),
         }
-
-    def validate(self, attrs):
-        if attrs["to"] < attrs["from"]:
-            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
-        if (attrs["to"] - attrs["from"]).days + 1 > MAX_PERIOD_DAYS:
-            raise serializers.ValidationError(
-                {"to": [f"El periodo no puede pasar de {MAX_PERIOD_DAYS} días."]}
-            )
-        return attrs
 
 
 class PendingQuerySerializer(serializers.Serializer):

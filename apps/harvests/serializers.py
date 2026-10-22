@@ -4,6 +4,7 @@ from rest_framework import serializers
 from apps.common.contracts.harvest_representation import HarvestRepresentationSerializer
 from apps.common.serializers import (
     ApiErrorSerializer,
+    PeriodQuerySerializer,
     RejectUnknownFieldsMixin,
     RequireVersionedChangeMixin,
 )
@@ -63,31 +64,17 @@ class HarvestConflictErrorSerializer(ApiErrorSerializer):
     current = HarvestSerializer(required=False)
 
 
-MAX_PERIOD_DAYS = 92
-
-
-class HarvestListQuerySerializer(serializers.Serializer):
+class HarvestListQuerySerializer(PeriodQuerySerializer):
     # Un mes por petición es lo habitual (la copia del dispositivo es por mes); 92 días dejan pedir
     # un trimestre sin abrir la puerta a años enteros sin paginar.
+    max_days = 92
 
-    def get_fields(self):
-        # `from` es palabra reservada de Python: no puede ser el nombre de un atributo.
+    def extra_fields(self):
         return {
-            "from": serializers.DateField(),
-            "to": serializers.DateField(),
             "farm": serializers.UUIDField(required=False),
             "plot": serializers.UUIDField(required=False),
             "producer": serializers.UUIDField(required=False),
         }
-
-    def validate(self, attrs):
-        if attrs["to"] < attrs["from"]:
-            raise serializers.ValidationError({"to": ["Debe ser igual o posterior a `from`."]})
-        if (attrs["to"] - attrs["from"]).days + 1 > MAX_PERIOD_DAYS:
-            raise serializers.ValidationError(
-                {"to": [f"El periodo no puede pasar de {MAX_PERIOD_DAYS} días."]}
-            )
-        return attrs
 
 
 # La lista responde un objeto con todo el periodo en `results`, no un arreglo: sin esto, el esquema

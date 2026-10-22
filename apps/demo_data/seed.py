@@ -7,10 +7,11 @@ sus rutas. Ninguna app importa de esta.
 
 import math
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from django.db import transaction
 from django.test.utils import override_settings
+from django.utils import timezone
 
 from apps.accounts.events import record_account_event
 from apps.accounts.models import AccountManagementEvent, User
@@ -18,6 +19,7 @@ from apps.accounts.system_roles import ADMINISTRATOR, PRODUCER, get_system_role
 from apps.crops.models import CacaoVariety
 from apps.crops.services import save_characterization
 from apps.farms.services import create_farm
+from apps.notifications.services.evaluate import evaluate_alerts, evaluation_date
 from apps.plots.services import create_plot
 from apps.producers.models import Producer
 from apps.producers.services import change_producer_status, create_producer
@@ -29,6 +31,7 @@ from .catalog import (
     NORTE_DE_SANTANDER,
     PRODUCERS,
 )
+from .operations import seed_operations
 
 METRES_PER_DEGREE_OF_LATITUDE = 110_600
 
@@ -46,12 +49,15 @@ class MissingVarietyCatalog(Exception):
 class SeedReport:
     producers_created: int = 0
     producers_skipped: int = 0
+    # Lo que se agregó a La Esperanza, una línea por parte; vacío si ya estaba todo.
+    operations: list[str] = field(default_factory=list)
 
 
 def seed_demo_data() -> SeedReport:
-    """Crea lo que falte y deja las dos cuentas de demostración activas, con su rol y con la
-    contraseña publicada. Un productor que ya existe (por su documento) no se toca: puede tener
-    cambios hechos desde la aplicación."""
+    """Crea lo que falte y deja las cuentas de demostración activas, con su rol y con la contraseña
+    publicada. Un productor que ya existe (por su documento) no se toca: puede tener cambios hechos
+    desde la aplicación. Lo que se hace en La Esperanza (empleados, insumos, labores, cosechas…) se
+    completa aparte, parte por parte."""
     report = SeedReport()
     # El correo programado sale al confirmar la transacción: por eso ella va dentro del cambio de
     # configuración y no al revés.
@@ -63,8 +69,19 @@ def seed_demo_data() -> SeedReport:
                 continue
             _create_producer_with_records(definition)
             report.producers_created += 1
-        _restore_account(User.objects.get(email=DEMO_PRODUCER_EMAIL), PRODUCER)
+        owner = User.objects.get(email=DEMO_PRODUCER_EMAIL)
+        _restore_account(owner, PRODUCER)
+        report.operations = seed_operations(owner, _restore_account)
+    _notify_alerts()
     return report
+
+
+def _notify_alerts() -> None:
+    """Corre la evaluación de avisos para que la campana de cada cuenta ya traiga los de las
+    labores de hoy, sin esperar a la tarea programada. Va fuera de la transacción: guarda lo suyo.
+    """
+    now = timezone.now()
+    evaluate_alerts(evaluation_date(now), now)
 
 
 def _demo_admin() -> User:

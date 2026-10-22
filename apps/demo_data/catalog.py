@@ -1,6 +1,7 @@
-"""Los datos de demostración: dos cuentas para entrar y unos productores con fincas, parcelas y
-fichas. Todo es inventado: correos de `example.com` (dominio reservado, nunca entrega correo) y
-documentos en secuencia que no corresponden a nadie.
+"""Los datos de demostración: cuentas para entrar y unos productores con fincas, parcelas y
+fichas; de La Esperanza, además, lo que se hace en ella (insumos, infraestructura, labores,
+monitoreos, cosechas y lotes). Todo es inventado: correos de `example.com` (dominio reservado,
+nunca entrega correo) y documentos en secuencia que no corresponden a nadie.
 
 La contraseña es pública a propósito: la pantalla de inicio de sesión la muestra para que quien
 evalúa la aplicación entre sin pedir una cuenta. Por eso estas cuentas solo se crean con este
@@ -13,6 +14,8 @@ from decimal import Decimal
 DEMO_PASSWORD = "CacaoDemo2026"
 DEMO_ADMIN_EMAIL = "administrador@example.com"
 DEMO_PRODUCER_EMAIL = "productor@example.com"
+DEMO_FOREMAN_EMAIL = "capataz@example.com"
+DEMO_OPERATOR_EMAIL = "operario@example.com"
 
 DEMO_ADMIN = {
     "email": DEMO_ADMIN_EMAIL,
@@ -23,6 +26,78 @@ DEMO_ADMIN = {
 }
 
 NORTE_DE_SANTANDER = "54"
+
+# Los empleados del productor de demostración, con el rol Capataz/Operario: cada uno trabaja en una
+# sola finca y solo alcanza lo de ella.
+DEMO_EMPLOYEES = [
+    {
+        "email": DEMO_FOREMAN_EMAIL,
+        "document_type": "CC",
+        "identity_document": "1000000011",
+        "first_name": "Marcos Elías",
+        "last_name": "Villamizar Pérez",
+        "farm": "La Esperanza",
+    },
+    {
+        "email": DEMO_OPERATOR_EMAIL,
+        "document_type": "CC",
+        "identity_document": "1000000012",
+        "first_name": "Yolanda",
+        "last_name": "Suárez Arias",
+        "farm": "El Mirador",
+    },
+]
+
+# La finca y la parcela donde se hacen las demostraciones en vivo (el código de la parcela, P01, lo
+# asigna el servidor: es la primera de la finca).
+DEMO_FARM = "La Esperanza"
+DEMO_PLOT = "L-01"
+HISTORY_PLOT = "L-02"
+# Nombre reservado para el cajón que se registra en vivo: la semilla lo libera para poder repetir.
+LIVE_FACILITY_NAME = "CF-01"
+
+# Insumos del catálogo del productor de demostración, con lo que hay en la bodega de La Esperanza.
+DEMO_INPUTS = [
+    {
+        "name": "Urea 46 %",
+        "input_type": "fertilizer",
+        "unit": "kg",
+        "package_type": "sack",
+        "package_size": Decimal("50"),
+        "stock": Decimal("200"),
+    },
+    {
+        "name": "Abono orgánico (compost)",
+        "input_type": "organic_fertilizer",
+        "unit": "kg",
+        "package_type": "sack",
+        "package_size": Decimal("40"),
+        "stock": Decimal("480"),
+    },
+    {
+        "name": "Oxicloruro de cobre",
+        "input_type": "fungicide",
+        "unit": "kg",
+        "package_type": "bag",
+        "package_size": Decimal("1"),
+        "stock": Decimal("12"),
+    },
+    {
+        "name": "Cipermetrina",
+        "input_type": "insecticide",
+        "unit": "ml",
+        "package_type": "bottle",
+        "package_size": Decimal("500"),
+        "stock": Decimal("3000"),
+    },
+]
+
+# Cajones de fermentación y marquesinas de secado de La Esperanza (`CF-01` se deja libre).
+DEMO_FACILITIES = [
+    {"facility_type": "fermentation_box", "name": "C-01", "capacity_kg": Decimal("600")},
+    {"facility_type": "fermentation_box", "name": "C-02", "capacity_kg": Decimal("400")},
+    {"facility_type": "solar_dryer", "name": "M-01", "capacity_kg": Decimal("800")},
+]
 
 
 def _planting(variety, year, month, trees, propagation, stage):

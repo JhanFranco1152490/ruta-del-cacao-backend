@@ -6,7 +6,7 @@ from apps.common.contracts.harvest_representation import (
     HarvestRecorderSerializer,
     HarvestRepresentationSerializer,
 )
-from apps.common.serializers import full_name
+from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
 from .alerts import next_turn_due_at
 from .models import NOTES_MAX_LENGTH, FermentationProcess
@@ -178,3 +178,41 @@ class LotFermentationSerializer(serializers.Serializer):
     started_at = serializers.DateTimeField()
     ended_at = serializers.DateTimeField(allow_null=True)
     facility = serializers.CharField(source="facility.name")
+
+
+class FermentationStartSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    lot_id = serializers.UUIDField()
+    facility_id = serializers.UUIDField()
+    started_at = serializers.DateTimeField()
+    responsible_id = serializers.UUIDField()
+    # Que quien registra vio el aviso de que el lote supera la capacidad del cajón.
+    confirm_over_capacity = serializers.BooleanField(default=False)
+
+
+class FermentationStartUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    facility_id = serializers.UUIDField(required=False)
+    started_at = serializers.DateTimeField(required=False)
+    responsible_id = serializers.UUIDField(required=False)
+    confirm_over_capacity = serializers.BooleanField(required=False)
+    expected_version = serializers.IntegerField(min_value=1, required=False)
+
+    def validate(self, attrs):
+        if "expected_version" not in attrs:
+            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
+        # La confirmación sola no cambia nada.
+        if not {"facility_id", "started_at", "responsible_id"} & set(attrs):
+            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
+        return attrs
+
+
+class FermentationConflictErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
+    # `stale_version`, y `current_status` con `lot_invalid_status`.
+    current = FermentationProcessSerializer(required=False)
+    current_status = serializers.CharField(required=False)
+
+
+class CapacityErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: llega con `lot_exceeds_capacity`.
+    capacity_kg = serializers.DecimalField(max_digits=6, decimal_places=1, required=False)
+    green_weight_kg = serializers.DecimalField(max_digits=7, decimal_places=1, required=False)

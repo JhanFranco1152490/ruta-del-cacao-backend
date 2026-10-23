@@ -125,9 +125,16 @@ def start_options(actor, lot_id) -> dict:
 
 
 def earliest_start_at(lot) -> datetime:
-    """El momento en que el lote quedó Fermentado, que registra su historial. Un lote sin ese
-    evento (cargado antes de que existiera la fermentación) puede empezar desde el día de su
-    cosecha."""
+    """Desde cuándo puede empezar a secarse el lote: cuando terminó su fermentación.
+
+    Se toma la hora de fin que guarda la fermentación, y no la del evento del historial: una
+    fermentación se puede finalizar con atraso (registrar hoy que terminó ayer), y el secado que
+    empezó ayer tiene que poder registrarse. Se lee por la relación del lote, sin importar esa app.
+    Sin fermentación, la hora en que el lote quedó Fermentado según su historial; sin ese evento
+    (un lote cargado antes de que existiera la fermentación), el día de su cosecha."""
+    fermentation = getattr(lot, "fermentation", None)
+    if fermentation is not None and fermentation.ended_at is not None:
+        return fermentation.ended_at
     fermented = (
         lot.audit_events.filter(action=STATUS_CHANGED, changes__status__after=FERMENTED)
         .order_by("-occurred_at")

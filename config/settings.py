@@ -251,6 +251,7 @@ SPECTACULAR_SETTINGS = {
         "SamplingUnitEnum": "apps.health.choices.SamplingUnit",
         "ControlModeEnum": "apps.health.choices.ControlMode",
         "PostharvestFacilityStatusEnum": "apps.facilities.status.FacilityStatus",
+        "DryingWeatherEnum": "apps.drying.models.Weather",
     },
 }
 

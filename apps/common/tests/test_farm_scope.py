@@ -16,6 +16,7 @@ from apps.activities.choices import ActivityType
 from apps.activities.state import today_in_bogota
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.crops.tests.factories import CacaoVarietyFactory
+from apps.drying.tests.factories import DryingProcessFactory
 from apps.facilities.tests.factories import PostharvestFacilityFactory
 from apps.farms.tests.factories import FarmFactory
 from apps.fermentation.tests.factories import FermentationProcessFactory
@@ -346,6 +347,9 @@ class HarvestWorld:
         # Sus cosechas caen fuera del periodo de `window`, para no cambiar la lista de cosechas.
         self.fermentation_a = self.fermentation(self.plot_a)
         self.fermentation_b = self.fermentation(self.plot_b)
+        # Y un secado en curso por finca, para la pantalla y la ficha del secado.
+        self.drying_a = self.drying(self.plot_a)
+        self.drying_b = self.drying(self.plot_b)
         self.owner = make_producer_owner(self.producer)
         self.employee = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS)
@@ -357,6 +361,11 @@ class HarvestWorld:
         return FermentationProcessFactory(
             lot=LotFactory(harvest=harvest, status=LotStatus.FERMENTING)
         )
+
+    @staticmethod
+    def drying(plot):
+        harvest = HarvestFactory(plot=plot, harvest_date=date(2026, 9, 16))
+        return DryingProcessFactory(lot=LotFactory(harvest=harvest, status=LotStatus.DRYING))
 
 
 @pytest.fixture
@@ -372,8 +381,8 @@ HARVEST_LISTS = {
     ),
     "lots": (
         lambda w: ("/api/lots", {}),
-        {"lot_a", "fermentation_a"},
-        {"lot_b", "fermentation_b"},
+        {"lot_a", "fermentation_a", "drying_a"},
+        {"lot_b", "fermentation_b", "drying_b"},
     ),
 }
 
@@ -381,6 +390,7 @@ HARVEST_DETAILS = {
     "harvest": ("/api/harvests/{}", "harvest_a", "harvest_b"),
     "lot": ("/api/lots/{}", "lot_a", "lot_b"),
     "fermentation": ("/api/fermentation/{}", "fermentation_a", "fermentation_b"),
+    "drying": ("/api/drying/{}", "drying_a", "drying_b"),
 }
 
 
@@ -431,6 +441,17 @@ def test_an_employee_lists_only_the_fermentations_of_its_farm(auth_client, harve
     assert listed(harvest_world.owner) == names(
         harvest_world, {"fermentation_a", "fermentation_b"}
     )
+
+
+def test_an_employee_lists_only_the_dryings_of_its_farm(auth_client, harvest_world):
+    def listed(user):
+        response = auth_client(user).get("/api/drying")
+        assert response.status_code == 200, response.data
+        return {row["lot"]["id"] for row in response.data["results"]}
+
+    assert listed(harvest_world.employee) == names(harvest_world, {"drying_a"})
+    assert listed(harvest_world.unassigned) == set()
+    assert listed(harvest_world.owner) == names(harvest_world, {"drying_a", "drying_b"})
 
 
 @pytest.mark.parametrize("resource", HARVEST_DETAILS)

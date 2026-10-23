@@ -10,9 +10,9 @@ from apps.common.contracts.harvest_representation import (
 )
 from apps.common.contracts.postharvest_parameters import drying_parameters
 from apps.common.hours import hours_between
-from apps.common.serializers import full_name
+from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
-from .models import ONE_DECIMAL, DryingProcess, Weather
+from .models import MAX_PERCENT, ONE_DECIMAL, DryingProcess, Weather
 from .rules import day_number
 
 # Las opciones del estado del lote se toman de su campo por la relación, sin importar su app: así
@@ -186,3 +186,81 @@ class DryingListSerializer(serializers.Serializer):
 class DryingListQuerySerializer(serializers.Serializer):
     farm = serializers.UUIDField(required=False)
     producer = serializers.UUIDField(required=False)
+
+
+PERCENT_MESSAGE = "Debe estar entre 0 % y 100 %."
+
+
+def percent_input(**kwargs):
+    # Un dígito más de los que guarda la base: así 100,1 llega a la regla y responde su rango, en
+    # vez de un error de cantidad de dígitos.
+    return serializers.DecimalField(max_digits=5, decimal_places=ONE_DECIMAL, **kwargs)
+
+
+def check_percent(value):
+    if value is not None and not 0 <= value <= MAX_PERCENT:
+        raise serializers.ValidationError(PERCENT_MESSAGE)
+    return value
+
+
+class DryingStartSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    lot_id = serializers.UUIDField()
+    facility_id = serializers.UUIDField()
+    started_at = serializers.DateTimeField()
+    entry_moisture_pct = percent_input()
+    responsible_id = serializers.UUIDField()
+    # Que quien registra vio el aviso de que la humedad de entrada está fuera del rango esperado.
+    confirm_entry_moisture = serializers.BooleanField(default=False)
+
+    def validate_entry_moisture_pct(self, value):
+        return check_percent(value)
+
+
+class DryingStartUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    facility_id = serializers.UUIDField(required=False)
+    started_at = serializers.DateTimeField(required=False)
+    entry_moisture_pct = percent_input(required=False)
+    responsible_id = serializers.UUIDField(required=False)
+    confirm_entry_moisture = serializers.BooleanField(required=False)
+    expected_version = serializers.IntegerField(min_value=1, required=False)
+
+    def validate_entry_moisture_pct(self, value):
+        return check_percent(value)
+
+    def validate(self, attrs):
+        if "expected_version" not in attrs:
+            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
+        # La confirmación sola no cambia nada.
+        if not {"facility_id", "started_at", "entry_moisture_pct", "responsible_id"} & set(attrs):
+            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
+        return attrs
+
+
+class DryingStartOptionsQuerySerializer(serializers.Serializer):
+    lot = serializers.UUIDField()
+
+
+class DryingStartOptionPersonSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    full_name = serializers.CharField()
+    is_active = serializers.BooleanField()
+    assignable = serializers.BooleanField()
+
+
+class DryingStartOptionsSerializer(serializers.Serializer):
+    facilities = DryingDryerSerializer(many=True)
+    responsibles = DryingStartOptionPersonSerializer(many=True)
+    entry_moisture_range = DryingRangeSerializer()
+    earliest_start_at = serializers.DateTimeField()
+
+
+class DryingConflictErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
+    # `stale_version`, y `current_status` con `lot_invalid_status`.
+    current = DryingProcessSerializer(required=False)
+    current_status = serializers.CharField(required=False)
+
+
+class EntryMoistureErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: llega con `entry_moisture_out_of_range`.
+    range = DryingRangeSerializer(required=False)

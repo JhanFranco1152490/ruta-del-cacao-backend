@@ -163,3 +163,26 @@ class StaleDryingLogVersion(ApiError):
     def __init__(self, entry):
         super().__init__()
         self.current_entry = entry
+
+
+class DryingWithoutLogs(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Registra al menos una bitácora para finalizar."
+    default_code = "drying_without_logs"
+
+
+class DryWeightAboveGreen(ApiError):
+    # El grano seco no puede pesar más que el cacao en baba del que salió.
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Los datos enviados no son válidos."
+    default_code = "validation_error"
+
+    def __init__(self, green_weight_kg):
+        super().__init__(
+            fields={
+                "dry_weight_kg": [
+                    f"No puede ser mayor que el peso en verde ({green_weight_kg:.1f} kg)."
+                ]
+            },
+            extra={"green_weight_kg": f"{green_weight_kg:.1f}"},
+        )

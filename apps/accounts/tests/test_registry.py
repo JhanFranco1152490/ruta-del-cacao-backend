@@ -127,3 +127,23 @@ def test_fermentation_actions_bring_the_permission_to_see_the_lot():
 def test_fermentation_permissions_are_field_permissions():
     assert registry.is_field_permission("fermentation.log_turns")
     assert registry.is_field_permission("fermentation.manage_fermentation")
+
+
+def test_drying_actions_bring_the_permission_to_see_the_lot():
+    logs = "drying.log_drying"
+    manage = "drying.manage_drying"
+    to_see_the_lot = {
+        "lots.view_lot",
+        "harvests.view_harvest",
+        "plots.view_plot",
+        "farms.view_farm",
+    }
+    assert with_dependencies({logs}) == {logs, *to_see_the_lot}
+    # Quien inicia y finaliza también lleva la bitácora: el responsable puede todo en su secado.
+    assert with_dependencies({manage}) == {manage, logs, *to_see_the_lot}
+    assert registry.area_of(logs) == registry.area_of(manage) == "drying"
+
+
+def test_drying_permissions_are_field_permissions():
+    assert registry.is_field_permission("drying.log_drying")
+    assert registry.is_field_permission("drying.manage_drying")

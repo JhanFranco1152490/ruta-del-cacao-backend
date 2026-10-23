@@ -314,6 +314,7 @@ HARVEST_FIELD_PERMISSIONS = [
     "lots.view_lot",
     "lots.add_lot",
     "fermentation.log_turns",
+    "drying.log_drying",
 ]
 
 

@@ -103,3 +103,63 @@ class StaleDryingVersion(ApiError):
         # La vista envía el vigente en `current` para que el formulario cargue sus valores.
         super().__init__()
         self.lot_id = lot_id
+
+
+class DryingLogNotFound(ApiError):
+    # También cubre la bitácora de otro secado.
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "La bitácora no existe."
+    default_code = "not_found"
+
+
+class DryingLogIdConflict(ApiError):
+    # Un `id` que ya usa otra bitácora, con otros datos o de otro secado. No se dice cuál, para no
+    # confirmar que existe.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya existe una bitácora con este identificador."
+    default_code = "drying_log_id_conflict"
+
+
+class DuplicateDryingLogDate(ApiError):
+    # Una bitácora por fecha: la del día ya existe.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya existe un registro para esta fecha"
+    default_code = "duplicate_drying_log_date"
+
+    def __init__(self, existing_id=None, day_number=None):
+        extra = None
+        if existing_id is not None:
+            extra = {"existing": {"id": str(existing_id), "day_number": day_number}}
+        super().__init__(fields={"measured_at": [self.default_detail]}, extra=extra)
+
+
+class DryingHoursExceeded(ApiError):
+    # Las horas al sol y a la sombra de un día no pasan de las que ese día estuvo en secado.
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Los datos enviados no son válidos."
+    default_code = "validation_error"
+
+    def __init__(self, available_hours, started_at=None):
+        # `started_at` solo llega el día del inicio, que es el que cuenta desde esa hora.
+        message = f"Ese día el secado tuvo {available_hours:.1f} horas."
+        if started_at is not None:
+            message = (
+                f"Ese día el secado tuvo {available_hours:.1f} horas "
+                f"(empezó a las {started_at:%H:%M})."
+            )
+        super().__init__(
+            fields={"sun_hours": [message]},
+            extra={"available_hours": f"{available_hours:.1f}"},
+        )
+
+
+class StaleDryingLogVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "Otra persona cambió esta bitácora. Revisa los datos actuales antes de guardar."
+    )
+    default_code = "stale_version"
+
+    def __init__(self, entry):
+        super().__init__()
+        self.current_entry = entry

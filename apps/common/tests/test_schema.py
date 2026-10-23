@@ -228,6 +228,9 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/postharvest-parameters/reset"),
     ("get", "/api/drying"),
     ("get", "/api/drying/{id}"),
+    ("post", "/api/drying"),
+    ("patch", "/api/drying/{id}"),
+    ("get", "/api/drying/start-options"),
 }
 
 

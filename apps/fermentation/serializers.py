@@ -282,3 +282,9 @@ class TurnConflictErrorSerializer(ApiErrorSerializer):
     # `duplicate_turn_time` y `current` con `stale_version`.
     existing = DuplicateTurnSerializer(required=False)
     current = FermentationTurnSerializer(required=False)
+
+
+class FermentationFinishSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+    ended_at = serializers.DateTimeField()
+    notes = serializers.CharField(max_length=NOTES_MAX_LENGTH, allow_blank=True, required=False)

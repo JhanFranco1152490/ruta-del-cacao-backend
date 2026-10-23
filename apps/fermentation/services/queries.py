@@ -26,6 +26,7 @@ Facility = FermentationProcess._meta.get_field("facility").related_model
 # Los valores de otras apps que esta usa, tal como los guardan sus campos.
 GENERATED = "generated"
 FERMENTING = "fermenting"
+FERMENTED = "fermented"
 FERMENTATION_BOX = "fermentation_box"
 
 PROCESS_SCOPE = {

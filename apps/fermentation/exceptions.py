@@ -143,3 +143,9 @@ class StaleTurnVersion(ApiError):
     def __init__(self, turn):
         super().__init__()
         self.current_turn = turn
+
+
+class FermentationWithoutTurns(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Registre al menos un volteo para finalizar"
+    default_code = "fermentation_without_turns"

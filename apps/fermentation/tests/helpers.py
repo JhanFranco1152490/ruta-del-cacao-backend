@@ -15,7 +15,7 @@ from apps.producers.tests.factories import ProducerFactory
 
 class Farmstead:
     """Un productor con dos fincas. En A, dos cajones de 600 kg (C-01 y C-02) y un lote recién
-    conformado de 500 kg cosechado hace tres días; el capataz trabaja en A."""
+    conformado de 500 kg cosechado hace una semana; el capataz trabaja en A."""
 
     def __init__(self):
         self.producer = ProducerFactory()
@@ -25,7 +25,7 @@ class Farmstead:
         self.plot_b = characterized_plot(farm=self.farm_b, area_hectares=Decimal("5.00"))
         self.box = PostharvestFacilityFactory(farm=self.farm_a, name="C-01", capacity_kg=600)
         self.other_box = PostharvestFacilityFactory(farm=self.farm_a, name="C-02", capacity_kg=600)
-        self.harvest_day = timezone.localdate() - timedelta(days=3)
+        self.harvest_day = timezone.localdate() - timedelta(days=7)
         self.lot = self.new_lot(Decimal("500.0"))
         self.owner = make_producer_owner(self.producer)
         self.foreman = grant_role(

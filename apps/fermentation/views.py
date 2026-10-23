@@ -14,6 +14,7 @@ from .exceptions import StaleFermentationVersion
 from .serializers import (
     CapacityErrorSerializer,
     FermentationConflictErrorSerializer,
+    FermentationFinishSerializer,
     FermentationListQuerySerializer,
     FermentationListSerializer,
     FermentationProcessSerializer,
@@ -22,6 +23,7 @@ from .serializers import (
     StartOptionsQuerySerializer,
     StartOptionsSerializer,
 )
+from .services.finish import finish_fermentation
 from .services.queries import get_fermentation, list_fermentations, start_options
 from .services.start import start_fermentation
 from .services.update import correct_start
@@ -90,6 +92,7 @@ class FermentationViewSet(GenericViewSet):
         "start_options": "fermentation.manage_fermentation",
         "create": "fermentation.manage_fermentation",
         "partial_update": "fermentation.manage_fermentation",
+        "finish": "fermentation.manage_fermentation",
     }
     filter_backends = []
     pagination_class = None
@@ -124,6 +127,32 @@ class FermentationViewSet(GenericViewSet):
         data = dict(serializer.validated_data)
         expected_version = data.pop("expected_version")
         process = correct_start(request.user, pk, expected_version, data)
+        return Response(
+            FermentationProcessSerializer(get_fermentation(request.user, process.pk)).data
+        )
+
+    @extend_schema(
+        description=(
+            "Finaliza una fermentación en curso: el lote pasa a Fermentado y el cajón queda "
+            "Disponible, en una sola transacción. Necesita al menos un volteo (409 "
+            "`fermentation_without_turns`); el fin no puede ser anterior al último volteo ni "
+            "futuro. Requiere `expected_version`; si cambió, 409 `stale_version` con la vigente "
+            "en `current`."
+        ),
+        request=FermentationFinishSerializer,
+        responses={
+            200: FermentationProcessSerializer,
+            409: FermentationConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def finish(self, request, pk):
+        serializer = FermentationFinishSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        expected_version = data.pop("expected_version")
+        process = finish_fermentation(request.user, pk, expected_version, data)
         return Response(
             FermentationProcessSerializer(get_fermentation(request.user, process.pk)).data
         )

@@ -10,6 +10,7 @@ from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import make_delegate
 from apps.drying.models import DryingProcess, DryingProcessAuditEvent
 from apps.facilities.tests.factories import PostharvestFacilityFactory
+from apps.fermentation.tests.factories import FermentationProcessFactory
 from apps.lots.choices import LotStatus
 from apps.lots.models import Lot
 from apps.postharvest_parameters.tests.factories import PostharvestParametersFactory
@@ -146,6 +147,33 @@ def test_a_start_before_the_lot_was_fermented_is_refused(auth_client, estate):
 
     assert response.status_code == 400
     assert "started_at" in response.data["fields"]
+
+
+def test_a_fermentation_finished_late_still_lets_the_drying_start_after_its_real_end(
+    auth_client, estate
+):
+    # Se registró hoy que la fermentación terminó hace dos días: el secado puede empezar después
+    # de ese fin, aunque el evento del lote diga hoy.
+    lot = fermented_lot(estate.plot_a, actor=estate.owner, hours_ago=0)
+    ended_at = timezone.now() - timedelta(days=2)
+    FermentationProcessFactory(
+        lot=lot,
+        facility__farm=estate.farm_a,
+        started_at=ended_at - timedelta(hours=120),
+        ended_at=ended_at,
+    )
+    client = auth_client(estate.owner)
+
+    before = start(
+        client,
+        estate.start_body(lot=lot, started_at=(ended_at - timedelta(minutes=1)).isoformat()),
+    )
+    after = start(
+        client, estate.start_body(lot=lot, started_at=(ended_at + timedelta(hours=4)).isoformat())
+    )
+
+    assert "started_at" in before.data["fields"]
+    assert after.status_code == 201, after.data
 
 
 @pytest.mark.parametrize("state", ["occupied", "inactive"])

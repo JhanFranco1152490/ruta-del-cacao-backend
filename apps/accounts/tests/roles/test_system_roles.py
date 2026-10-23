@@ -230,3 +230,24 @@ def test_only_the_producer_deletes_postharvest_facilities_and_can_delegate_it():
 def test_the_facility_permissions_are_delegable_and_the_association_has_none(permission):
     assert is_delegable(permission)
     assert ADMINISTRATOR not in _holders(permission)
+
+
+BUYER_VIEW = "buyers.view_buyer"
+BUYER_ADD = "buyers.add_buyer"
+BUYER_CHANGE = "buyers.change_buyer"
+BUYER_DELETE = "buyers.delete_buyer"
+
+
+@pytest.mark.parametrize("permission", [BUYER_VIEW, BUYER_ADD, BUYER_CHANGE])
+def test_the_producer_and_the_sales_manager_manage_the_buyers(permission):
+    assert _holders(permission) == {PRODUCER, SALES_MANAGER}
+
+
+def test_only_the_producer_deletes_buyers_and_can_delegate_it():
+    assert _holders(BUYER_DELETE) == {PRODUCER}
+
+
+@pytest.mark.parametrize("permission", [BUYER_VIEW, BUYER_ADD, BUYER_CHANGE, BUYER_DELETE])
+def test_the_buyer_permissions_are_delegable_and_the_association_has_none(permission):
+    assert is_delegable(permission)
+    assert ADMINISTRATOR not in _holders(permission)

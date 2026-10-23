@@ -172,3 +172,14 @@ def test_finishing_needs_the_manage_permission_and_the_end(auth_client, place):
     )
     assert missing.status_code == 400
     assert "ended_at" in missing.data["fields"]
+
+
+def test_a_box_that_fermented_a_lot_keeps_its_history(auth_client, place):
+    client = auth_client(place.owner)
+    finish(client, place)
+
+    detail = client.get(f"/api/postharvest-facilities/{place.box.pk}").data
+    deleted = client.delete(f"/api/postharvest-facilities/{place.box.pk}?expected_version=3")
+
+    assert detail["has_records"] is True
+    assert (deleted.status_code, deleted.data["code"]) == (409, "facility_has_records")

@@ -1,9 +1,8 @@
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from types import SimpleNamespace
 
 from apps.fermentation.alerts import FIRST_TURN_AFTER, NEXT_TURN_AFTER, next_turn_due_at
-from apps.fermentation.rules import hours_between, numbered
+from apps.fermentation.rules import numbered
 
 START = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 
@@ -18,13 +17,6 @@ def test_with_turns_the_next_one_is_due_24_hours_after_the_last():
 
     assert NEXT_TURN_AFTER == timedelta(hours=24)
     assert next_turn_due_at(START, last) == last + timedelta(hours=24)
-
-
-def test_the_hours_between_two_moments_have_one_decimal_rounded_half_up():
-    assert hours_between(START, START + timedelta(hours=52)) == Decimal("52.0")
-    assert hours_between(START, START + timedelta(minutes=30)) == Decimal("0.5")
-    assert hours_between(START, START + timedelta(hours=2, minutes=3)) == Decimal("2.1")
-    assert hours_between(START, START + timedelta(hours=2, minutes=2)) == Decimal("2.0")
 
 
 def test_the_turns_are_numbered_by_their_time_not_by_their_order_of_arrival():

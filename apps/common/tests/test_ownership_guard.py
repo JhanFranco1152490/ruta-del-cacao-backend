@@ -16,6 +16,7 @@ RESOURCE_SERVICES = (
     "fermentation/services",
     "postharvest_parameters/services",
     "drying/services",
+    "buyers/services",
 )
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin
 # alcanzarlo: ella no tiene productor propio. Esos servicios usan `owner_filter` y `owns`

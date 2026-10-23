@@ -147,3 +147,20 @@ def test_drying_actions_bring_the_permission_to_see_the_lot():
 def test_drying_permissions_are_field_permissions():
     assert registry.is_field_permission("drying.log_drying")
     assert registry.is_field_permission("drying.manage_drying")
+BUYER_VIEW = "buyers.view_buyer"
+BUYER_ACTIONS = ("buyers.add_buyer", "buyers.change_buyer", "buyers.delete_buyer")
+
+
+def test_buyer_actions_bring_only_the_permission_to_see_the_directory():
+    for code in BUYER_ACTIONS:
+        assert with_dependencies({code}) == {code, BUYER_VIEW}
+    # El directorio es del productor: no se llega a él por una finca.
+    assert with_dependencies({BUYER_VIEW}) == {BUYER_VIEW}
+    assert registry.area_of(BUYER_VIEW) == "buyers"
+
+
+def test_buyer_permissions_are_delegable_but_not_field_permissions():
+    for code in (BUYER_VIEW, *BUYER_ACTIONS):
+        assert registry.is_delegable(code)
+        assert not registry.is_field_permission(code)
+        assert code not in registry.FIELD_PERMISSIONS

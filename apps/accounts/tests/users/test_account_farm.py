@@ -254,7 +254,9 @@ def test_an_employee_keeps_its_farm_after_it_is_deactivated(auth_client, owner, 
 
 
 def test_an_employee_that_edits_accounts_cannot_move_them(auth_client, producer, farm, other_farm):
-    target = grant_role(UserFactory(producer=producer, farm=farm), get_system_role(SALES_MANAGER))
+    # Un rol sin permisos: así lo que se prueba es mover de finca, y no la regla de no administrar
+    # a quien tiene permisos que el delegado no tiene.
+    target = grant_role(UserFactory(producer=producer, farm=farm), RoleFactory(producer=producer))
     delegate = make_delegate(producer, ["accounts.users_update", "accounts.users_view"], farm=farm)
 
     response = auth_client(delegate).patch(

@@ -85,6 +85,11 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "drying.log_drying": PermissionInfo(area="drying", delegable=True),
     # Quien lo tiene puede ser nombrado responsable de un secado.
     "drying.manage_drying": PermissionInfo(area="drying", delegable=True),
+    # Fuera de las áreas de campo: los compradores son de todo el productor, no de una finca.
+    "buyers.view_buyer": PermissionInfo(area="buyers", delegable=True),
+    "buyers.add_buyer": PermissionInfo(area="buyers", delegable=True),
+    "buyers.change_buyer": PermissionInfo(area="buyers", delegable=True),
+    "buyers.delete_buyer": PermissionInfo(area="buyers", delegable=True),
 }
 
 
@@ -191,6 +196,9 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     # bitácora: así quien responde por un secado siempre puede hacer todo en él.
     "drying.log_drying": "lots.view_lot",
     "drying.manage_drying": "drying.log_drying",
+    "buyers.add_buyer": "buyers.view_buyer",
+    "buyers.change_buyer": "buyers.view_buyer",
+    "buyers.delete_buyer": "buyers.view_buyer",
 }
 
 

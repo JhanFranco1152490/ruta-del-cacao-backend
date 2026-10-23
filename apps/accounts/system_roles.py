@@ -83,6 +83,10 @@ SYSTEM_ROLES = {
             "postharvest_parameters.change_postharvestparameters",
             "drying.log_drying",
             "drying.manage_drying",
+            "buyers.view_buyer",
+            "buyers.add_buyer",
+            "buyers.change_buyer",
+            "buyers.delete_buyer",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -136,7 +140,12 @@ SYSTEM_ROLES = {
         "kind": Role.Kind.PREDEFINED,
         "name": "Comercializador",
         "farm_scope": Role.FarmScope.MANY,
-        "permissions": [],
+        # Eliminar un comprador queda en el Productor, que puede delegarlo.
+        "permissions": [
+            "buyers.view_buyer",
+            "buyers.add_buyer",
+            "buyers.change_buyer",
+        ],
     },
 }
 

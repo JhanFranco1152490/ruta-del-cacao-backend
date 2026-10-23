@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.facilities",
     "apps.postharvest_parameters",
+    "apps.fermentation",
     "apps.demo_data",
 ]
 

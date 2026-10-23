@@ -79,13 +79,26 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "postharvest_parameters.change_postharvestparameters": PermissionInfo(
         area="postharvest_parameters", delegable=True
     ),
+    "fermentation.log_turns": PermissionInfo(area="fermentation", delegable=True),
+    # Quien lo tiene puede ser nombrado responsable de una fermentación.
+    "fermentation.manage_fermentation": PermissionInfo(area="fermentation", delegable=True),
 }
 
 
 # Las áreas de lo que cuelga de una finca. Un empleado con algún permiso de estas necesita una
 # finca asignada: sin ella no alcanza nada de lo que el permiso le deja hacer.
 FIELD_AREAS = frozenset(
-    {"farms", "plots", "crops", "inputs", "activities", "harvests", "lots", "facilities"}
+    {
+        "farms",
+        "plots",
+        "crops",
+        "inputs",
+        "activities",
+        "harvests",
+        "lots",
+        "facilities",
+        "fermentation",
+    }
 )
 
 
@@ -166,6 +179,10 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "postharvest_parameters.change_postharvestparameters": (
         "postharvest_parameters.view_postharvestparameters"
     ),
+    # La fermentación se ve en la ficha del lote. Quien la inicia y la finaliza también voltea:
+    # así quien responde por una fermentación siempre puede hacer todo en ella.
+    "fermentation.log_turns": "lots.view_lot",
+    "fermentation.manage_fermentation": "fermentation.log_turns",
 }
 
 

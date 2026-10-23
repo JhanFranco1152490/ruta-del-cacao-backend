@@ -264,3 +264,25 @@ class DryingConflictErrorSerializer(ApiErrorSerializer):
 class EntryMoistureErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: llega con `entry_moisture_out_of_range`.
     range = DryingRangeSerializer(required=False)
+
+
+class DryingFinishSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+    ended_at = serializers.DateTimeField()
+    final_moisture_pct = percent_input()
+    # Un dígito más de los que guarda la base, como el porcentaje: así un peso muy grande llega a
+    # la regla del peso en verde en vez de un error de cantidad de dígitos.
+    dry_weight_kg = serializers.DecimalField(max_digits=8, decimal_places=ONE_DECIMAL)
+
+    def validate_final_moisture_pct(self, value):
+        return check_percent(value)
+
+    def validate_dry_weight_kg(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Debe ser mayor que cero.")
+        return value
+
+
+class DryWeightErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: llega cuando el peso seco pasa del peso en verde del lote.
+    green_weight_kg = _decimal(7, required=False)

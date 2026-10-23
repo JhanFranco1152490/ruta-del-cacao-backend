@@ -13,6 +13,7 @@ from apps.common.schema import error_responses
 from .exceptions import StaleDryingVersion
 from .serializers import (
     DryingConflictErrorSerializer,
+    DryingFinishSerializer,
     DryingListQuerySerializer,
     DryingListSerializer,
     DryingProcessSerializer,
@@ -20,8 +21,10 @@ from .serializers import (
     DryingStartOptionsSerializer,
     DryingStartSerializer,
     DryingStartUpdateSerializer,
+    DryWeightErrorSerializer,
     EntryMoistureErrorSerializer,
 )
+from .services.finish import finish_drying
 from .services.queries import get_drying, list_dryings, start_options
 from .services.start import start_drying
 from .services.update import correct_start
@@ -90,6 +93,7 @@ class DryingViewSet(GenericViewSet):
         "start_options": "drying.manage_drying",
         "create": "drying.manage_drying",
         "partial_update": "drying.manage_drying",
+        "finish": "drying.manage_drying",
     }
     filter_backends = []
     pagination_class = None
@@ -144,6 +148,33 @@ class DryingViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         options = start_options(request.user, query.validated_data["lot"])
         return Response(DryingStartOptionsSerializer(options).data)
+
+    @extend_schema(
+        description=(
+            "Finaliza un secado en curso: guarda la humedad final, el peso seco y el rendimiento "
+            "(peso seco sobre peso en verde), el lote pasa a Seco y la marquesina queda "
+            "Disponible, en una sola transacción. Necesita al menos una bitácora (409 "
+            "`drying_without_logs`); el fin no puede ser anterior a la última medición ni "
+            "futuro, y el peso seco no puede pasar del peso en verde (400 con "
+            "`green_weight_kg`). Requiere `expected_version`; si cambió, 409 `stale_version` "
+            "con el vigente en `current`."
+        ),
+        request=DryingFinishSerializer,
+        responses={
+            200: DryingProcessSerializer,
+            400: DryWeightErrorSerializer,
+            409: DryingConflictErrorSerializer,
+            **error_responses(401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def finish(self, request, pk):
+        serializer = DryingFinishSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        expected_version = data.pop("expected_version")
+        process = finish_drying(request.user, pk, expected_version, data)
+        return Response(DryingProcessSerializer(get_drying(request.user, process.pk)).data)
 
     def handle_exception(self, exc):
         # El servicio lanza el conflicto con el lote; aquí se arma lo que el formulario necesita

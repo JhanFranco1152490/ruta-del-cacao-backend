@@ -3,19 +3,16 @@ responsable."""
 
 from django.db import transaction
 
-from apps.common.locks import lock_aggregate_root
-from apps.common.ownership import owner_filter
 from apps.common.versioning import check_expected_version, save_next_version
 
 from ..exceptions import (
     FermentationHasTurns,
-    FermentationNotFound,
     FermentationNotInProgress,
     StaleFermentationVersion,
 )
 from ..models import FermentationProcess, FermentationProcessAuditEvent
 from .audit import record_process_event, start_values
-from .queries import FERMENTATION_BOX, PROCESS_SCOPE
+from .queries import FERMENTATION_BOX, lock_process
 from .start import check_capacity, check_start_time, choose_responsible, find_box
 
 
@@ -58,17 +55,3 @@ def correct_start(actor, lot_id, expected_version: int, changes: dict) -> Fermen
         after=after,
     )
     return process
-
-
-def lock_process(actor, lot_id) -> FermentationProcess:
-    """La fermentación, con la finca de su lote bloqueada hasta el final de la transacción."""
-    lock_aggregate_root(
-        FermentationProcess,
-        lot_id,
-        root="lot__harvest__plot__farm",
-        scope=owner_filter(actor, PROCESS_SCOPE["field"], farm=PROCESS_SCOPE["farm"]),
-        not_found=FermentationNotFound,
-    )
-    return FermentationProcess.objects.select_related(
-        "lot__harvest__plot__farm", "facility__farm", "responsible"
-    ).get(pk=lot_id)

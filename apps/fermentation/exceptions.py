@@ -105,3 +105,41 @@ class StaleFermentationVersion(ApiError):
         # La vista envía la vigente en `current` para que el formulario cargue sus valores.
         super().__init__()
         self.lot_id = lot_id
+
+
+class TurnNotFound(ApiError):
+    # También cubre el volteo de otra fermentación.
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "El volteo no existe."
+    default_code = "not_found"
+
+
+class TurnIdConflict(ApiError):
+    # Un `id` que ya usa otro volteo, con otros datos o de otra fermentación. No se dice cuál, para
+    # no confirmar que existe.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya existe un volteo con este identificador."
+    default_code = "turn_id_conflict"
+
+
+class DuplicateTurnTime(ApiError):
+    # Dos registros del mismo minuto son el mismo volteo, enviado dos veces.
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya hay un volteo registrado a esa hora."
+    default_code = "duplicate_turn_time"
+
+    def __init__(self, existing_id=None, number=None):
+        extra = None
+        if existing_id is not None:
+            extra = {"existing": {"id": str(existing_id), "number": number}}
+        super().__init__(fields={"turned_at": [self.default_detail]}, extra=extra)
+
+
+class StaleTurnVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Otra persona cambió este volteo. Revisa los datos actuales antes de guardar."
+    default_code = "stale_version"
+
+    def __init__(self, turn):
+        super().__init__()
+        self.current_turn = turn

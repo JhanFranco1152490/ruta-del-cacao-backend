@@ -10,6 +10,7 @@ from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from apps.common.contracts.assignable import person_options
+from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 
 from ..exceptions import FermentationNotFound, LotInvalidStatus, LotNotFound
@@ -76,6 +77,20 @@ def get_fermentation(actor, lot_id) -> FermentationProcess:
     if process is None:
         raise FermentationNotFound()
     return process
+
+
+def lock_process(actor, lot_id) -> FermentationProcess:
+    """La fermentación, con la finca de su lote bloqueada hasta el final de la transacción."""
+    lock_aggregate_root(
+        FermentationProcess,
+        lot_id,
+        root="lot__harvest__plot__farm",
+        scope=owner_filter(actor, PROCESS_SCOPE["field"], farm=PROCESS_SCOPE["farm"]),
+        not_found=FermentationNotFound,
+    )
+    return FermentationProcess.objects.select_related(
+        "lot__harvest__plot__farm", "facility__farm", "responsible"
+    ).get(pk=lot_id)
 
 
 def start_options(actor, lot_id) -> dict:

@@ -9,7 +9,7 @@ from apps.common.contracts.harvest_representation import (
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
 from .alerts import next_turn_due_at
-from .models import NOTES_MAX_LENGTH, FermentationProcess
+from .models import MAX_PH, MAX_TEMPERATURE_C, NOTES_MAX_LENGTH, FermentationProcess
 from .rules import hours_between, numbered
 
 # Las opciones del estado del lote se toman de su campo por la relación, sin importar su app: así
@@ -58,6 +58,21 @@ class FermentationTurnSerializer(serializers.Serializer):
     notes = serializers.CharField(max_length=NOTES_MAX_LENGTH)
     recorded_by = HarvestRecorderSerializer()
     version = serializers.IntegerField()
+
+
+def turn_row(turn, number: int, started_at) -> dict:
+    """Un volteo como lo entrega la API, con su número y las horas desde el inicio."""
+    return {
+        "id": turn.pk,
+        "number": number,
+        "turned_at": turn.turned_at,
+        "hours_since_start": hours_between(started_at, turn.turned_at),
+        "temperature_c": turn.temperature_c,
+        "ph": turn.ph,
+        "notes": turn.notes,
+        "recorded_by": {"id": turn.recorded_by.pk, "full_name": full_name(turn.recorded_by)},
+        "version": turn.version,
+    }
 
 
 class FermentationResultSerializer(serializers.Serializer):
@@ -111,20 +126,7 @@ class FermentationProcessSerializer(serializers.Serializer):
     @extend_schema_field(FermentationTurnSerializer(many=True))
     def get_turns(self, process):
         rows = [
-            {
-                "id": turn.pk,
-                "number": number,
-                "turned_at": turn.turned_at,
-                "hours_since_start": hours_between(process.started_at, turn.turned_at),
-                "temperature_c": turn.temperature_c,
-                "ph": turn.ph,
-                "notes": turn.notes,
-                "recorded_by": {
-                    "id": turn.recorded_by.pk,
-                    "full_name": full_name(turn.recorded_by),
-                },
-                "version": turn.version,
-            }
+            turn_row(turn, number, process.started_at)
             for number, turn in numbered(process.turns.all())
         ]
         return FermentationTurnSerializer(rows, many=True).data
@@ -216,3 +218,67 @@ class CapacityErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: llega con `lot_exceeds_capacity`.
     capacity_kg = serializers.DecimalField(max_digits=6, decimal_places=1, required=False)
     green_weight_kg = serializers.DecimalField(max_digits=7, decimal_places=1, required=False)
+
+
+TEMPERATURE_MESSAGE = "La temperatura debe ser mayor que 0 °C y hasta 80 °C."
+# El texto que muestra el formulario del volteo.
+PH_MESSAGE = "pH válido entre 0 y 14"
+
+
+class TurnContentMixin(serializers.Serializer):
+    # Un dígito más de los que guarda la base: así 80,1 °C o pH 15 llegan a la regla y responden su
+    # rango, en vez de un error de cantidad de dígitos.
+    temperature_c = serializers.DecimalField(max_digits=4, decimal_places=1)
+    ph = serializers.DecimalField(max_digits=5, decimal_places=2)
+    notes = serializers.CharField(max_length=NOTES_MAX_LENGTH, allow_blank=True, required=False)
+    turned_at = serializers.DateTimeField()
+
+    def validate_temperature_c(self, value):
+        if not 0 < value <= MAX_TEMPERATURE_C:
+            raise serializers.ValidationError(TEMPERATURE_MESSAGE)
+        return value
+
+    def validate_ph(self, value):
+        if not 0 <= value <= MAX_PH:
+            raise serializers.ValidationError(PH_MESSAGE)
+        return value
+
+
+class FermentationTurnCreateSerializer(RejectUnknownFieldsMixin, TurnContentMixin):
+    # Lo genera el dispositivo, para que un reenvío desde la cola no cree otro volteo.
+    id = serializers.UUIDField()
+    # La hora del dispositivo al guardar, informativa.
+    captured_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class FermentationTurnUpdateSerializer(RejectUnknownFieldsMixin, TurnContentMixin):
+    expected_version = serializers.IntegerField(min_value=1, required=False)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        for name in ("turned_at", "temperature_c", "ph", "notes"):
+            fields[name].required = False
+        return fields
+
+    def validate(self, attrs):
+        if "expected_version" not in attrs:
+            raise serializers.ValidationError({"expected_version": ["Este campo es requerido."]})
+        if len(attrs) == 1:
+            raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
+        return attrs
+
+
+class FermentationTurnDeleteSerializer(serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+
+
+class DuplicateTurnSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    number = serializers.IntegerField()
+
+
+class TurnConflictErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `existing` llega con
+    # `duplicate_turn_time` y `current` con `stale_version`.
+    existing = DuplicateTurnSerializer(required=False)
+    current = FermentationTurnSerializer(required=False)

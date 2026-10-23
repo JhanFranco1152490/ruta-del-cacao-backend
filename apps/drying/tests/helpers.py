@@ -16,19 +16,26 @@ from apps.producers.tests.factories import ProducerFactory
 FERMENTED_HOURS_AGO = 6
 
 
-def fermented_lot(plot, *, weight=Decimal("820.0"), actor=None, harvest_day=None):
+def fermented_lot(
+    plot,
+    *,
+    weight=Decimal("820.0"),
+    actor=None,
+    harvest_day=None,
+    hours_ago=FERMENTED_HOURS_AGO,
+):
     """Un lote que llega a Fermentado por su cadena de estados, con los eventos que lo dejan
-    registrado, como lo haría una fermentación al finalizar. Sus eventos se corren seis horas
-    atrás: un secado se puede iniciar desde entonces."""
+    registrado, como lo haría una fermentación al finalizar. Sus eventos se corren `hours_ago`
+    horas atrás: un secado se puede iniciar desde entonces."""
     harvest = HarvestFactory(
         plot=plot,
-        harvest_date=harvest_day or timezone.localdate() - timedelta(days=10),
+        harvest_date=harvest_day or timezone.localdate() - timedelta(days=15),
         green_weight_kg=weight,
     )
     lot = LotFactory(harvest=harvest, status=LotStatus.GENERATED)
     lot.advance_status(LotStatus.GENERATED, LotStatus.FERMENTING, actor=actor)
     lot.advance_status(LotStatus.FERMENTING, LotStatus.FERMENTED, actor=actor)
-    lot.audit_events.update(occurred_at=timezone.now() - timedelta(hours=FERMENTED_HOURS_AGO))
+    lot.audit_events.update(occurred_at=timezone.now() - timedelta(hours=hours_ago))
     return lot
 
 

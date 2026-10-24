@@ -238,6 +238,7 @@ DOCUMENTED_OPERATIONS = {
     ("delete", "/api/drying/{lot_id}/logs/{id}"),
     ("get", "/api/buyers"),
     ("post", "/api/buyers"),
+    ("patch", "/api/buyers/{id}"),
 }
 
 

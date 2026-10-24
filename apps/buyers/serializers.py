@@ -2,7 +2,11 @@ from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from apps.common.choices import DocumentType
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    RejectUnknownFieldsMixin,
+    RequireVersionedChangeMixin,
+)
 
 from .models import NAME_MAX_LENGTH, Buyer
 
@@ -85,6 +89,15 @@ class BuyerCreateSerializer(BuyerWriteSerializer):
     producer_id = serializers.UUIDField(required=False)
 
 
+class BuyerUpdateSerializer(RequireVersionedChangeMixin, BuyerWriteSerializer):
+    name = serializers.CharField(max_length=NAME_MAX_LENGTH, required=False)
+    document_type = serializers.ChoiceField(choices=DocumentType.choices, required=False)
+    identity_document = serializers.CharField(max_length=15, required=False)
+    buyer_type = serializers.ChoiceField(choices=Buyer.BuyerType.choices, required=False)
+    is_active = serializers.BooleanField(required=False)
+    expected_version = serializers.IntegerField(min_value=1, write_only=True)
+
+
 class ExistingBuyerSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -92,6 +105,7 @@ class ExistingBuyerSerializer(serializers.Serializer):
 
 
 class BuyerConflictErrorSerializer(ApiErrorSerializer):
-    # Solo se documenta: el 409 lo arma el manejador global de errores. `existing` llega con
-    # `duplicate_document`.
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
+    # `stale_version` y `existing` con `duplicate_document`.
+    current = BuyerSerializer(required=False)
     existing = ExistingBuyerSerializer(required=False)

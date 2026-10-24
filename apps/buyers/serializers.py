@@ -98,6 +98,12 @@ class BuyerUpdateSerializer(RequireVersionedChangeMixin, BuyerWriteSerializer):
     expected_version = serializers.IntegerField(min_value=1, write_only=True)
 
 
+class BuyerDeleteSerializer(serializers.Serializer):
+    # Query param del DELETE, con la versión leída: no se elimina un comprador que otra persona
+    # acaba de cambiar.
+    expected_version = serializers.IntegerField(min_value=1)
+
+
 class ExistingBuyerSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()

@@ -13,12 +13,13 @@ from .exceptions import StaleBuyerVersion
 from .serializers import (
     BuyerConflictErrorSerializer,
     BuyerCreateSerializer,
+    BuyerDeleteSerializer,
     BuyerListQuerySerializer,
     BuyerListSerializer,
     BuyerSerializer,
     BuyerUpdateSerializer,
 )
-from .services import create_buyer, get_buyer, list_buyers, update_buyer
+from .services import create_buyer, delete_buyer, get_buyer, list_buyers, update_buyer
 
 
 @extend_schema_view(
@@ -66,6 +67,26 @@ from .services import create_buyer, get_buyer, list_buyers, update_buyer
             **error_responses(400, 401, 403, 404),
         },
     ),
+    destroy=extend_schema(
+        description=(
+            "Elimina un comprador creado por error. Requiere `expected_version` en la URL. Si "
+            "algún registro lo usa (sus ventas), 409 `buyer_has_records`: se desactiva en su "
+            "lugar. El historial del comprador se conserva."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "expected_version",
+                int,
+                required=True,
+                description="La `version` del comprador que se leyó.",
+            )
+        ],
+        responses={
+            204: None,
+            409: BuyerConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
 )
 class BuyerViewSet(GenericViewSet):
     serializer_class = BuyerSerializer
@@ -75,6 +96,7 @@ class BuyerViewSet(GenericViewSet):
         "retrieve": "buyers.view_buyer",
         "create": "buyers.add_buyer",
         "partial_update": "buyers.change_buyer",
+        "destroy": "buyers.delete_buyer",
     }
     filter_backends = []
     pagination_class = None
@@ -106,6 +128,13 @@ class BuyerViewSet(GenericViewSet):
         expected_version = data.pop("expected_version")
         buyer = update_buyer(request.user, pk, expected_version, data)
         return Response(BuyerSerializer(buyer).data)
+
+    def destroy(self, request, pk):
+        # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP.
+        serializer = BuyerDeleteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        delete_buyer(request.user, pk, serializer.validated_data["expected_version"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def handle_exception(self, exc):
         if isinstance(exc, StaleBuyerVersion):

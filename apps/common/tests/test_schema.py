@@ -217,6 +217,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/buyers"),
     ("post", "/api/buyers"),
     ("patch", "/api/buyers/{id}"),
+    ("delete", "/api/buyers/{id}"),
 }
 
 

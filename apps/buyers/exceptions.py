@@ -20,6 +20,14 @@ class StaleBuyerVersion(ApiError):
         self.current_buyer = current_buyer
 
 
+class BuyerHasRecords(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = (
+        "No se puede eliminar: el comprador tiene ventas registradas. Puedes desactivarlo."
+    )
+    default_code = "buyer_has_records"
+
+
 class ProducerInactive(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El productor está inactivo."

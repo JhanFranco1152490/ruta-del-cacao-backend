@@ -10,6 +10,16 @@ class BuyerNotFound(ApiError):
     default_code = "not_found"
 
 
+class StaleBuyerVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "El comprador fue modificado. Revisa los cambios antes de guardar."
+    default_code = "stale_version"
+
+    def __init__(self, current_buyer):
+        super().__init__()
+        self.current_buyer = current_buyer
+
+
 class ProducerInactive(ApiError):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "El productor está inactivo."

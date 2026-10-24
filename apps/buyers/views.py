@@ -9,14 +9,16 @@ from rest_framework.viewsets import GenericViewSet
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
+from .exceptions import StaleBuyerVersion
 from .serializers import (
     BuyerConflictErrorSerializer,
     BuyerCreateSerializer,
     BuyerListQuerySerializer,
     BuyerListSerializer,
     BuyerSerializer,
+    BuyerUpdateSerializer,
 )
-from .services import create_buyer, get_buyer, list_buyers
+from .services import create_buyer, get_buyer, list_buyers, update_buyer
 
 
 @extend_schema_view(
@@ -50,6 +52,20 @@ from .services import create_buyer, get_buyer, list_buyers
             **error_responses(400, 401, 403, 422),
         },
     ),
+    partial_update=extend_schema(
+        description=(
+            "Edición parcial, incluida la activación o desactivación con `is_active`. Todo se "
+            "puede cambiar, también el documento. Requiere `expected_version`; si el comprador "
+            "cambió, 409 `stale_version` con el vigente en `current`. El resultado debe seguir "
+            "teniendo un teléfono o un correo."
+        ),
+        request=BuyerUpdateSerializer,
+        responses={
+            200: BuyerSerializer,
+            409: BuyerConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    ),
 )
 class BuyerViewSet(GenericViewSet):
     serializer_class = BuyerSerializer
@@ -58,6 +74,7 @@ class BuyerViewSet(GenericViewSet):
         "list": "buyers.view_buyer",
         "retrieve": "buyers.view_buyer",
         "create": "buyers.add_buyer",
+        "partial_update": "buyers.change_buyer",
     }
     filter_backends = []
     pagination_class = None
@@ -81,3 +98,16 @@ class BuyerViewSet(GenericViewSet):
             status=status.HTTP_201_CREATED,
             headers={"Location": reverse("buyer-detail", args=[buyer.pk])},
         )
+
+    def partial_update(self, request, pk):
+        serializer = BuyerUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.to_model_data()
+        expected_version = data.pop("expected_version")
+        buyer = update_buyer(request.user, pk, expected_version, data)
+        return Response(BuyerSerializer(buyer).data)
+
+    def handle_exception(self, exc):
+        if isinstance(exc, StaleBuyerVersion):
+            exc.extra = {"current": BuyerSerializer(exc.current_buyer).data}
+        return super().handle_exception(exc)

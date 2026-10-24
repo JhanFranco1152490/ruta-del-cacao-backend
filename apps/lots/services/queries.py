@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from django.db.models import Count, QuerySet, Sum
 
+from apps.common.contracts.lot_details import lot_detail_prefetch
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 
@@ -31,6 +32,13 @@ def visible_lots(actor) -> QuerySet[Lot]:
         "harvest__registered_by",
         "created_by",
     )
+
+
+def with_details(lots: QuerySet[Lot]) -> QuerySet[Lot]:
+    """Los lotes con lo que otras apps agregan a su representación ya precargado, para que la
+    lista no haga una consulta por lote. Va aparte de `visible_lots` porque el recuento por estado
+    usa la misma consulta con `values()`, donde la precarga no tiene sentido."""
+    return lots.prefetch_related(*lot_detail_prefetch())
 
 
 def filter_lots(actor, filters: dict) -> QuerySet[Lot]:
@@ -59,7 +67,7 @@ def filter_lots(actor, filters: dict) -> QuerySet[Lot]:
 
 def list_lots(actor, filters: dict) -> QuerySet[Lot]:
     """Los lotes filtrados, del de cosecha más reciente al más antiguo."""
-    return filter_lots(actor, filters).order_by("-harvest__harvest_date", "code")
+    return with_details(filter_lots(actor, filters)).order_by("-harvest__harvest_date", "code")
 
 
 def lot_summary(actor, filters: dict) -> list[dict]:
@@ -86,7 +94,7 @@ def lot_summary(actor, filters: dict) -> list[dict]:
 
 
 def get_lot(actor, lot_id) -> Lot:
-    lot = visible_lots(actor).filter(pk=lot_id).first()
+    lot = with_details(visible_lots(actor)).filter(pk=lot_id).first()
     if lot is None:
         raise LotNotFound()
     return lot
@@ -114,4 +122,4 @@ def lock_lot(actor, lot_id) -> Lot:
         scope=owner_filter(actor, LOT_SCOPE["field"], farm=LOT_SCOPE["farm"]),
         not_found=LotNotFound,
     )
-    return visible_lots(actor).get(pk=lot_id)
+    return with_details(visible_lots(actor)).get(pk=lot_id)

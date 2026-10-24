@@ -230,3 +230,12 @@ def test_only_the_producer_deletes_postharvest_facilities_and_can_delegate_it():
 def test_the_facility_permissions_are_delegable_and_the_association_has_none(permission):
     assert is_delegable(permission)
     assert ADMINISTRATOR not in _holders(permission)
+
+
+FERMENTATION_PERMISSIONS = ["fermentation.log_turns", "fermentation.manage_fermentation"]
+
+
+@pytest.mark.parametrize("permission", FERMENTATION_PERMISSIONS)
+def test_the_producer_and_the_foreman_ferment_and_the_association_does_not(permission):
+    assert _holders(permission) == {PRODUCER, FOREMAN}
+    assert is_delegable(permission)

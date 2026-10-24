@@ -1,5 +1,6 @@
 """Lo que pasa en La Esperanza, la finca de demostración: sus empleados, insumos, infraestructura,
-labores, monitoreos, cosechas y lotes, creados por los servicios de cada app con sus mismas reglas.
+labores, monitoreos, cosechas, lotes y su fermentación, creados por los servicios de cada app con
+sus mismas reglas.
 
 Cada parte revisa si ya está y solo agrega lo que falta, así que se puede repetir sin duplicar y
 sin tocar lo que alguien haya hecho desde la aplicación. Lo que los servicios no dejan crear en el
@@ -42,6 +43,7 @@ from .catalog import (
     HISTORY_PLOT,
     LIVE_FACILITY_NAME,
 )
+from .postharvest import seed_fermentations
 
 MONITORING = ActivityType.PHYTOSANITARY_MONITORING
 
@@ -62,6 +64,7 @@ def seed_operations(owner: User, restore_account) -> list[str]:
     notes += _scheduled_work(owner, foreman, plot, history_plot)
     notes += _monitoring_history(foreman, plot, history_plot)
     notes += _harvests_and_lots(owner, foreman, plot)
+    notes += seed_fermentations(owner, foreman, plot)
     return [note for note in notes if note]
 
 

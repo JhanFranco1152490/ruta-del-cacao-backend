@@ -4,6 +4,7 @@ from apps.common.contracts.harvest_representation import (
     HarvestRecorderSerializer,
     HarvestRepresentationSerializer,
 )
+from apps.common.contracts.lot_details import lot_detail_fields
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
 from .choices import LotStatus
@@ -29,6 +30,11 @@ class LotSerializer(serializers.Serializer):
     version = serializers.IntegerField()
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
+
+    def get_fields(self):
+        # Lo que otras apps agregan (la fermentación, el secado). Se suma aquí y no en la clase
+        # porque esas apps se registran después de que esta se importa.
+        return {**super().get_fields(), **lot_detail_fields()}
 
     def get_producer(self, lot) -> LotProducerSerializer:
         producer = lot.harvest.plot.farm.producer

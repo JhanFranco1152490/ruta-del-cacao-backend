@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), las alertas (`alerts.py`: evaluadores y `notify`), quién puede programar en una finca (`schedulers.py`), quién responde por una labor (`assignable.py`) y lo demás que comparten dos apps |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), las alertas (`alerts.py`: evaluadores y `notify`), quién puede programar en una finca (`schedulers.py`), quién responde por una labor (`assignable.py`) y lo demás que comparten dos apps |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -55,8 +55,9 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
 | `apps/harvests/`   | Cosechas: una recolección en una parcela y fecha, con su peso en verde, su variedad (de la ficha de la parcela) y su recolector. Registrar (también desde la cola sin conexión), consultar por mes, corregir y eliminar mientras no formen un lote, con su historial de valor anterior y nuevo |
-| `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`advance_lot_status`). Conformar es solo en línea |
+| `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`Lot.advance_status`, que llama a `advance_lot_status`). Conformar es solo en línea |
 | `apps/facilities/` | Infraestructura de poscosecha: los cajones de fermentación y las marquesinas de secado de cada finca, con su capacidad en kg de cacao en baba. Alta (solo en línea), consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial, que sobrevive al borrado. Fermentación y secado los ocupan y liberan con `occupy` y `release`, que son métodos del modelo |
+| `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`; la regla del próximo volteo vive en `alerts.py` |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`) |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
@@ -117,7 +118,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
   `lot_id_conflict`, `lot_invalid_status`, `duplicate_pest_disease_name`, `evidence_requires_done`,
-  `evidence_limit_reached` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `evidence_limit_reached`, `fermentation_has_turns`, `fermentation_not_in_progress`,
+  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
   `payload_too_large`, `evidence_too_large` (413); `unsupported_media_type`,
   `evidence_format_not_allowed` (415); `invalid_coordinates`,
@@ -126,7 +128,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive`,
   `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive`,
   `plot_not_characterized`, `variety_not_in_plot`, `collector_not_available`,
-  `pest_disease_inactive`, `not_a_monitoring`, `evidence_not_allowed` (422);
+  `pest_disease_inactive`, `not_a_monitoring`, `evidence_not_allowed`,
+  `responsible_not_available`, `lot_exceeds_capacity` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (fincas, parcelas y cosechas): el `POST` acepta un `id` UUID generado en
@@ -350,8 +353,13 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   código no se reutiliza. **El estado** es `generated`, `fermenting`, `fermented`, `drying`, `dried`
   y solo cambia por `advance_lot_status(lot, expected, new, actor=...)` (`apps/lots/services/
   status.py`), que exige estar en `expected` y que `new` sea el siguiente; los demás módulos la
-  llaman dentro de su transacción con el lote ya bloqueado (la finca de su parcela). El historial
-  (`LotAuditEvent`) guarda el código y la cosecha de origen y sobrevive al lote.
+  llaman como método del modelo, `lot.advance_status(expected, new, actor=...)`, dentro de su
+  transacción con el lote ya bloqueado (la finca de su parcela) y sin importar `lots`. El historial
+  (`LotAuditEvent`) guarda el código y la cosecha de origen y sobrevive al lote. **Lo que otra app
+  suma a la representación del lote** (el cajón de uno en fermentación, el rendimiento de uno seco)
+  se registra en `apps/common/contracts/lot_details.py` desde su `ready()`: sus campos (una función
+  que crea un serializer de solo lectura) y sus rutas de precarga; `LotSerializer` los suma en
+  `get_fields()` y la lista y la ficha los precargan (`with_details`), como `activity_details`.
 - **Infraestructura de poscosecha** (`/api/postharvest-facilities`): cajones de fermentación y
   marquesinas de secado, cada uno de **una sola finca** (no cambia de finca). Permisos
   `facilities.{view,add,change,delete}_postharvestfacility`, delegables y de campo; consultar
@@ -371,6 +379,37 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   de ocupar la marquesina. `release` exige que adentro esté ese lote (`409
   facility_not_occupied_by_lot`). Un elemento ocupado no se desactiva ni se elimina (`409
   facility_occupied`, con el lote en `lot`); la base lo respalda con un `CHECK`.
+- **Fermentación** (`/api/fermentation`, se busca por el lote: una fermentación por lote). Permisos
+  `fermentation.log_turns` (depende de `lots.view_lot`) y `fermentation.manage_fermentation`
+  (depende de `log_turns`, para que quien responde por una fermentación pueda hacer todo en ella),
+  delegables y de campo; los dos para el Productor y el Capataz/Operario. Consultar una no tiene
+  permiso propio: `GET …/{lot_id}` pide `lots.view_lot` y la lista (`GET`, solo las en curso, sin
+  paginar, con `farm` y `producer` de la cuenta técnica) pide `log_turns`.
+  - **Iniciar** (`POST`, solo en línea) un lote Generado en un cajón libre de su finca: el inicio
+    no es futuro ni anterior al día de la cosecha; el responsable es una cuenta con
+    `manage_fermentation` que trabaja en la finca (regla de `assignable.py`, `422
+    responsible_not_available`); primero se ocupa el cajón (`occupy` responde lo suyo) y después
+    se revisa la capacidad: si el lote pesa más, `422 lot_exceeds_capacity` con `capacity_kg` y
+    `green_weight_kg`, salvo con `confirm_over_capacity`, que queda como `over_capacity`.
+    `GET …/start-options?lot=` da los cajones libres, los responsables, el peso y
+    `earliest_start_at`. **Corregir el inicio** (`PATCH …/{lot_id}` con `expected_version`) solo
+    sin volteos (`409 fermentation_has_turns`); cambiar de cajón libera el anterior y ocupa el nuevo.
+  - **Volteos** (`/api/fermentation/{lot_id}/turns`): temperatura de más de 0 a 80 °C con un
+    decimal y pH de 0 a 14 con dos. El `POST` llega desde la cola (`id` del dispositivo; reenvío
+    idéntico `200`, otros datos `409 turn_id_conflict`). La hora se guarda sin segundos y dos
+    volteos de la misma fermentación en el mismo minuto son el mismo (`409 duplicate_turn_time`
+    con el existente en `existing`). El número no se guarda: es la posición por hora, así que uno
+    que llega tarde queda en su lugar. Corregir (`PATCH`) y eliminar (`DELETE ?expected_version=`)
+    solo mientras está en curso (`409 fermentation_not_in_progress`).
+  - **Finalizar** (`POST …/{lot_id}/finish` con `expected_version`): necesita un volteo (`409
+    fermentation_without_turns`), el fin no es futuro ni anterior al último volteo; libera el cajón
+    y deja el lote Fermentado en la misma transacción. `ended_at` es la hora mínima del secado.
+  - **Próximo volteo:** `next_turn_due_at` (`apps/fermentation/alerts.py`, 48 h desde el inicio sin
+    volteos y 24 h desde el último), con las constantes que usarán los avisos de volteo pendiente.
+  - El responsable, el cajón y el autor de un volteo son `PROTECT`: una cuenta responsable no se
+    elimina (`account_has_activity`) y un cajón usado tiene registros. El historial
+    (`FermentationProcessAuditEvent`) guarda el valor anterior y nuevo del inicio, el fin y cada
+    volteo (`turn_ref`, que sobrevive a un volteo eliminado).
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
@@ -648,7 +687,9 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   Esperanza** con lo que se hace en ella (`apps/demo_data/operations.py`): insumos con existencias,
   cajones y marquesina, labores (programadas, una retrasada, una vencida y realizadas con insumos
   descontados), monitoreos del pasado (con detecciones, un control hecho y otro pendiente), tres
-  cosechas y dos lotes, y los avisos de la campana (corre `evaluate_alerts`). Todo pasa por los
+  cosechas y dos lotes, la fermentación (un lote fermentado, uno fermentando con el volteo siguiente
+  pendiente y uno Generado con un cajón libre para iniciarla en vivo) y los avisos de la campana
+  (corre `evaluate_alerts`). Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
   fecha. Deja listo lo que piden las demostraciones en vivo: dos monitoreos programados para hoy
   (P01 y P02), una variedad sembrada en P01 y el nombre `CF-01` libre. Es idempotente: no toca un
@@ -675,7 +716,9 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
 - **Plagas y enfermedades** (`apps/health/admin.py`): con `health.manage_pestdisease`, por los
   servicios, como variedades. **Resultados de monitoreo y controles**, con sus detecciones y los
   datos de sus fotos (sin el archivo), y el **historial de la evidencia**: de solo lectura y solo
-  para superusuarios. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
+  para superusuarios. **Fermentaciones** con sus volteos, y su historial: de solo lectura y solo
+  para superusuarios, porque iniciar, voltear y finalizar ocupan y liberan el cajón y cambian el
+  estado del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
   solo guarda bytes.
 
 ## Variables de entorno

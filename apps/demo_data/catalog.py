@@ -1,7 +1,8 @@
 """Los datos de demostración: cuentas para entrar y unos productores con fincas, parcelas y
 fichas; de La Esperanza, además, lo que se hace en ella (insumos, infraestructura, labores,
-monitoreos, cosechas y lotes). Todo es inventado: correos de `example.com` (dominio reservado,
-nunca entrega correo) y documentos en secuencia que no corresponden a nadie.
+monitoreos, cosechas y lotes), y los compradores del productor. Todo es inventado: correos de
+`example.com` (dominio reservado, nunca entrega correo) y documentos en secuencia que no
+corresponden a nadie.
 
 La contraseña es pública a propósito: la pantalla de inicio de sesión la muestra para que quien
 evalúa la aplicación entre sin pedir una cuenta. Por eso estas cuentas solo se crean con este
@@ -16,6 +17,7 @@ DEMO_ADMIN_EMAIL = "administrador@example.com"
 DEMO_PRODUCER_EMAIL = "productor@example.com"
 DEMO_FOREMAN_EMAIL = "capataz@example.com"
 DEMO_OPERATOR_EMAIL = "operario@example.com"
+DEMO_SALES_MANAGER_EMAIL = "comercializador@example.com"
 
 DEMO_ADMIN = {
     "email": DEMO_ADMIN_EMAIL,
@@ -55,6 +57,70 @@ DEMO_PLOT = "L-01"
 HISTORY_PLOT = "L-02"
 # Nombre reservado para el cajón que se registra en vivo: la semilla lo libera para poder repetir.
 LIVE_FACILITY_NAME = "CF-01"
+
+# El Comercializador del productor de demostración. Trabaja con todas sus fincas: los compradores
+# son del productor y las ventas toman lotes de cualquiera de ellas.
+DEMO_SALES_MANAGER = {
+    "email": DEMO_SALES_MANAGER_EMAIL,
+    "document_type": "CC",
+    "identity_document": "1000000013",
+    "first_name": "Andrés Felipe",
+    "last_name": "Contreras Rojas",
+}
+
+# Los compradores del productor de demostración: uno de cada tipo, con y sin persona de contacto,
+# uno solo con correo, uno solo con teléfono y uno inactivo. El primero es el del caso negativo de
+# la demostración: registrar otro con su NIT responde que el documento ya está registrado.
+DEMO_BUYERS = [
+    {
+        "name": "Chocolates del Oriente S.A.S.",
+        "document_type": "NIT",
+        "identity_document": "900000001",
+        "buyer_type": "chocolate_industry",
+        "contact_name": "Andrea Rincón Peña",
+        "phone": "3001000001",
+        "email": "compras.oriente@example.com",
+    },
+    {
+        "name": "Exportadora Andina de Cacao",
+        "document_type": "NIT",
+        "identity_document": "900000002",
+        "buyer_type": "exporter",
+        "contact_name": "Julián Ortega Vera",
+        "email": "exportaciones.andina@example.com",
+    },
+    {
+        "name": "Acopio San Vicente",
+        "document_type": "CC",
+        "identity_document": "1000000101",
+        "buyer_type": "intermediary",
+        "phone": "3001000003",
+    },
+    {
+        "name": "Cooperativa Cacaotera del Catatumbo",
+        "document_type": "NIT",
+        "identity_document": "900000003",
+        "buyer_type": "cooperative",
+        "contact_name": "Rosa Delia Quintero",
+        "phone": "3001000004",
+        "email": "cooperativa.catatumbo@example.com",
+    },
+    {
+        "name": "Taller de Chocolate Las Brisas",
+        "document_type": "NIT",
+        "identity_document": "900000004",
+        "buyer_type": "artisan_processor",
+        "phone": "3001000005",
+    },
+    {
+        "name": "Comercializadora El Trapiche",
+        "document_type": "NIT",
+        "identity_document": "900000005",
+        "buyer_type": "intermediary",
+        "phone": "3001000006",
+        "is_active": False,
+    },
+]
 
 # Insumos del catálogo del productor de demostración, con lo que hay en la bodega de La Esperanza.
 DEMO_INPUTS = [

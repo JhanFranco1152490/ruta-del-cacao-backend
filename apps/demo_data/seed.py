@@ -24,6 +24,7 @@ from apps.plots.services import create_plot
 from apps.producers.models import Producer
 from apps.producers.services import change_producer_status, create_producer
 
+from .buyers import seed_buyers
 from .catalog import (
     DEMO_ADMIN,
     DEMO_PASSWORD,
@@ -71,7 +72,9 @@ def seed_demo_data() -> SeedReport:
             report.producers_created += 1
         owner = User.objects.get(email=DEMO_PRODUCER_EMAIL)
         _restore_account(owner, PRODUCER)
-        report.operations = seed_operations(owner, _restore_account)
+        report.operations = seed_operations(owner, _restore_account) + seed_buyers(
+            owner, _restore_account
+        )
     _notify_alerts()
     return report
 

@@ -13,6 +13,7 @@ from apps.demo_data.catalog import (
     DEMO_OPERATOR_EMAIL,
     DEMO_PASSWORD,
     DEMO_PRODUCER_EMAIL,
+    DEMO_SALES_MANAGER_EMAIL,
     PRODUCERS,
 )
 from apps.farms.models import Farm
@@ -79,7 +80,12 @@ def test_the_other_producer_accounts_stay_pending_activation():
     seed()
 
     others = User.objects.filter(producer__isnull=False).exclude(
-        email__in=[DEMO_PRODUCER_EMAIL, DEMO_FOREMAN_EMAIL, DEMO_OPERATOR_EMAIL]
+        email__in=[
+            DEMO_PRODUCER_EMAIL,
+            DEMO_FOREMAN_EMAIL,
+            DEMO_OPERATOR_EMAIL,
+            DEMO_SALES_MANAGER_EMAIL,
+        ]
     )
     assert others.exists()
     assert not any(account.has_usable_password() for account in others)

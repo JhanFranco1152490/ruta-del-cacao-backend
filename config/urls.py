@@ -38,6 +38,9 @@ urlpatterns = [
     path("api/", include("apps.health.urls")),
     path("api/", include("apps.notifications.urls")),
     path("api/", include("apps.facilities.urls")),
+    path("api/", include("apps.postharvest_parameters.urls")),
+    path("api/", include("apps.fermentation.urls")),
+    path("api/", include("apps.drying.urls")),
     path("api/", include("apps.common.urls")),
 ]
 

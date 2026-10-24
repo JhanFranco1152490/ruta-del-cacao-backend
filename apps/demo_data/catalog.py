@@ -97,7 +97,13 @@ DEMO_FACILITIES = [
     {"facility_type": "fermentation_box", "name": "C-01", "capacity_kg": Decimal("600")},
     {"facility_type": "fermentation_box", "name": "C-02", "capacity_kg": Decimal("400")},
     {"facility_type": "solar_dryer", "name": "M-01", "capacity_kg": Decimal("800")},
+    # La que ocupa el lote en secado: M-01 queda libre para iniciar un secado en vivo.
+    {"facility_type": "solar_dryer", "name": "M-02", "capacity_kg": Decimal("600")},
 ]
+
+# Lo que el productor de demostración ajustó de la línea base del secado: así se ve qué cambió y se
+# puede restablecer en vivo. Los demás productores quedan en la línea base.
+DEMO_DRYING_PARAMETERS = {"slow_duration_day": 9, "estimated_days_max": 8}
 
 
 def _planting(variety, year, month, trees, propagation, stage):

@@ -91,3 +91,59 @@ def test_facility_actions_bring_the_permission_to_see_them_and_their_farms():
 def test_facility_permissions_are_field_permissions():
     assert registry.is_field_permission("facilities.view_postharvestfacility")
     assert registry.is_field_permission("facilities.delete_postharvestfacility")
+
+
+def test_changing_the_postharvest_parameters_brings_the_permission_to_see_them():
+    view = "postharvest_parameters.view_postharvestparameters"
+    change = "postharvest_parameters.change_postharvestparameters"
+
+    assert with_dependencies({change}) == {change, view}
+    assert with_dependencies({view}) == {view}
+    assert registry.area_of(view) == "postharvest_parameters"
+
+
+def test_postharvest_parameters_are_not_field_permissions():
+    # Son del productor y valen para todas sus fincas: no exigen una finca asignada.
+    assert not registry.is_field_permission("postharvest_parameters.view_postharvestparameters")
+    assert not registry.is_field_permission("postharvest_parameters.change_postharvestparameters")
+
+
+def test_fermentation_actions_bring_the_permission_to_see_the_lot():
+    turns = "fermentation.log_turns"
+    manage = "fermentation.manage_fermentation"
+    # Ver el lote arrastra ver su cosecha, su parcela y su finca.
+    to_see_the_lot = {
+        "lots.view_lot",
+        "harvests.view_harvest",
+        "plots.view_plot",
+        "farms.view_farm",
+    }
+    assert with_dependencies({turns}) == {turns, *to_see_the_lot}
+    # Quien inicia y finaliza también voltea: así el responsable puede todo en su fermentación.
+    assert with_dependencies({manage}) == {manage, turns, *to_see_the_lot}
+    assert registry.area_of(turns) == registry.area_of(manage) == "fermentation"
+
+
+def test_fermentation_permissions_are_field_permissions():
+    assert registry.is_field_permission("fermentation.log_turns")
+    assert registry.is_field_permission("fermentation.manage_fermentation")
+
+
+def test_drying_actions_bring_the_permission_to_see_the_lot():
+    logs = "drying.log_drying"
+    manage = "drying.manage_drying"
+    to_see_the_lot = {
+        "lots.view_lot",
+        "harvests.view_harvest",
+        "plots.view_plot",
+        "farms.view_farm",
+    }
+    assert with_dependencies({logs}) == {logs, *to_see_the_lot}
+    # Quien inicia y finaliza también lleva la bitácora: el responsable puede todo en su secado.
+    assert with_dependencies({manage}) == {manage, logs, *to_see_the_lot}
+    assert registry.area_of(logs) == registry.area_of(manage) == "drying"
+
+
+def test_drying_permissions_are_field_permissions():
+    assert registry.is_field_permission("drying.log_drying")
+    assert registry.is_field_permission("drying.manage_drying")

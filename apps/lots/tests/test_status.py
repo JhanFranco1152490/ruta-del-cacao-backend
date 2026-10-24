@@ -81,3 +81,16 @@ def test_the_last_state_has_nowhere_to_go():
 
     with pytest.raises(LotInvalidStatus):
         advance_lot_status(lot, LotStatus.DRIED, LotStatus.DRIED, actor=None)
+
+
+def test_the_lot_advances_itself_with_the_same_rules():
+    # Fermentación y secado no importan esta app: cambian el estado por el método del modelo.
+    lot = LotFactory()
+
+    lot.advance_status(LotStatus.GENERATED, LotStatus.FERMENTING, actor=lot.created_by)
+
+    lot.refresh_from_db()
+    assert (lot.status, lot.version) == ("fermenting", 2)
+    assert lot.audit_events.filter(action="status_changed").count() == 1
+    with pytest.raises(LotInvalidStatus):
+        lot.advance_status(LotStatus.FERMENTING, LotStatus.DRYING, actor=None)

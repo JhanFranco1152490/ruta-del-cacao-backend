@@ -77,6 +77,12 @@ SYSTEM_ROLES = {
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
             "facilities.delete_postharvestfacility",
+            "postharvest_parameters.view_postharvestparameters",
+            "postharvest_parameters.change_postharvestparameters",
+            "fermentation.log_turns",
+            "fermentation.manage_fermentation",
+            "drying.log_drying",
+            "drying.manage_drying",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -108,6 +114,15 @@ SYSTEM_ROLES = {
             "facilities.view_postharvestfacility",
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
+            # Ve la humedad meta y el rango de entrada en la marquesina; cambiarlos es del
+            # Productor.
+            "postharvest_parameters.view_postharvestparameters",
+            # Es quien voltea en el cajón y puede responder por una fermentación.
+            "fermentation.log_turns",
+            "fermentation.manage_fermentation",
+            # Es quien lleva la bitácora en la marquesina y puede responder por un secado.
+            "drying.log_drying",
+            "drying.manage_drying",
         ],
     },
     QUALITY_MANAGER: {

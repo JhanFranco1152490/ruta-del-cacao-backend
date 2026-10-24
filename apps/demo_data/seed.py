@@ -32,6 +32,7 @@ from .catalog import (
     PRODUCERS,
 )
 from .operations import seed_operations
+from .parameters import seed_drying_parameters
 
 METRES_PER_DEGREE_OF_LATITUDE = 110_600
 
@@ -72,6 +73,7 @@ def seed_demo_data() -> SeedReport:
         owner = User.objects.get(email=DEMO_PRODUCER_EMAIL)
         _restore_account(owner, PRODUCER)
         report.operations = seed_operations(owner, _restore_account)
+        report.operations += seed_drying_parameters(owner)
     _notify_alerts()
     return report
 

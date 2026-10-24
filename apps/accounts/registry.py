@@ -72,6 +72,13 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "facilities.add_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
     "facilities.change_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
     "facilities.delete_postharvestfacility": PermissionInfo(area="facilities", delegable=True),
+    # No son de campo: los parámetros son del productor y valen para todas sus fincas.
+    "postharvest_parameters.view_postharvestparameters": PermissionInfo(
+        area="postharvest_parameters", delegable=True
+    ),
+    "postharvest_parameters.change_postharvestparameters": PermissionInfo(
+        area="postharvest_parameters", delegable=True
+    ),
 }
 
 
@@ -156,6 +163,9 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "facilities.add_postharvestfacility": "facilities.view_postharvestfacility",
     "facilities.change_postharvestfacility": "facilities.view_postharvestfacility",
     "facilities.delete_postharvestfacility": "facilities.view_postharvestfacility",
+    "postharvest_parameters.change_postharvestparameters": (
+        "postharvest_parameters.view_postharvestparameters"
+    ),
 }
 
 

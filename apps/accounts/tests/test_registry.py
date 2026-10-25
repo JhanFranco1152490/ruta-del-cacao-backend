@@ -114,6 +114,21 @@ def test_fermentation_permissions_are_field_permissions():
     assert registry.is_field_permission("fermentation.manage_fermentation")
 
 
+def test_changing_the_postharvest_parameters_brings_the_permission_to_see_them():
+    view = "postharvest_parameters.view_postharvestparameters"
+    change = "postharvest_parameters.change_postharvestparameters"
+
+    assert with_dependencies({change}) == {change, view}
+    assert with_dependencies({view}) == {view}
+    assert registry.area_of(view) == "postharvest_parameters"
+
+
+def test_postharvest_parameters_are_not_field_permissions():
+    # Son del productor y valen para todas sus fincas: no exigen una finca asignada.
+    assert not registry.is_field_permission("postharvest_parameters.view_postharvestparameters")
+    assert not registry.is_field_permission("postharvest_parameters.change_postharvestparameters")
+
+
 def test_drying_actions_bring_the_permission_to_see_the_lot():
     logs = "drying.log_drying"
     manage = "drying.manage_drying"

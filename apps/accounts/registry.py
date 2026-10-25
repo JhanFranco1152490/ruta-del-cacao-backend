@@ -75,6 +75,13 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "fermentation.log_turns": PermissionInfo(area="fermentation", delegable=True),
     # Quien lo tiene puede ser nombrado responsable de una fermentación.
     "fermentation.manage_fermentation": PermissionInfo(area="fermentation", delegable=True),
+    # No son de campo: los parámetros son del productor y valen para todas sus fincas.
+    "postharvest_parameters.view_postharvestparameters": PermissionInfo(
+        area="postharvest_parameters", delegable=True
+    ),
+    "postharvest_parameters.change_postharvestparameters": PermissionInfo(
+        area="postharvest_parameters", delegable=True
+    ),
     "drying.log_drying": PermissionInfo(area="drying", delegable=True),
     # Quien lo tiene puede ser nombrado responsable de un secado.
     "drying.manage_drying": PermissionInfo(area="drying", delegable=True),
@@ -177,6 +184,9 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     # así quien responde por una fermentación siempre puede hacer todo en ella.
     "fermentation.log_turns": "lots.view_lot",
     "fermentation.manage_fermentation": "fermentation.log_turns",
+    "postharvest_parameters.change_postharvestparameters": (
+        "postharvest_parameters.view_postharvestparameters"
+    ),
     # El secado se ve en la ficha del lote. Quien lo inicia y lo finaliza también lleva la
     # bitácora: así quien responde por un secado siempre puede hacer todo en él.
     "drying.log_drying": "lots.view_lot",

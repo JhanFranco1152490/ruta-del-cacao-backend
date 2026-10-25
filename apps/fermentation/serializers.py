@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
@@ -6,6 +8,7 @@ from apps.common.contracts.harvest_representation import (
     HarvestRecorderSerializer,
     HarvestRepresentationSerializer,
 )
+from apps.common.contracts.postharvest_parameters import fermentation_parameters
 from apps.common.hours import hours_between
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
@@ -35,6 +38,18 @@ class FermentationFarmSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     code = serializers.CharField()
     name = serializers.CharField()
+
+
+# Lo que el productor configuró para fermentar: cuándo toca cada volteo y la temperatura y el pH de
+# referencia. Viajan con cada fermentación para que el teléfono calcule el próximo volteo sin
+# conexión y muestre la referencia al registrar uno.
+class FermentationParametersSerializer(serializers.Serializer):
+    first_turn_hours = serializers.IntegerField()
+    next_turn_hours = serializers.IntegerField()
+    temperature_min_c = serializers.DecimalField(max_digits=4, decimal_places=1)
+    temperature_max_c = serializers.DecimalField(max_digits=4, decimal_places=1)
+    ph_min = serializers.DecimalField(max_digits=4, decimal_places=2)
+    ph_max = serializers.DecimalField(max_digits=4, decimal_places=2)
 
 
 class FermentationBoxSerializer(serializers.Serializer):
@@ -92,6 +107,7 @@ class FermentationProcessSerializer(serializers.Serializer):
     responsible = serializers.SerializerMethodField()
     elapsed_hours = serializers.SerializerMethodField()
     next_turn_due_at = serializers.SerializerMethodField()
+    parameters = serializers.SerializerMethodField()
     turns = serializers.SerializerMethodField()
     result = serializers.SerializerMethodField()
     version = serializers.IntegerField()
@@ -115,13 +131,25 @@ class FermentationProcessSerializer(serializers.Serializer):
         end = process.ended_at or self._now()
         return f"{hours_between(process.started_at, end):.1f}"
 
+    def _parameters(self, process):
+        # Una lectura por productor, aunque la lista tenga muchas fermentaciones suyas.
+        cache = self.context.setdefault("fermentation_parameters", {})
+        producer_id = process.lot.harvest.plot.farm.producer_id
+        if producer_id not in cache:
+            cache[producer_id] = fermentation_parameters(producer_id)
+        return cache[producer_id]
+
+    @extend_schema_field(FermentationParametersSerializer)
+    def get_parameters(self, process):
+        return FermentationParametersSerializer(asdict(self._parameters(process))).data
+
     @extend_schema_field(serializers.DateTimeField(allow_null=True))
     def get_next_turn_due_at(self, process):
         if process.ended_at is not None:
             return None
         turns = list(process.turns.all())
         last = max((turn.turned_at for turn in turns), default=None)
-        due = next_turn_due_at(process.started_at, last)
+        due = next_turn_due_at(process.started_at, last, self._parameters(process))
         return serializers.DateTimeField().to_representation(due)
 
     @extend_schema_field(FermentationTurnSerializer(many=True))

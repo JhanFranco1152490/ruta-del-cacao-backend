@@ -17,6 +17,7 @@ from apps.farms.tests.factories import FarmFactory
 from apps.harvests.tests.factories import HarvestFactory, characterized_plot
 from apps.lots.choices import LotStatus
 from apps.lots.tests.factories import LotFactory
+from apps.postharvest_parameters.tests.factories import PostharvestParametersFactory
 from apps.producers.tests.factories import ProducerFactory
 
 from .factories import FermentationProcessFactory, FermentationTurnFactory
@@ -115,6 +116,29 @@ def test_a_fermentation_shows_its_lot_box_responsible_and_numbered_turns(auth_cl
     due = estate.second_turn.turned_at + timedelta(hours=24)
     assert item["next_turn_due_at"] == timezone.localtime(due).isoformat()
     assert item["result"] is None
+
+
+def test_a_fermentation_carries_the_parameters_of_its_producer(auth_client, estate):
+    item = auth_client(estate.owner).get("/api/fermentation").data["results"][0]
+
+    assert item["parameters"] == {
+        "first_turn_hours": 48,
+        "next_turn_hours": 24,
+        "temperature_min_c": "40.0",
+        "temperature_max_c": "50.0",
+        "ph_min": "4.00",
+        "ph_max": "5.50",
+    }
+
+
+def test_the_next_turn_follows_the_hours_the_producer_configured(auth_client, estate):
+    PostharvestParametersFactory(producer=estate.producer, next_turn_hours=12, first_turn_hours=36)
+
+    item = auth_client(estate.owner).get("/api/fermentation").data["results"][0]
+
+    due = estate.second_turn.turned_at + timedelta(hours=12)
+    assert item["next_turn_due_at"] == timezone.localtime(due).isoformat()
+    assert item["parameters"]["next_turn_hours"] == 12
 
 
 def test_the_list_filters_by_farm(auth_client, estate):

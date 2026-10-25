@@ -1,3 +1,5 @@
+import io
+
 import pytest
 from django.core import mail
 from django.core.management import CommandError, call_command
@@ -33,7 +35,7 @@ VARIETIES_USED = {
 
 
 def seed():
-    call_command("seed_demo_data", stdout=open("/dev/null", "w"))
+    call_command("seed_demo_data", stdout=io.StringIO())
 
 
 def counts():

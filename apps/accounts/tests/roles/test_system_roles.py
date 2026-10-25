@@ -241,6 +241,24 @@ def test_the_producer_and_the_foreman_ferment_and_the_association_does_not(permi
     assert is_delegable(permission)
 
 
+PARAMETERS_VIEW = "postharvest_parameters.view_postharvestparameters"
+PARAMETERS_CHANGE = "postharvest_parameters.change_postharvestparameters"
+
+
+def test_the_producer_and_the_foreman_see_the_postharvest_parameters():
+    assert _holders(PARAMETERS_VIEW) == {PRODUCER, FOREMAN}
+
+
+def test_only_the_producer_changes_the_postharvest_parameters_and_can_delegate_it():
+    assert _holders(PARAMETERS_CHANGE) == {PRODUCER}
+
+
+@pytest.mark.parametrize("permission", [PARAMETERS_VIEW, PARAMETERS_CHANGE])
+def test_the_parameters_permissions_are_delegable_and_the_association_has_none(permission):
+    assert is_delegable(permission)
+    assert ADMINISTRATOR not in _holders(permission)
+
+
 DRYING_PERMISSIONS = ["drying.log_drying", "drying.manage_drying"]
 
 

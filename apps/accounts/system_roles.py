@@ -79,6 +79,8 @@ SYSTEM_ROLES = {
             "facilities.delete_postharvestfacility",
             "fermentation.log_turns",
             "fermentation.manage_fermentation",
+            "postharvest_parameters.view_postharvestparameters",
+            "postharvest_parameters.change_postharvestparameters",
             "drying.log_drying",
             "drying.manage_drying",
         ],
@@ -115,6 +117,9 @@ SYSTEM_ROLES = {
             # Es quien voltea en el cajón y puede responder por una fermentación.
             "fermentation.log_turns",
             "fermentation.manage_fermentation",
+            # Ve la humedad meta y el rango de entrada en la marquesina; cambiarlos es del
+            # Productor.
+            "postharvest_parameters.view_postharvestparameters",
             # Es quien lleva la bitácora en la marquesina y puede responder por un secado.
             "drying.log_drying",
             "drying.manage_drying",

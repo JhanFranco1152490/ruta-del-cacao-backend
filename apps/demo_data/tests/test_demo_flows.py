@@ -2,6 +2,7 @@
 deja de tener lo que cada demostración necesita (el monitoreo programado, la variedad sembrada, el
 nombre libre del cajón), una de estas pruebas falla."""
 
+import io
 import re
 import uuid
 from datetime import timedelta
@@ -14,6 +15,7 @@ from apps.accounts.tests.helpers import login_by_email
 from apps.activities.choices import ActivityStatus, ActivityType
 from apps.activities.models import AgriculturalActivity
 from apps.activities.state import today_in_bogota
+from apps.common.contracts.postharvest_parameters import drying_parameters
 from apps.demo_data.catalog import (
     DEMO_FARM,
     DEMO_FOREMAN_EMAIL,
@@ -34,7 +36,7 @@ LOT_CODE = re.compile(r"^\d{6}-F\d{2}-P\d{2}-\d{6}-\d+$")
 
 
 def seed():
-    call_command("seed_demo_data", stdout=open("/dev/null", "w"))
+    call_command("seed_demo_data", stdout=io.StringIO())
 
 
 @pytest.fixture
@@ -271,3 +273,54 @@ def test_the_live_facility_name_is_freed_when_the_seed_runs_again(owner, auth_cl
     seed()
 
     assert not PostharvestFacility.objects.filter(name=LIVE_FACILITY_NAME).exists()
+
+
+def test_the_drying_parameters_are_changed_refused_and_reset(owner, auth_client):
+    client = auth_client(owner)
+    url = "/api/postharvest-parameters"
+
+    current = client.get(url)
+
+    assert current.data["is_default"] is False
+    assert current.data["values"]["slow_duration_day"] == 9
+    assert current.data["baseline"]["slow_duration_day"] == 8
+
+    values = {**current.data["values"], "accelerated_day": 2}
+    changed = client.put(
+        url, {"expected_version": current.data["version"], "values": values}, format="json"
+    )
+
+    assert changed.status_code == 200
+    assert changed.data["values"]["accelerated_day"] == 2
+
+    inverted = {**changed.data["values"], "estimated_days_min": 9, "estimated_days_max": 7}
+    refused = client.put(
+        url, {"expected_version": changed.data["version"], "values": inverted}, format="json"
+    )
+
+    assert refused.status_code == 400
+    assert refused.data["fields"]["estimated_days_min"] == [
+        "El mínimo no puede ser mayor que el máximo"
+    ]
+
+    reset = client.post(
+        f"{url}/reset", {"expected_version": changed.data["version"]}, format="json"
+    )
+
+    assert reset.status_code == 200
+    assert reset.data["is_default"] is True
+    assert reset.data["values"] == reset.data["baseline"]
+
+
+def test_the_drying_parameters_are_ready_again_when_the_seed_runs_after_a_reset(
+    owner, auth_client
+):
+    client = auth_client(owner)
+    version = client.get("/api/postharvest-parameters").data["version"]
+    client.post("/api/postharvest-parameters/reset", {"expected_version": version}, format="json")
+
+    # La semilla vuelve a poner la contraseña pública y eso cierra las sesiones abiertas: se
+    # comprueba con lo que leen las demás apps.
+    seed()
+
+    assert drying_parameters(owner.producer_id).slow_duration_day == 9

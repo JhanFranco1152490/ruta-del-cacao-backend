@@ -75,6 +75,9 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "fermentation.log_turns": PermissionInfo(area="fermentation", delegable=True),
     # Quien lo tiene puede ser nombrado responsable de una fermentación.
     "fermentation.manage_fermentation": PermissionInfo(area="fermentation", delegable=True),
+    "drying.log_drying": PermissionInfo(area="drying", delegable=True),
+    # Quien lo tiene puede ser nombrado responsable de un secado.
+    "drying.manage_drying": PermissionInfo(area="drying", delegable=True),
 }
 
 
@@ -91,6 +94,7 @@ FIELD_AREAS = frozenset(
         "lots",
         "facilities",
         "fermentation",
+        "drying",
     }
 )
 
@@ -173,6 +177,10 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     # así quien responde por una fermentación siempre puede hacer todo en ella.
     "fermentation.log_turns": "lots.view_lot",
     "fermentation.manage_fermentation": "fermentation.log_turns",
+    # El secado se ve en la ficha del lote. Quien lo inicia y lo finaliza también lleva la
+    # bitácora: así quien responde por un secado siempre puede hacer todo en él.
+    "drying.log_drying": "lots.view_lot",
+    "drying.manage_drying": "drying.log_drying",
 }
 
 

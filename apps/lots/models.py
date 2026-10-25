@@ -38,6 +38,14 @@ class Lot(models.Model):
     def __str__(self):
         return self.code
 
+    def advance_status(self, expected, new, *, actor):
+        """Mueve el lote de `expected` a `new`. Lo llaman fermentación y secado dentro de su
+        transacción, con la finca del lote ya bloqueada, por este método y sin importar esta
+        app."""
+        from .services.status import advance_lot_status
+
+        return advance_lot_status(self, expected, new, actor=actor)
+
     class Meta:
         ordering = ["-created_at", "code"]
         indexes = [models.Index(fields=["status"], name="lots_status_idx")]

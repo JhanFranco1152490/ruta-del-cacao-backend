@@ -77,6 +77,8 @@ SYSTEM_ROLES = {
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
             "facilities.delete_postharvestfacility",
+            "fermentation.log_turns",
+            "fermentation.manage_fermentation",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -108,6 +110,9 @@ SYSTEM_ROLES = {
             "facilities.view_postharvestfacility",
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",
+            # Es quien voltea en el cajón y puede responder por una fermentación.
+            "fermentation.log_turns",
+            "fermentation.manage_fermentation",
         ],
     },
     QUALITY_MANAGER: {

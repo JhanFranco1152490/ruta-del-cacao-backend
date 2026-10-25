@@ -7,8 +7,12 @@ from .fields import (
     LIMITS,
     PERCENT_DECIMAL_PLACES,
     PERCENT_MAX_DIGITS,
+    PH_DECIMAL_PLACES,
+    PH_MAX_DIGITS,
     POSITIVE_FIELDS,
     RANGE_PAIRS,
+    TEMPERATURE_DECIMAL_PLACES,
+    TEMPERATURE_MAX_DIGITS,
 )
 
 
@@ -16,6 +20,16 @@ def _percent():
     return models.DecimalField(
         max_digits=PERCENT_MAX_DIGITS, decimal_places=PERCENT_DECIMAL_PLACES
     )
+
+
+def _temperature():
+    return models.DecimalField(
+        max_digits=TEMPERATURE_MAX_DIGITS, decimal_places=TEMPERATURE_DECIMAL_PLACES
+    )
+
+
+def _ph():
+    return models.DecimalField(max_digits=PH_MAX_DIGITS, decimal_places=PH_DECIMAL_PLACES)
 
 
 def _constraints() -> list[models.CheckConstraint]:
@@ -46,10 +60,11 @@ def _constraints() -> list[models.CheckConstraint]:
 
 
 class PostharvestParameters(models.Model):
-    """Los parámetros de secado que un productor ajustó a su región. Valen para todas sus fincas.
+    """Los parámetros de poscosecha (secado y fermentación) que un productor ajustó a su región.
+    Valen para todas sus fincas.
 
     La fila solo existe si el productor guardó algo: sin ella se usa la línea base, y restablecer
-    la borra. Se guardan los quince valores juntos, para que lo que el productor ve sea lo que se
+    la borra. Se guardan los veintiún valores juntos, para que lo que el productor ve sea lo que se
     usa aunque la línea base cambie después.
     """
 
@@ -74,6 +89,12 @@ class PostharvestParameters(models.Model):
     near_target_min_pct = _percent()
     near_target_max_pct = _percent()
     overdried_moisture_pct = _percent()
+    first_turn_hours = models.PositiveSmallIntegerField()
+    next_turn_hours = models.PositiveSmallIntegerField()
+    temperature_min_c = _temperature()
+    temperature_max_c = _temperature()
+    ph_min = _ph()
+    ph_max = _ph()
     updated_by = models.ForeignKey(
         "accounts.User",
         on_delete=models.SET_NULL,

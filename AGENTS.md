@@ -58,7 +58,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`Lot.advance_status`, que llama a `advance_lot_status`). Conformar es solo en línea |
 | `apps/facilities/` | Infraestructura de poscosecha: los cajones de fermentación y las marquesinas de secado de cada finca, con su capacidad en kg de cacao en baba. Alta (solo en línea), consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial, que sobrevive al borrado. Fermentación y secado los ocupan y liberan con `occupy` y `release`, que son métodos del modelo |
 | `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`; la regla del próximo volteo vive en `alerts.py` |
-| `apps/postharvest_parameters/` | Parámetros de secado de cada productor: el modelo con sus quince valores (humedad de entrada y meta, días estimados y umbrales de las alertas de desvío), la línea base (`baseline.py`, la única copia) y su lectura. Las demás apps los leen con `drying_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py`; consultarlos y cambiarlos por la API llega con la HU-31 |
+| `apps/postharvest_parameters/` | Parámetros de poscosecha de cada productor (secado: humedad de entrada y meta, días estimados y umbrales de las alertas de desvío; fermentación: cuándo toca cada volteo y la temperatura y el pH de referencia): consultar con la línea base al lado, guardar los veintiún valores juntos y restablecer la línea base, con su historial. Las demás apps los leen con `drying_parameters(producer_id)` y `fermentation_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py` |
 | `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details` |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`) |
@@ -412,6 +412,22 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     elimina (`account_has_activity`) y un cajón usado tiene registros. El historial
     (`FermentationProcessAuditEvent`) guarda el valor anterior y nuevo del inicio, el fin y cada
     volteo (`turn_ref`, que sobrevive a un volteo eliminado).
+- **Parámetros de poscosecha** (`/api/postharvest-parameters`): los veintiún parámetros de poscosecha
+  de un productor (quince de secado y seis de fermentación), para todas sus fincas. **Sin fila, la línea base** (`baseline.py`, la única copia,
+  que no se guarda en la base): `GET` la entrega con `is_default` y `version` 0, `PUT` guarda los
+  veintiún juntos con `expected_version` (la primera vez crea la fila), y `POST .../reset` borra la
+  fila. La lista de los campos, sus tipos y topes (60 días, 240 horas) está solo en `fields.py`.
+  Los errores de cada valor van en `fields.{campo}` (no anidados en `values`), y el de un mínimo
+  mayor que su máximo, en el mínimo. Guardar y restablecer bloquean la fila del productor, no una
+  finca. Permisos `postharvest_parameters.{view,change}_postharvestparameters`, delegables y **no
+  de campo** (no exigen finca): consultar lo tienen el Productor y el Capataz/Operario, cambiar
+  solo el Productor. Quien evalúa (el secado, las alertas de desvío) lee siempre lo vigente con
+  `drying_parameters(producer_id)`, sin copiarlo: un cambio vale desde la siguiente evaluación,
+  también para los lotes que ya están secando. La fermentación lee los suyos con
+  `fermentation_parameters(producer_id)`: las horas del primer volteo (48 en la línea base) y de los
+  siguientes (24) deciden `next_turn_due_at`, y cada fermentación de la API lleva sus `parameters`
+  (con la temperatura y el pH de referencia, que no bloquean un volteo) para que el teléfono los use
+  sin conexión. Se eliminan con un productor creado por error.
 - **Secado** (`/api/drying`): un secado por lote, que se identifica por el lote (la clave primaria
   es el lote). Se mide en horas: inicio, fin y cada medición llevan fecha y hora. El **día de
   secado** es la fecha local contando desde la fecha de inicio (el día 1, aunque empiece a media

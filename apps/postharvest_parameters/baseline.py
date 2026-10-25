@@ -1,9 +1,10 @@
-"""La línea base del secado: lo que usa un productor que nunca cambió sus parámetros o los
+"""La línea base de la poscosecha: lo que usa un productor que nunca cambió sus parámetros o los
 restableció. Es la única copia; no se guarda en la base."""
 
+from dataclasses import asdict
 from decimal import Decimal
 
-from apps.common.contracts.postharvest_parameters import DryingParameters
+from apps.common.contracts.postharvest_parameters import DryingParameters, FermentationParameters
 
 DRYING_BASELINE = DryingParameters(
     entry_moisture_min_pct=Decimal("55.0"),
@@ -22,3 +23,17 @@ DRYING_BASELINE = DryingParameters(
     near_target_max_pct=Decimal("8.5"),
     overdried_moisture_pct=Decimal("6.0"),
 )
+
+# La historia no trae valores de fermentación: el primer volteo a las 48 horas y los siguientes
+# cada 24 son el protocolo de campo, y la temperatura y el pH son rangos de referencia habituales.
+FERMENTATION_BASELINE = FermentationParameters(
+    first_turn_hours=48,
+    next_turn_hours=24,
+    temperature_min_c=Decimal("40.0"),
+    temperature_max_c=Decimal("50.0"),
+    ph_min=Decimal("4.00"),
+    ph_max=Decimal("5.50"),
+)
+
+# Los veintiún valores juntos, como los guarda y los entrega la API.
+BASELINE_VALUES = {**asdict(DRYING_BASELINE), **asdict(FERMENTATION_BASELINE)}

@@ -6,7 +6,7 @@ recurso nuevo que cuelgue de una finca agrega aquí su caso.
 """
 
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -18,12 +18,15 @@ from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.crops.tests.factories import CacaoVarietyFactory
 from apps.facilities.tests.factories import PostharvestFacilityFactory
 from apps.farms.tests.factories import FarmFactory
+from apps.fermentation.tests.factories import FermentationProcessFactory
 from apps.harvests.tests.factories import HarvestFactory, characterized_plot
 from apps.health.tests.factories import (
     DetectionFactory,
     PhytosanitaryMonitoringFactory,
     done_monitoring,
 )
+from apps.lots.choices import LotStatus
+from apps.lots.code import build_lot_code
 from apps.lots.tests.factories import LotFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
@@ -310,7 +313,15 @@ HARVEST_FIELD_PERMISSIONS = [
     "harvests.change_harvest",
     "lots.view_lot",
     "lots.add_lot",
+    "fermentation.log_turns",
 ]
+
+
+def high_code(harvest) -> str:
+    plot = harvest.plot
+    return build_lot_code(
+        plot.farm.producer.member_code, plot.farm.number, plot.number, harvest.harvest_date, 90
+    )
 
 
 class HarvestWorld:
@@ -324,14 +335,27 @@ class HarvestWorld:
         self.plot_b = characterized_plot(farm=self.farm_b, area_hectares=Decimal("5.00"))
         self.harvest_a = HarvestFactory(plot=self.plot_a)
         self.harvest_b = HarvestFactory(plot=self.plot_b)
-        self.lot_a = LotFactory(harvest=self.harvest_a)
-        self.lot_b = LotFactory(harvest=self.harvest_b)
+        # Con un consecutivo alto: el servicio le da el 1 al primer lote que conforma en esa
+        # parcela y día (el de `free_a`), y la secuencia de la fábrica también puede empezar en 1.
+        self.lot_a = LotFactory(harvest=self.harvest_a, code=high_code(self.harvest_a))
+        self.lot_b = LotFactory(harvest=self.harvest_b, code=high_code(self.harvest_b))
         self.free_a = HarvestFactory(plot=self.plot_a, harvest_date=self.harvest_a.harvest_date)
         self.free_b = HarvestFactory(plot=self.plot_b, harvest_date=self.harvest_b.harvest_date)
+        # Una fermentación en curso por finca, para la pantalla y la ficha de fermentación.
+        # Sus cosechas caen fuera del periodo de `window`, para no cambiar la lista de cosechas.
+        self.fermentation_a = self.fermentation(self.plot_a)
+        self.fermentation_b = self.fermentation(self.plot_b)
         self.owner = make_producer_owner(self.producer)
         self.employee = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS)
         self.window = {"from": "2026-10-01", "to": "2026-10-31"}
+
+    @staticmethod
+    def fermentation(plot):
+        harvest = HarvestFactory(plot=plot, harvest_date=date(2026, 9, 15))
+        return FermentationProcessFactory(
+            lot=LotFactory(harvest=harvest, status=LotStatus.FERMENTING)
+        )
 
 
 @pytest.fixture
@@ -345,12 +369,17 @@ HARVEST_LISTS = {
         {"harvest_a", "free_a"},
         {"harvest_b", "free_b"},
     ),
-    "lots": (lambda w: ("/api/lots", {}), {"lot_a"}, {"lot_b"}),
+    "lots": (
+        lambda w: ("/api/lots", {}),
+        {"lot_a", "fermentation_a"},
+        {"lot_b", "fermentation_b"},
+    ),
 }
 
 HARVEST_DETAILS = {
     "harvest": ("/api/harvests/{}", "harvest_a", "harvest_b"),
     "lot": ("/api/lots/{}", "lot_a", "lot_b"),
+    "fermentation": ("/api/fermentation/{}", "fermentation_a", "fermentation_b"),
 }
 
 
@@ -388,6 +417,19 @@ def test_the_producer_lists_the_harvest_records_of_every_farm(
     listed = ids(auth_client(harvest_world.owner).get(url, params))
 
     assert listed == names(harvest_world, own) | names(harvest_world, foreign)
+
+
+def test_an_employee_lists_only_the_fermentations_of_its_farm(auth_client, harvest_world):
+    def listed(user):
+        response = auth_client(user).get("/api/fermentation")
+        assert response.status_code == 200, response.data
+        return {row["lot"]["id"] for row in response.data["results"]}
+
+    assert listed(harvest_world.employee) == names(harvest_world, {"fermentation_a"})
+    assert listed(harvest_world.unassigned) == set()
+    assert listed(harvest_world.owner) == names(
+        harvest_world, {"fermentation_a", "fermentation_b"}
+    )
 
 
 @pytest.mark.parametrize("resource", HARVEST_DETAILS)

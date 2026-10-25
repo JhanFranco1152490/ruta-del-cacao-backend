@@ -91,3 +91,24 @@ def test_facility_actions_bring_the_permission_to_see_them_and_their_farms():
 def test_facility_permissions_are_field_permissions():
     assert registry.is_field_permission("facilities.view_postharvestfacility")
     assert registry.is_field_permission("facilities.delete_postharvestfacility")
+
+
+def test_fermentation_actions_bring_the_permission_to_see_the_lot():
+    turns = "fermentation.log_turns"
+    manage = "fermentation.manage_fermentation"
+    # Ver el lote arrastra ver su cosecha, su parcela y su finca.
+    to_see_the_lot = {
+        "lots.view_lot",
+        "harvests.view_harvest",
+        "plots.view_plot",
+        "farms.view_farm",
+    }
+    assert with_dependencies({turns}) == {turns, *to_see_the_lot}
+    # Quien inicia y finaliza también voltea: así el responsable puede todo en su fermentación.
+    assert with_dependencies({manage}) == {manage, turns, *to_see_the_lot}
+    assert registry.area_of(turns) == registry.area_of(manage) == "fermentation"
+
+
+def test_fermentation_permissions_are_field_permissions():
+    assert registry.is_field_permission("fermentation.log_turns")
+    assert registry.is_field_permission("fermentation.manage_fermentation")

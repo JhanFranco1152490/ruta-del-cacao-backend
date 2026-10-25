@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from django.apps import apps
 from django.db import transaction
 
@@ -7,12 +5,10 @@ from apps.common.audit import field_changes
 from apps.common.locks import lock_root_row
 from apps.common.versioning import save_next_version
 
-from ..baseline import DRYING_BASELINE
 from ..exceptions import ProducerNotFound, StaleParameters
-from ..fields import PERCENT_DECIMAL_PLACES
 from ..models import PostharvestParameters, PostharvestParametersAuditEvent
 from .queries import ParametersState, parameters_state, target_producer_id
-from .read import as_drying_parameters
+from .read import values_or_baseline, with_api_decimals
 
 
 def lock_parameters(actor, producer_id, expected_version):
@@ -41,14 +37,13 @@ def record_event(producer_id, actor, action, version, changes):
 
 
 def save_parameters(actor, producer_id, expected_version, values: dict) -> ParametersState:
-    """Guarda los quince valores juntos. La primera vez crea la fila y el historial compara contra
-    la línea base, que era lo que se usaba; después, solo registra lo que cambió."""
+    """Guarda los veintiún valores juntos. La primera vez crea la fila y el historial compara
+    contra la línea base, que era lo que se usaba; después, solo registra lo que cambió."""
     with transaction.atomic():
         producer_id, parameters = lock_parameters(actor, producer_id, expected_version)
-        before = asdict(
-            as_drying_parameters(parameters) if parameters is not None else DRYING_BASELINE
+        changes = field_changes(
+            with_api_decimals(values_or_baseline(parameters)), with_api_decimals(values)
         )
-        changes = field_changes(before, values, decimal_places=PERCENT_DECIMAL_PLACES)
         if parameters is None:
             parameters = PostharvestParameters.objects.create(
                 producer_id=producer_id, updated_by=actor, **values

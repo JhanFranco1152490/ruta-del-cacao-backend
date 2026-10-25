@@ -1,10 +1,9 @@
-from dataclasses import asdict
 from decimal import Decimal
 
 import pytest
 from django.db import IntegrityError, transaction
 
-from apps.postharvest_parameters.baseline import DRYING_BASELINE
+from apps.postharvest_parameters.baseline import BASELINE_VALUES
 from apps.postharvest_parameters.fields import FIELDS, RANGE_PAIRS
 from apps.postharvest_parameters.models import PostharvestParameters
 
@@ -14,8 +13,8 @@ pytestmark = pytest.mark.django_db
 
 
 def test_the_baseline_has_every_parameter_and_nothing_else():
-    assert set(asdict(DRYING_BASELINE)) == set(FIELDS)
-    assert len(FIELDS) == 15
+    assert set(BASELINE_VALUES) == set(FIELDS)
+    assert len(FIELDS) == 21
 
 
 def test_the_model_stores_every_parameter():
@@ -26,7 +25,7 @@ def test_the_model_stores_every_parameter():
 
 @pytest.mark.parametrize(("low", "high"), RANGE_PAIRS)
 def test_every_baseline_range_starts_below_its_end(low, high):
-    assert getattr(DRYING_BASELINE, low) <= getattr(DRYING_BASELINE, high)
+    assert BASELINE_VALUES[low] <= BASELINE_VALUES[high]
 
 
 def test_the_baseline_passes_every_database_check():

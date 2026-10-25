@@ -11,7 +11,7 @@ from apps.common.ownership import owner_filter
 
 from .fields import FIELDS
 from .models import PostharvestParameters, PostharvestParametersAuditEvent
-from .serializers import DryingValuesInputSerializer
+from .serializers import PostharvestValuesInputSerializer
 from .services.reset import reset_parameters
 from .services.save import save_parameters
 
@@ -26,7 +26,7 @@ class PostharvestParametersAdminForm(VersionedAdminForm):
         # Las mismas reglas y mensajes que la API, para no tener una segunda copia que se aparte.
         values = {name: cleaned[name] for name in FIELDS if name in cleaned}
         if len(values) == len(FIELDS):
-            rules = DryingValuesInputSerializer(data=values)
+            rules = PostharvestValuesInputSerializer(data=values)
             if not rules.is_valid():
                 for name, errors in rules.errors.items():
                     self.add_error(name if name in FIELDS else None, errors)

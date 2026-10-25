@@ -1,10 +1,8 @@
-from dataclasses import asdict
-
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
 from apps.common.contracts.producer_dependents import registered_dependents
-from apps.postharvest_parameters.baseline import DRYING_BASELINE
+from apps.postharvest_parameters.baseline import BASELINE_VALUES
 from apps.postharvest_parameters.models import (
     PostharvestParameters,
     PostharvestParametersAuditEvent,
@@ -40,7 +38,7 @@ def test_the_parameters_are_counted():
 def test_a_producer_created_by_mistake_is_deleted_with_its_parameters_and_their_history():
     producer = ProducerFactory()
     technical = UserFactory(is_superuser=True)
-    save_parameters(technical, producer.pk, 0, {**asdict(DRYING_BASELINE), "slow_duration_day": 9})
+    save_parameters(technical, producer.pk, 0, {**BASELINE_VALUES, "slow_duration_day": 9})
     other = PostharvestParametersFactory()
 
     delete_producer(technical, producer.pk, producer.version)

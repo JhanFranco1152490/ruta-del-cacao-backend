@@ -1,15 +1,14 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from django.apps import apps
 
-from apps.common.contracts.postharvest_parameters import DryingParameters
 from apps.common.exceptions import ProducerRequired
 
-from ..baseline import DRYING_BASELINE
+from ..baseline import BASELINE_VALUES
 from ..exceptions import InvalidParameters, ProducerNotFound
 from ..models import PostharvestParameters
-from .read import as_drying_parameters
+from .read import stored_values
 
 
 @dataclass(frozen=True)
@@ -17,12 +16,12 @@ class ParametersState:
     """Lo que ve quien consulta: los parámetros vigentes y de dónde salen."""
 
     producer_id: object
-    values: DryingParameters
+    values: dict
     is_default: bool
     version: int
     updated_at: datetime | None
     updated_by: object | None
-    baseline: DryingParameters = DRYING_BASELINE
+    baseline: dict = field(default_factory=lambda: BASELINE_VALUES)
 
 
 def target_producer_id(actor, producer_id=None):
@@ -47,7 +46,7 @@ def parameters_state(producer_id) -> ParametersState:
     if parameters is None:
         return ParametersState(
             producer_id=producer_id,
-            values=DRYING_BASELINE,
+            values=BASELINE_VALUES,
             is_default=True,
             version=0,
             updated_at=None,
@@ -55,7 +54,7 @@ def parameters_state(producer_id) -> ParametersState:
         )
     return ParametersState(
         producer_id=producer_id,
-        values=as_drying_parameters(parameters),
+        values=stored_values(parameters),
         is_default=False,
         version=parameters.version,
         updated_at=parameters.updated_at,

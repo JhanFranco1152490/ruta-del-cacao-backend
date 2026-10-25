@@ -1,14 +1,11 @@
-from dataclasses import asdict
-
 from django.db import transaction
 
 from apps.common.audit import field_changes
 
-from ..baseline import DRYING_BASELINE
-from ..fields import PERCENT_DECIMAL_PLACES
+from ..baseline import BASELINE_VALUES
 from ..models import PostharvestParametersAuditEvent
 from .queries import ParametersState, parameters_state
-from .read import as_drying_parameters
+from .read import stored_values, with_api_decimals
 from .save import lock_parameters, record_event
 
 
@@ -20,9 +17,7 @@ def reset_parameters(actor, producer_id, expected_version) -> ParametersState:
         if parameters is None:
             return parameters_state(producer_id)
         changes = field_changes(
-            asdict(as_drying_parameters(parameters)),
-            asdict(DRYING_BASELINE),
-            decimal_places=PERCENT_DECIMAL_PLACES,
+            with_api_decimals(stored_values(parameters)), with_api_decimals(BASELINE_VALUES)
         )
         parameters.delete()
         record_event(producer_id, actor, PostharvestParametersAuditEvent.Action.RESET, 0, changes)

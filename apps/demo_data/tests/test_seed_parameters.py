@@ -3,7 +3,7 @@ from dataclasses import asdict
 import pytest
 
 from apps.accounts.models import User
-from apps.common.contracts.postharvest_parameters import drying_parameters
+from apps.common.contracts.postharvest_parameters import drying_parameters, fermentation_parameters
 from apps.demo_data.catalog import DEMO_DRYING_PARAMETERS, DEMO_PRODUCER_EMAIL
 from apps.demo_data.parameters import seed_drying_parameters
 from apps.postharvest_parameters.baseline import DRYING_BASELINE
@@ -47,7 +47,11 @@ def test_seeding_again_adds_nothing(owner):
 
 
 def test_parameters_changed_from_the_app_are_kept(owner):
-    values = {**asdict(drying_parameters(owner.producer_id)), "accelerated_day": 2}
+    values = {
+        **asdict(drying_parameters(owner.producer_id)),
+        **asdict(fermentation_parameters(owner.producer_id)),
+        "accelerated_day": 2,
+    }
     save_parameters(owner, None, 1, values)
 
     seed()

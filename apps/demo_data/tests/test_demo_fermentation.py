@@ -15,6 +15,7 @@ from apps.fermentation.alerts import next_turn_due_at
 from apps.fermentation.models import FermentationProcess, FermentationTurn
 from apps.lots.choices import LotStatus
 from apps.lots.models import Lot
+from apps.postharvest_parameters.baseline import FERMENTATION_BASELINE
 
 pytestmark = pytest.mark.django_db
 
@@ -37,7 +38,7 @@ def test_the_seed_leaves_a_lot_to_start_one_fermenting_and_one_fermented(seeded)
     assert running.facility.current_lot_id == running.pk
     assert running.turns.count() == 2
     last = running.turns.order_by("-turned_at").first().turned_at
-    assert next_turn_due_at(running.started_at, last) < timezone.now()
+    assert next_turn_due_at(running.started_at, last, FERMENTATION_BASELINE) < timezone.now()
     assert done.ended_at is not None and done.turns.count() == 3
     assert done.facility.current_lot_id is None
 

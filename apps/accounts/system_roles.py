@@ -79,6 +79,8 @@ SYSTEM_ROLES = {
             "facilities.delete_postharvestfacility",
             "fermentation.log_turns",
             "fermentation.manage_fermentation",
+            "drying.log_drying",
+            "drying.manage_drying",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -113,6 +115,9 @@ SYSTEM_ROLES = {
             # Es quien voltea en el cajón y puede responder por una fermentación.
             "fermentation.log_turns",
             "fermentation.manage_fermentation",
+            # Es quien lleva la bitácora en la marquesina y puede responder por un secado.
+            "drying.log_drying",
+            "drying.manage_drying",
         ],
     },
     QUALITY_MANAGER: {

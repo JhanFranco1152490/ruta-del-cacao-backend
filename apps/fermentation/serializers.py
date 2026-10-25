@@ -6,11 +6,12 @@ from apps.common.contracts.harvest_representation import (
     HarvestRecorderSerializer,
     HarvestRepresentationSerializer,
 )
+from apps.common.hours import hours_between
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
 from .alerts import next_turn_due_at
 from .models import MAX_PH, MAX_TEMPERATURE_C, NOTES_MAX_LENGTH, FermentationProcess
-from .rules import hours_between, numbered
+from .rules import numbered
 
 # Las opciones del estado del lote se toman de su campo por la relación, sin importar su app: así
 # el esquema las reconoce como el mismo enum de los lotes.

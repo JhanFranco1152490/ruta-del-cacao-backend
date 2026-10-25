@@ -239,3 +239,12 @@ FERMENTATION_PERMISSIONS = ["fermentation.log_turns", "fermentation.manage_ferme
 def test_the_producer_and_the_foreman_ferment_and_the_association_does_not(permission):
     assert _holders(permission) == {PRODUCER, FOREMAN}
     assert is_delegable(permission)
+
+
+DRYING_PERMISSIONS = ["drying.log_drying", "drying.manage_drying"]
+
+
+@pytest.mark.parametrize("permission", DRYING_PERMISSIONS)
+def test_the_producer_and_the_foreman_dry_and_the_association_does_not(permission):
+    assert _holders(permission) == {PRODUCER, FOREMAN}
+    assert is_delegable(permission)

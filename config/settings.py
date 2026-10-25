@@ -66,6 +66,8 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.facilities",
     "apps.fermentation",
+    "apps.postharvest_parameters",
+    "apps.drying",
     "apps.demo_data",
 ]
 
@@ -249,6 +251,7 @@ SPECTACULAR_SETTINGS = {
         "SamplingUnitEnum": "apps.health.choices.SamplingUnit",
         "ControlModeEnum": "apps.health.choices.ControlMode",
         "PostharvestFacilityStatusEnum": "apps.facilities.status.FacilityStatus",
+        "DryingWeatherEnum": "apps.drying.models.Weather",
     },
 }
 

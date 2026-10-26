@@ -24,7 +24,7 @@ jobs:
     # Un PR en borrador no gasta minutos hasta que se marca como listo.
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -72,4 +72,4 @@ jobs:
           python manage.py spectacular --validate --fail-on-warn --file "$RUNNER_TEMP/schema.yml"
 
       - name: Pruebas
-        run: pytest --cov -q
+        run: pytest --cov -q -n auto

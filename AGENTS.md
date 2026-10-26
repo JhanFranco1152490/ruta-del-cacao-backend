@@ -851,6 +851,11 @@ python manage.py runserver
   fábricas y helpers, no copiando el mismo `objects.create(...)` en cada test.
 - **Una sola corrida de `pytest` a la vez.** Todas usan la base `test_*`: una segunda corrida la crea y
   la borra mientras la primera la usa, y esa corrida falla por razones que no son suyas.
+- **La suite completa corre en paralelo con `pytest -n 4`** (`pytest-xdist`; en CI, `-n auto`): cada
+  worker crea su propia base `test_*_gwN`, así que dentro de una corrida no se pisan. Una prueba nueva
+  no puede depender del orden ni de datos que dejó otra. La contraseña de los usuarios de prueba se
+  hashea con MD5 (fixture `_fast_password_hasher` de `conftest.py`): el hasher de producción es lento
+  a propósito y era lo que más tardaba.
 - **Un 401 aleatorio en la primera petición de una sesión recién abierta no es del test:** PyJWT
   rechaza un token con `iat` en el futuro y el reloj de WSL2 retrocede ~2 s cada ~30. Por eso los
   tokens se validan con una tolerancia de reloj de 10 s (`SIMPLE_JWT["LEEWAY"]`); no se quita.

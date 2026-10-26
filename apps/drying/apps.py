@@ -13,5 +13,5 @@ class DryingConfig(AppConfig):
 
         register_lot_details(
             fields={"drying": lambda: LotDryingSerializer(allow_null=True, read_only=True)},
-            prefetch=["drying"],
+            prefetch=["drying__facility"],
         )

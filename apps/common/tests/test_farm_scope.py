@@ -29,6 +29,7 @@ from apps.health.tests.factories import (
 from apps.lots.choices import LotStatus
 from apps.lots.code import build_lot_code
 from apps.lots.tests.factories import LotFactory
+from apps.notifications.tests.factories import LotNotificationFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
 
@@ -452,6 +453,24 @@ def test_an_employee_lists_only_the_dryings_of_its_farm(auth_client, harvest_wor
     assert listed(harvest_world.employee) == names(harvest_world, {"drying_a"})
     assert listed(harvest_world.unassigned) == set()
     assert listed(harvest_world.owner) == names(harvest_world, {"drying_a", "drying_b"})
+
+
+def test_an_employee_sees_only_the_lot_notifications_of_its_farm(auth_client, harvest_world):
+    def notified(user):
+        for lot in (harvest_world.lot_a, harvest_world.lot_b):
+            LotNotificationFactory(lot=lot, recipient=user)
+
+    def listed(user):
+        response = auth_client(user).get("/api/notifications")
+        assert response.status_code == 200, response.data
+        return {row["lot"]["id"] for row in response.data["results"]}
+
+    for user in (harvest_world.employee, harvest_world.unassigned, harvest_world.owner):
+        notified(user)
+
+    assert listed(harvest_world.employee) == names(harvest_world, {"lot_a"})
+    assert listed(harvest_world.unassigned) == set()
+    assert listed(harvest_world.owner) == names(harvest_world, {"lot_a", "lot_b"})
 
 
 @pytest.mark.parametrize("resource", HARVEST_DETAILS)

@@ -8,6 +8,7 @@ class LotDryingSerializer(serializers.Serializer):
     # calidad y bodega, y el rendimiento el que muestran sus tarjetas.
     started_at = serializers.DateTimeField()
     ended_at = serializers.DateTimeField(allow_null=True)
+    facility = serializers.CharField(source="facility.name")
     final_moisture_pct = serializers.DecimalField(
         max_digits=4, decimal_places=ONE_DECIMAL, allow_null=True
     )

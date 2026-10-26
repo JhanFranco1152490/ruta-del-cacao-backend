@@ -10,10 +10,13 @@ from apps.activities.choices import ActivityStatus
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.common.contracts import alerts
 from apps.common.contracts.alerts import NotificationDraft
+from apps.drying.tests.factories import DryingLogEntryFactory
 from apps.health.tests.factories import DetectionFactory, PhytosanitaryTreatmentFactory
+from apps.lots.choices import LotStatus
+from apps.notifications.choices import NotificationKind
 from apps.notifications.models import Notification
 from apps.notifications.services.evaluate import evaluate_alerts, evaluation_date
-from apps.notifications.tests.factories import NotificationFactory
+from apps.notifications.tests.factories import LotNotificationFactory, NotificationFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -187,6 +190,69 @@ def test_a_recent_read_notification_of_a_done_activity_is_kept():
     evaluate_alerts(TODAY, NOW)
 
     assert remains(notification)
+
+
+# Los de un lote.
+
+
+def test_an_old_read_pending_that_was_resolved_is_purged():
+    notification = old(
+        LotNotificationFactory(lot__status=LotStatus.FERMENTING, read_at=NOW, resolved_at=NOW)
+    )
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(notification)
+
+
+def test_an_old_read_pending_whose_lot_left_the_stage_is_purged():
+    turn_due = old(LotNotificationFactory(lot__status=LotStatus.FERMENTED, read_at=NOW))
+    log_due = old(
+        LotNotificationFactory(
+            lot__status=LotStatus.DRIED, kind=NotificationKind.DRYING_LOG_DUE, read_at=NOW
+        )
+    )
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(turn_due)
+    assert not remains(log_due)
+
+
+def test_an_old_dismissed_pending_still_in_its_stage_is_kept():
+    # Si se borrara, la siguiente evaluación vería el volteo que falta y avisaría de nuevo.
+    turn_due = old(LotNotificationFactory(lot__status=LotStatus.FERMENTING, dismissed_at=NOW))
+    log_due = old(
+        LotNotificationFactory(
+            lot__status=LotStatus.DRYING, kind=NotificationKind.DRYING_LOG_DUE, dismissed_at=NOW
+        )
+    )
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert remains(turn_due)
+    assert remains(log_due)
+
+
+def test_an_old_read_deviation_is_purged_and_an_unread_one_is_kept():
+    def deviation(**fields):
+        entry = DryingLogEntryFactory()
+        return old(
+            LotNotificationFactory(
+                lot=entry.process.lot,
+                kind=NotificationKind.DRYING_OVERDRIED,
+                drying_log=entry,
+                **fields,
+            )
+        )
+
+    read = deviation(read_at=NOW)
+    unread = deviation()
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(read)
+    assert remains(unread)
 
 
 # El comando.

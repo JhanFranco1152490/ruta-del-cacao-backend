@@ -9,11 +9,11 @@ retira los avisos de los desvíos que ya no cumple.
 from django.db import transaction
 from django.utils import timezone
 
-from apps.common.contracts.alerts import notify, withdraw
+from apps.common.contracts.alerts import notify, resolve, withdraw
 from apps.common.db import save_translating_unique
 from apps.common.versioning import check_expected_version, save_next_version
 
-from ..alerts import drying_log_alerts, stale_deviation_kinds
+from ..alerts import LOG_DUE, drying_log_alerts, stale_deviation_kinds
 from ..exceptions import (
     DryingHoursExceeded,
     DryingLogIdConflict,
@@ -70,6 +70,8 @@ def record_log(actor, lot_id, data: dict) -> tuple[DryingLogEntry, bool]:
     if existing is not None:
         return _resent(existing, process, sent), False
     _record(entry, actor, DryingProcessAuditEvent.Action.LOG_CREATED, {}, log_values(entry))
+    # Llegó una bitácora: la que estaba pendiente deja de pedir atención.
+    resolve(process.lot_id, [LOG_DUE])
     notify(drying_log_alerts(entry))
     return entry, True
 

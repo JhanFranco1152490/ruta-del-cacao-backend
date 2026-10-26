@@ -15,3 +15,10 @@ class DryingConfig(AppConfig):
             fields={"drying": lambda: LotDryingSerializer(allow_null=True, read_only=True)},
             prefetch=["drying__facility"],
         )
+
+        # La bitácora pendiente, en la evaluación de cada hora.
+        from apps.common.contracts.alerts import register_evaluator
+
+        from .alerts import evaluate
+
+        register_evaluator("drying", evaluate)

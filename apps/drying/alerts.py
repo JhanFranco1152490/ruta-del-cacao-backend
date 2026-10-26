@@ -1,22 +1,33 @@
-"""Los avisos de desvío del secado: secado lento, acelerado, próximo a la meta y sobresecado.
+"""Los avisos del secado: la bitácora que falta, y los desvíos de secado lento, acelerado, próximo
+a la meta y sobresecado.
 
-El servicio de la bitácora llama a `drying_log_alerts` al registrar y al corregir, con la bitácora
-ya guardada, y manda lo que devuelve a notificar. Los umbrales son los del productor
-(`drying_parameters`), o la línea base si no guardó los suyos. La humedad se compara en puntos: de
-30 % a 26 % bajó 4 puntos.
+La evaluación de cada hora llama a `evaluate` para la bitácora pendiente. El servicio de la
+bitácora llama a `drying_log_alerts` al registrar y al corregir, con la bitácora ya guardada, y
+manda lo que devuelve a notificar. Los umbrales son los del productor (`drying_parameters`), o la
+línea base si no guardó los suyos. La humedad se compara en puntos: de 30 % a 26 % bajó 4 puntos.
 """
 
 from datetime import timedelta
 from decimal import Decimal
+
+from django.db.models import Max
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from apps.common.contracts.alerts import Deviation, NotificationDraft, deviation_drafts
 from apps.common.contracts.postharvest_parameters import DryingParameters, drying_parameters
 from apps.common.contracts.schedulers import FarmAccounts
 from apps.common.exceptions import log_unhandled_error
 
-from .models import DryingLogEntry
+from .models import DryingLogEntry, DryingProcess
+from .rules import day_number
 
 LOG_PERMISSION = "drying.log_drying"
+
+# Cuánto puede pasar sin una medición antes de avisar que falta la bitácora. La fija la historia
+# y no es un parámetro del productor.
+LOG_DUE_AFTER = timedelta(hours=24)
+LOG_DUE = "drying_log_due"
 
 SLOW_STALLED = "drying_slow_stalled"
 SLOW_DURATION = "drying_slow_duration"
@@ -110,3 +121,37 @@ def drying_log_alerts(entry: DryingLogEntry) -> list[NotificationDraft]:
         condition_at=entry.measured_at,
         drying_log_id=entry.pk,
     )
+
+
+def evaluate(today, now) -> list[NotificationDraft]:
+    """Los secados en curso sin una medición en las últimas 24 horas (contando desde el inicio si
+    no tienen ninguna), en la evaluación de cada hora. Se avisa al responsable y a quienes
+    registran la bitácora en la finca (el Productor entre ellos). El día de secado de hoy va en la
+    clave: cada día sin bitácora avisa una vez, y el de hoy reemplaza al de ayer."""
+    processes = list(
+        DryingProcess.objects.filter(ended_at__isnull=True)
+        .select_related("lot__harvest__plot__farm", "responsible")
+        .annotate(last_measured_at=Coalesce(Max("logs__measured_at"), "started_at"))
+        .filter(last_measured_at__lte=now - LOG_DUE_AFTER)
+    )
+    accounts = FarmAccounts(
+        {process.lot.harvest.plot.farm.producer_id for process in processes}, LOG_PERMISSION
+    )
+    found = []
+    for process in processes:
+        farm = process.lot.harvest.plot.farm
+        day = day_number(timezone.localdate(now), process.started_at)
+        found.extend(
+            NotificationDraft(
+                recipient_id=recipient_id,
+                kind=LOG_DUE,
+                condition_key=f"{process.lot_id}:drying_day:{day}",
+                thread_key=f"lot:{process.lot_id}",
+                lot_id=process.lot_id,
+                condition_at=process.last_measured_at + LOG_DUE_AFTER,
+            )
+            for recipient_id in sorted(
+                accounts.on_farm_with(farm.producer_id, farm.pk, process.responsible), key=str
+            )
+        )
+    return found

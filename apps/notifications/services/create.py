@@ -6,7 +6,11 @@ from django.db.models import Q
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from apps.common.exceptions import log_unhandled_error
+
+from ..choices import NotificationSeverity
 from ..models import Notification
+from ..push.send import send_pending_pushes
 
 # Cuántos avisos o hilos entran en una sentencia: la primera evaluación, o la que sigue a una
 # caída larga, puede traer miles, y una sola sentencia con todos sería enorme.
@@ -57,7 +61,22 @@ def create_notifications(drafts) -> int:
             )
         new_rows = [row for row in rows if row.pk in created]
         _hide_previous(new_rows)
+    _push_critical(new_rows)
     return len(new_rows)
+
+
+def _push_critical(new_rows) -> None:
+    """Un aviso crítico (el sobresecado) no espera a la evaluación siguiente: sale ya, si es
+    horario de push. Los demás salen en la evaluación de cada hora."""
+    critical = [row.pk for row in new_rows if row.severity == NotificationSeverity.CRITICAL]
+    if not critical:
+        return
+    try:
+        send_pending_pushes(timezone.now(), notification_ids=critical)
+    except Exception as exc:
+        # Una push que no sale no deshace el aviso: sigue en la bandeja, y la evaluación siguiente
+        # vuelve a intentar.
+        log_unhandled_error(exc, where="la push de un aviso crítico")
 
 
 def _chunks(items: list):

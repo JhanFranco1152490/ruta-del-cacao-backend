@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from django.core.management import call_command
+from django.utils import timezone
 from py_vapid import Vapid02
 from pywebpush import WebPushException
 
@@ -11,12 +12,21 @@ from apps.accounts.system_roles import PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_delegate
 from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.common.contracts.alerts import NotificationDraft
+from apps.drying.tests.factories import DryingLogEntryFactory
 from apps.farms.tests.factories import FarmFactory
+from apps.lots.tests.factories import LotFactory
 from apps.notifications.models import Notification, PushSubscription
 from apps.notifications.push import send
 from apps.notifications.push.send import send_pending_pushes
+from apps.notifications.services import create
+from apps.notifications.services.create import create_notifications
 from apps.notifications.services.evaluate import evaluate_alerts
-from apps.notifications.tests.factories import NotificationFactory, PushSubscriptionFactory
+from apps.notifications.tests.factories import (
+    LotNotificationFactory,
+    NotificationFactory,
+    PushSubscriptionFactory,
+)
 from apps.plots.tests.factories import PlotFactory
 
 pytestmark = pytest.mark.django_db
@@ -378,3 +388,85 @@ def test_one_from_a_farm_the_recipient_reaches_is_pushed(sent):
     send_pending_pushes(MORNING)
 
     assert len(sent) == 1
+
+
+# Los avisos de un lote.
+
+
+def lot_recipient(lot):
+    farm = lot.harvest.plot.farm
+    return make_delegate(farm.producer, ["lots.view_lot"], farm=farm)
+
+
+def test_a_lot_notification_is_pushed_to_whoever_sees_the_lot(sent):
+    lot = LotFactory()
+    recipient = lot_recipient(lot)
+    notification = LotNotificationFactory(lot=lot, recipient=recipient)
+    Notification.objects.filter(pk=notification.pk).update(created_at=MORNING)
+    PushSubscriptionFactory(user=recipient)
+
+    send_pending_pushes(MORNING)
+
+    ((_, payload),) = sent
+    assert payload["title"] == "Volteo pendiente"
+    assert payload["url"] == f"/lotes/detalle?id={lot.pk}&notificacion={notification.pk}"
+
+
+@pytest.fixture
+def overdrying():
+    """Un sobresecado y un próximo a meta de la misma bitácora, listos para crear, para alguien
+    con un dispositivo."""
+    entry = DryingLogEntryFactory()
+    lot = entry.process.lot
+    recipient = lot_recipient(lot)
+    PushSubscriptionFactory(user=recipient)
+
+    def draft(kind, severity):
+        return NotificationDraft(
+            recipient_id=recipient.pk,
+            kind=kind,
+            severity=severity,
+            condition_key=f"{entry.pk}:{kind}",
+            thread_key=f"lot:{lot.pk}:{kind}",
+            lot_id=lot.pk,
+            drying_log_id=entry.pk,
+        )
+
+    return [draft("drying_overdried", "critical"), draft("drying_near_target", "normal")]
+
+
+def at(monkeypatch, instant):
+    monkeypatch.setattr(timezone, "now", lambda: instant)
+
+
+def test_an_overdrying_is_pushed_as_soon_as_it_is_created(sent, overdrying, monkeypatch):
+    # 20:00 UTC son las 15:00 en Bogotá.
+    at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+
+    create_notifications(overdrying)
+
+    ((_, payload),) = sent
+    assert payload["title"] == "Sobresecado"
+    # Lo que no es crítico espera a la evaluación siguiente.
+    assert Notification.objects.get(kind="drying_near_target").pushed_at is None
+
+
+def test_at_night_an_overdrying_waits_for_the_morning(sent, overdrying, monkeypatch):
+    # 02:00 UTC son las 21:00 en Bogotá.
+    at(monkeypatch, datetime(2026, 10, 17, 2, 0, tzinfo=UTC))
+
+    create_notifications(overdrying)
+
+    assert sent == []
+    assert Notification.objects.get(kind="drying_overdried").pushed_at is None
+
+
+def test_a_failed_immediate_push_keeps_the_notification(overdrying, monkeypatch):
+    at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+
+    def broken(now, notification_ids=None):
+        raise RuntimeError("sin red")
+
+    monkeypatch.setattr(create, "send_pending_pushes", broken)
+
+    assert create_notifications(overdrying) == 2

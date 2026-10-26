@@ -9,6 +9,9 @@ from apps.accounts.tests.factories import UserFactory
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.common.contracts import alerts
 from apps.common.contracts.alerts import NotificationDraft
+from apps.drying.tests.factories import DryingLogEntryFactory
+from apps.fermentation.tests.factories import FermentationTurnFactory
+from apps.lots.tests.factories import LotFactory
 from apps.notifications.models import Notification
 from apps.notifications.services.create import create_notifications
 from apps.notifications.tests.factories import NotificationFactory
@@ -187,6 +190,82 @@ def test_hiding_keeps_when_it_was_read():
     create_notifications([draft_for(activity, activity.assignee, key="day-1")])
 
     assert Notification.objects.get(condition_key="day-2").read_at == read_at
+
+
+# Los avisos de un lote.
+
+
+def lot_draft(lot, recipient, kind, key, **fields):
+    return NotificationDraft(
+        recipient_id=recipient.pk,
+        kind=kind,
+        condition_key=key,
+        thread_key=f"lot:{lot.pk}",
+        lot_id=lot.pk,
+        **fields,
+    )
+
+
+def test_a_lot_draft_keeps_its_lot_and_its_condition_time():
+    lot = LotFactory()
+    recipient = UserFactory()
+    due_at = timezone.now()
+
+    create_notifications(
+        [lot_draft(lot, recipient, "fermentation_turn_due", "t:2", condition_at=due_at)]
+    )
+
+    notification = Notification.objects.get()
+    assert notification.lot == lot
+    assert notification.activity is None
+    assert notification.condition_at == due_at
+
+
+def test_a_deviation_draft_keeps_its_record():
+    turn = FermentationTurnFactory()
+    entry = DryingLogEntryFactory()
+    recipient = UserFactory()
+
+    create_notifications(
+        [
+            lot_draft(
+                turn.process.lot,
+                recipient,
+                "fermentation_ph_low",
+                f"{turn.pk}:fermentation_ph_low",
+                fermentation_turn_id=turn.pk,
+            ),
+            lot_draft(
+                entry.process.lot,
+                recipient,
+                "drying_overdried",
+                f"{entry.pk}:drying_overdried",
+                drying_log_id=entry.pk,
+                severity="critical",
+            ),
+        ]
+    )
+
+    assert Notification.objects.get(kind="fermentation_ph_low").fermentation_turn == turn
+    overdried = Notification.objects.get(kind="drying_overdried")
+    assert overdried.drying_log == entry
+    assert overdried.severity == "critical"
+
+
+def test_the_pending_turn_replaces_the_reminder_of_the_same_lot():
+    lot = LotFactory()
+    responsible = UserFactory()
+    create_notifications(
+        [lot_draft(lot, responsible, "fermentation_first_turn_due", f"{lot.pk}:first_turn")]
+    )
+
+    create_notifications(
+        [lot_draft(lot, responsible, "fermentation_turn_due", f"{lot.pk}:turn:1")]
+    )
+
+    reminder = Notification.objects.get(kind="fermentation_first_turn_due")
+    assert reminder.dismissed_at is not None
+    assert Notification.objects.get(kind="fermentation_turn_due").dismissed_at is None
 
 
 def test_notifications_registers_itself_as_the_sink():

@@ -31,6 +31,10 @@ class NotificationDraft:
     activity_id: object = None
     detection_id: object = None
     condition_date: date | None = None
+    lot_id: object = None
+    fermentation_turn_id: object = None
+    drying_log_id: object = None
+    condition_at: datetime | None = None
 
 
 # El día cuenta para lo que se mide en fechas (una actividad) y la hora para lo que se mide en

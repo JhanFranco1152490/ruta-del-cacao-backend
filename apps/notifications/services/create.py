@@ -31,6 +31,10 @@ def create_notifications(drafts) -> int:
             activity_id=draft.activity_id,
             detection_id=draft.detection_id,
             condition_date=draft.condition_date,
+            lot_id=draft.lot_id,
+            fermentation_turn_id=draft.fermentation_turn_id,
+            drying_log_id=draft.drying_log_id,
+            condition_at=draft.condition_at,
         )
         for draft in drafts
     ]

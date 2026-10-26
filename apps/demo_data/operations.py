@@ -45,6 +45,7 @@ from .catalog import (
 )
 from .drying import seed_dryings
 from .postharvest import seed_fermentations
+from .postharvest_alerts import seed_postharvest_alerts
 
 MONITORING = ActivityType.PHYTOSANITARY_MONITORING
 
@@ -67,6 +68,7 @@ def seed_operations(owner: User, restore_account) -> list[str]:
     notes += _harvests_and_lots(owner, foreman, plot)
     notes += seed_fermentations(owner, foreman, plot)
     notes += seed_dryings(owner, foreman, plot)
+    notes += seed_postharvest_alerts(owner, foreman, plot)
     return [note for note in notes if note]
 
 

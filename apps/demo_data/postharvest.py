@@ -63,11 +63,11 @@ def _fermented(owner: User, foreman: User, lot: Lot, box: PostharvestFacility) -
     Productor."""
     day = lot.harvest.harvest_date + timedelta(days=1)
     started_at = timezone.make_aware(datetime.combine(day, time(7, 0)))
-    _start(foreman, lot, box, started_at)
+    start_in_box(foreman, lot, box, started_at)
     temperatures = ("44.5", "47.0", "45.5")
     ph_values = ("4.90", "4.70", "5.10")
     for hours, temperature, ph in zip((48, 72, 96), temperatures, ph_values, strict=True):
-        _turn(foreman, lot, started_at + timedelta(hours=hours), temperature, ph)
+        turn_at(foreman, lot, started_at + timedelta(hours=hours), temperature, ph)
     finish_fermentation(
         owner,
         lot.pk,
@@ -82,30 +82,36 @@ def _fermented(owner: User, foreman: User, lot: Lot, box: PostharvestFacility) -
 def _fermenting(foreman: User, lot: Lot, box: PostharvestFacility) -> None:
     """Desde hace cien horas, con los volteos de las 48 y las 72: el de las 96 está pendiente."""
     started_at = (timezone.now() - timedelta(hours=100)).replace(second=0, microsecond=0)
-    _start(foreman, lot, box, started_at)
-    _turn(foreman, lot, started_at + timedelta(hours=48), "43.0", "4.95")
-    _turn(foreman, lot, started_at + timedelta(hours=72), "46.5", "4.75")
+    start_in_box(foreman, lot, box, started_at)
+    turn_at(foreman, lot, started_at + timedelta(hours=48), "43.0", "4.95")
+    turn_at(foreman, lot, started_at + timedelta(hours=72), "46.5", "4.75")
 
 
 def _live_lot(owner: User, foreman: User, plot: Plot) -> None:
     """Una cosecha de hace tres días ya conformada en lote, para iniciar su fermentación en
     vivo."""
+    harvested_lot(owner, foreman, plot, days_ago=3, weight=LIVE_LOT_KG)
+
+
+def harvested_lot(owner: User, foreman: User, plot: Plot, *, days_ago: int, weight) -> Lot:
+    """Una cosecha de hace `days_ago` días, recogida por el capataz y conformada en lote."""
     variety = plot.characterization.plantings.order_by("planting_date").first().variety
     harvest, _ = create_harvest(
         owner,
         {
             "plot_id": plot.pk,
-            "harvest_date": today_in_bogota() - timedelta(days=3),
-            "green_weight_kg": LIVE_LOT_KG,
+            "harvest_date": today_in_bogota() - timedelta(days=days_ago),
+            "green_weight_kg": weight,
             "variety_id": variety.pk,
             "collector_id": foreman.pk,
             "captured_at": None,
         },
     )
-    create_lot(owner, {"harvest_id": harvest.pk})
+    lot, _ = create_lot(owner, {"harvest_id": harvest.pk})
+    return lot
 
 
-def _start(foreman: User, lot: Lot, box: PostharvestFacility, started_at) -> None:
+def start_in_box(foreman: User, lot: Lot, box: PostharvestFacility, started_at) -> None:
     start_fermentation(
         foreman,
         {
@@ -117,7 +123,7 @@ def _start(foreman: User, lot: Lot, box: PostharvestFacility, started_at) -> Non
     )
 
 
-def _turn(foreman: User, lot: Lot, turned_at, temperature: str, ph: str) -> None:
+def turn_at(foreman: User, lot: Lot, turned_at, temperature: str, ph: str) -> None:
     record_turn(
         foreman,
         lot.pk,

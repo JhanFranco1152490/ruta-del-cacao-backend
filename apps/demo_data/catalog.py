@@ -99,7 +99,19 @@ DEMO_FACILITIES = [
     {"facility_type": "solar_dryer", "name": "M-01", "capacity_kg": Decimal("800")},
     # La que ocupa el lote en secado: M-01 queda libre para iniciar un secado en vivo.
     {"facility_type": "solar_dryer", "name": "M-02", "capacity_kg": Decimal("600")},
+    # Los que ocupan los lotes que muestran cada aviso de poscosecha, para no quitarle a la
+    # demostración en vivo el cajón y la marquesina libres.
+    {"facility_type": "fermentation_box", "name": "C-03", "capacity_kg": Decimal("300")},
+    {"facility_type": "fermentation_box", "name": "C-04", "capacity_kg": Decimal("300")},
+    {"facility_type": "solar_dryer", "name": "M-03", "capacity_kg": Decimal("600")},
 ]
+
+# Dónde está cada lote que muestra un aviso de poscosecha, y la marquesina del lote en secado en el
+# que se registra en vivo la bitácora del sobresecado.
+REMINDER_BOX = "C-03"
+DEVIATIONS_BOX = "C-04"
+NEAR_TARGET_DRYER = "M-03"
+LIVE_LOG_DRYER = "M-02"
 
 # Lo que el productor de demostración ajustó de la línea base del secado: así se ve qué cambió y se
 # puede restablecer en vivo. Los demás productores quedan en la línea base.

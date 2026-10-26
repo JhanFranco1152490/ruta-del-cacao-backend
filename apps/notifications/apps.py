@@ -7,8 +7,15 @@ class NotificationsConfig(AppConfig):
 
     def ready(self):
         # Donde quedan los avisos que calculan las demás apps.
-        from apps.common.contracts.alerts import register_sink
+        from apps.common.contracts.alerts import NotificationSink, register_sink
 
         from .services.create import create_notifications
+        from .services.resolve import resolve_notifications, withdraw_notifications
 
-        register_sink(create_notifications)
+        register_sink(
+            NotificationSink(
+                create=create_notifications,
+                resolve=resolve_notifications,
+                withdraw=withdraw_notifications,
+            )
+        )

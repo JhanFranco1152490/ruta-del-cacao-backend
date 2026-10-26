@@ -269,4 +269,4 @@ def test_the_pending_turn_replaces_the_reminder_of_the_same_lot():
 
 
 def test_notifications_registers_itself_as_the_sink():
-    assert alerts._sink is create_notifications
+    assert alerts._sink.create is create_notifications

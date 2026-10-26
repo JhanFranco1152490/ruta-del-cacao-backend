@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), las alertas (`alerts.py`: evaluadores y `notify`), quién puede programar en una finca (`schedulers.py`), quién responde por una labor (`assignable.py`), los parámetros de secado vigentes de un productor (`postharvest_parameters.py`) y lo demás que comparten dos apps |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`) y lo demás que comparten dos apps |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -57,11 +57,11 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/harvests/`   | Cosechas: una recolección en una parcela y fecha, con su peso en verde, su variedad (de la ficha de la parcela) y su recolector. Registrar (también desde la cola sin conexión), consultar por mes, corregir y eliminar mientras no formen un lote, con su historial de valor anterior y nuevo |
 | `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`Lot.advance_status`, que llama a `advance_lot_status`). Conformar es solo en línea |
 | `apps/facilities/` | Infraestructura de poscosecha: los cajones de fermentación y las marquesinas de secado de cada finca, con su capacidad en kg de cacao en baba. Alta (solo en línea), consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial, que sobrevive al borrado. Fermentación y secado los ocupan y liberan con `occupy` y `release`, que son métodos del modelo |
-| `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`; la regla del próximo volteo vive en `alerts.py` |
+| `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`. En `alerts.py`, la regla del próximo volteo, el evaluador de los volteos pendientes y los desvíos de temperatura y de pH del grano de cada volteo |
 | `apps/postharvest_parameters/` | Parámetros de poscosecha de cada productor (secado: humedad de entrada y meta, días estimados y umbrales de las alertas de desvío; fermentación: cuándo toca cada volteo y la temperatura y el pH de referencia): consultar con la línea base al lado, guardar los veintiún valores juntos y restablecer la línea base, con su historial. Las demás apps los leen con `drying_parameters(producer_id)` y `fermentation_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py` |
-| `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details` |
+| `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details`, con su marquesina. En `alerts.py`, el evaluador de la bitácora pendiente y los desvíos de humedad de cada bitácora |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
-| `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`) |
+| `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha y los desvíos), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -406,8 +406,21 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   - **Finalizar** (`POST …/{lot_id}/finish` con `expected_version`): necesita un volteo (`409
     fermentation_without_turns`), el fin no es futuro ni anterior al último volteo; libera el cajón
     y deja el lote Fermentado en la misma transacción. `ended_at` es la hora mínima del secado.
-  - **Próximo volteo:** `next_turn_due_at` (`apps/fermentation/alerts.py`, 48 h desde el inicio sin
-    volteos y 24 h desde el último), con las constantes que usarán los avisos de volteo pendiente.
+  - **Próximo volteo:** `next_turn_due_at` (`apps/fermentation/alerts.py`), con las horas del
+    productor (48 h desde el inicio sin volteos y 24 h desde el último en la línea base). Lo usan la
+    pantalla y el evaluador de los volteos pendientes, para que muestren lo mismo.
+  - **Alertas** (`apps/fermentation/alerts.py`, registrado como `"fermentation"`): el evaluador de
+    cada hora avisa **Se acerca el primer volteo** solo al responsable activo desde
+    `FIRST_TURN_WARNING` (6 h) antes, y **Volteo pendiente** (n = volteos + 1, en la clave) al
+    responsable y a quienes tienen `fermentation.log_turns` en la finca cuando la hora llega; los dos
+    comparten el hilo `lot:{lot_id}`. Registrar un volteo nuevo y finalizar los resuelven
+    (`resolve`). **Desvíos** al guardar un volteo (`turn_alerts`, con
+    `fermentation_parameters`): temperatura por debajo o por encima del rango en cualquier volteo, y
+    el **pH del grano** (no el de la pulpa) por debajo del mínimo en cualquier volteo o por encima
+    del máximo solo desde `PH_HIGH_AFTER` (96 h), porque antes es lo normal. Ninguno es crítico.
+    Corregir el volteo retira (`withdraw`) los desvíos que ya no cumple. `POST` y `PATCH` de volteos
+    responden también con `alerts` (los desvíos, con su valor y su límite), también en un reenvío;
+    un fallo al calcularlos queda en el log y no impide guardar.
   - El responsable, el cajón y el autor de un volteo son `PROTECT`: una cuenta responsable no se
     elimina (`account_has_activity`) y un cajón usado tiene registros. El historial
     (`FermentationProcessAuditEvent`) guarda el valor anterior y nuevo del inicio, el fin y cada
@@ -439,9 +452,16 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   en que se registró). Permisos `drying.log_drying` (la bitácora) y `drying.manage_drying` (iniciar,
   corregir el inicio y finalizar), delegables y de campo; `manage_drying` depende de `log_drying` y
   el responsable debe tenerlo, así que siempre puede hacer todo en su secado. Ver un secado lo da
-  `lots.view_lot`. **Alertas de desvío:** el servicio de la bitácora llama a
-  `drying_log_alerts(entry)` de `apps/drying/alerts.py` al registrar y al corregir, con la bitácora
-  ya guardada, y manda lo que devuelve a `notify`; las reglas de cada desvío se escriben ahí.
+  `lots.view_lot`. **Alertas** (`apps/drying/alerts.py`, registrado como `"drying"`): el evaluador
+  de cada hora avisa **Bitácora de secado pendiente** a un secado en curso sin medición en las
+  últimas 24 h (`LOG_DUE_AFTER`, contando desde el inicio si no hay ninguna), al responsable y a
+  quienes tienen `drying.log_drying` en la finca; el día de secado de hoy va en la clave. Registrar
+  una bitácora nueva y finalizar la resuelven. **Desvíos** al registrar y al corregir una bitácora
+  (`drying_log_alerts(entry)`, con `drying_parameters`, ya guardada): secado lento por estancamiento
+  (contra la última medición hecha la ventana del productor o más antes, en horas reales) y por
+  duración, secado acelerado, próximo a meta y sobresecado, el único `critical`. Corregir retira
+  los que ya no cumple. `POST` y `PATCH` de bitácoras responden también con `alerts`, como los
+  volteos.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
@@ -497,10 +517,15 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
 - **Notificaciones** (`apps/notifications`):
   - **Evaluación:** `python manage.py evaluate_alerts` (cada hora, como tarea programada; `--today
     AAAA-MM-DD` para probar) corre los evaluadores registrados en `apps/common/contracts/alerts.py`, guarda
-    los avisos nuevos, envía las push y purga lo viejo. Un evaluador que falla no detiene a los
-    demás y el comando termina con error. Cada evaluador solo calcula `NotificationDraft`; lo único
-    que escribe avisos es `create_notifications` (también desde `notify()`, para una condición que
-    se detecta al guardar, con `transaction.on_commit`).
+    los avisos nuevos, envía las push y purga lo viejo. Cada evaluador recibe `(today, now)`: el día
+    para lo que se mide en fechas y la hora para lo que se mide en horas (con `--today`, `now` es ese
+    día a la hora actual de Bogotá). Un evaluador que falla no detiene a los demás y el comando
+    termina con error. Cada evaluador solo calcula `NotificationDraft`. Lo único que escribe avisos
+    es esta app, por el `NotificationSink` que registra en su `ready()`: `notify()` crea
+    (`create_notifications`), `resolve(lot_id, kinds)` marca `resolved_at` en los pendientes de un
+    lote y `withdraw(kinds, fermentation_turn_id=… o drying_log_id=…)` **borra** (no oculta: un aviso
+    oculto cuenta como ya avisado) los desvíos que un registro corregido ya no cumple. Las tres
+    corren con `transaction.on_commit`.
   - **Sin duplicados:** única (`recipient`, `kind`, `condition_key`). `thread_key` agrupa lo de una
     misma actividad o detección: el aviso nuevo de una persona deja leídos y eliminados los
     anteriores del hilo (así el recordatorio de hoy reemplaza al de ayer). Eliminar desde la
@@ -510,13 +535,23 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     2) y vencida (una vez, sin límite), las dos últimas al responsable y a quien programa en la
     finca; control pendiente, cada día durante los 10 primeros desde la solicitud, a quien
     programa. "Quien programa" sale de `Schedulers` (`apps/common/contracts/schedulers.py`), sin la cuenta
-    técnica.
+    técnica. **De un lote** (`lot`, y `fermentation_turn` o `drying_log` en un desvío, todas
+    `CASCADE`): el recordatorio del primer volteo, solo al responsable; el volteo y la bitácora
+    pendientes y los desvíos, al responsable y a quienes registran en esa etapa en la finca
+    (`FarmAccounts(..., permiso).on_farm_with(..., responsable)`), el Productor entre ellos por su
+    rol. Un desvío tiene la clave `{registro}:{tipo}` y el hilo `lot:{lot_id}:{tipo}`: uno no oculta
+    a otro. `condition_at` es la hora a la que se refiere el aviso. La purga borra un pendiente
+    resuelto o cuyo lote salió de la etapa, y un desvío siempre.
   - **Bandeja** (`/api/notifications`, `…/unread-count`, `…/{id}/read`, `…/read-all`, `DELETE
     …/{id}`, `…/{id}/restore`, `…/dismiss-read`): solo pide sesión. Cada cuenta ve sus avisos, sin
-    los eliminados, y solo de lo que alcanza **hoy** con `activities.view_agriculturalactivity`
-    (si le quitan una finca, los de esa finca desaparecen). Lo ajeno es `404`. Primero las
-    críticas sin leer y después por fecha, con el id como desempate. `activity` usa la
-    representación registrada de la actividad, la del calendario.
+    los eliminados, y solo de lo que alcanza **hoy** (`reachable`, por tipo): los de actividades y
+    sanidad con `activities.view_agriculturalactivity`, y los de un lote con `lots.view_lot`, cada
+    uno en las fincas de la persona (si le quitan una finca, los de esa finca desaparecen). Lo
+    ajeno es `404`. Primero las críticas sin leer y después por fecha, con el id como desempate.
+    `activity` usa la representación registrada de la actividad, la del calendario; `lot`, la que
+    registra `lots` en `lot_representation.py` (código, estado, finca, `fermentation` y `drying` con
+    su cajón o su marquesina); `fermentation_turn` (con su número) y `drying_log` van como están
+    ahora, así que una corrección se ve.
   - **Push** (`…/push-config`, `POST …/push-subscriptions`, `POST …/push-subscriptions/remove`):
     sin `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT`, `public_key` es `null` y no se envía nada. El
     `endpoint` debe ser `https` de un servicio de push de navegador (Google, Mozilla, Apple o
@@ -526,7 +561,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     resumen), sin nombres de personas, y solo de lo que la persona ve hoy en su bandeja (si ya no
     alcanza la finca, no se manda); `404`/`410` borra el dispositivo, cualquier otro error (también
     una suscripción inválida, que no detiene a los demás dispositivos) reintenta la hora siguiente,
-    y una cuenta inactiva pierde sus dispositivos. `python manage.py
+    y una cuenta inactiva pierde sus dispositivos. Un aviso **crítico** (el sobresecado) no espera a
+    la evaluación: `create_notifications` lo envía al crearse, dentro del horario, con
+    `send_pending_pushes(now, notification_ids=…)`, que no adelanta los demás. La push de un lote
+    lleva su código, la finca y lo medido con coma decimal, y abre la ficha del lote. `python manage.py
     generate_vapid_keys` imprime las llaves listas para las variables de entorno.
 - **Los archivos subidos van a PostgreSQL** (`STORAGES["default"]` es
   `apps.common.storage.DatabaseStorage`): el disco del servidor se borra en cada despliegue. Los
@@ -720,8 +758,11 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   cajones y marquesina, labores (programadas, una retrasada, una vencida y realizadas con insumos
   descontados), monitoreos del pasado (con detecciones, un control hecho y otro pendiente), tres
   cosechas y dos lotes, la fermentación (un lote fermentado, uno fermentando con el volteo siguiente
-  pendiente y uno Generado con un cajón libre para iniciarla en vivo) y los avisos de la campana
-  (corre `evaluate_alerts`). Todo pasa por los
+  pendiente y uno Generado con un cajón libre para iniciarla en vivo), el secado, los lotes que
+  muestran cada aviso de poscosecha (`postharvest_alerts.py`, en C-03, C-04 y M-03: primer volteo
+  próximo, temperatura y pH del grano fuera de rango, próximo a meta) y los avisos de la campana
+  (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
+  M-02, para registrar en vivo la del sobresecado. Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
   fecha. Deja listo lo que piden las demostraciones en vivo: dos monitoreos programados para hoy
   (P01 y P02), una variedad sembrada en P01 y el nombre `CF-01` libre. Es idempotente: no toca un

@@ -4,8 +4,10 @@ El cambio de estado del lote deja el evento del que el secado toma la hora míni
 from django.db import transaction
 from django.utils import timezone
 
+from apps.common.contracts.alerts import resolve
 from apps.common.versioning import check_expected_version, save_next_version
 
+from ..alerts import PENDING_KINDS
 from ..exceptions import (
     FermentationNotInProgress,
     FermentationWithoutTurns,
@@ -46,6 +48,8 @@ def finish_fermentation(actor, lot_id, expected_version: int, data: dict) -> Fer
         before=before,
         after={"ended_at": process.ended_at, "end_notes": process.end_notes},
     )
+    # Terminada la fermentación, ningún volteo queda pendiente.
+    resolve(process.lot_id, PENDING_KINDS)
     return process
 
 

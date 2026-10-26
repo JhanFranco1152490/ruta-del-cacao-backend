@@ -15,6 +15,8 @@ es lo normal.
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+from django.db.models import Count, Max
+
 from apps.common.contracts.alerts import Deviation, NotificationDraft, deviation_drafts
 from apps.common.contracts.postharvest_parameters import (
     FermentationParameters,
@@ -23,7 +25,7 @@ from apps.common.contracts.postharvest_parameters import (
 from apps.common.contracts.schedulers import FarmAccounts
 from apps.common.exceptions import log_unhandled_error
 
-from .models import FermentationTurn
+from .models import FermentationProcess, FermentationTurn
 
 # Con cuánta anticipación se avisa que se acerca el primer volteo.
 FIRST_TURN_WARNING = timedelta(hours=6)
@@ -32,6 +34,11 @@ FIRST_TURN_WARNING = timedelta(hours=6)
 PH_HIGH_AFTER = timedelta(hours=96)
 
 TURN_PERMISSION = "fermentation.log_turns"
+
+FIRST_TURN_DUE = "fermentation_first_turn_due"
+TURN_DUE = "fermentation_turn_due"
+# Lo que queda resuelto cuando llega un volteo o termina la fermentación.
+PENDING_KINDS = (FIRST_TURN_DUE, TURN_DUE)
 
 TEMPERATURE_LOW = "fermentation_temperature_low"
 TEMPERATURE_HIGH = "fermentation_temperature_high"
@@ -115,3 +122,56 @@ def turn_alerts(turn: FermentationTurn) -> list[NotificationDraft]:
         condition_at=turn.turned_at,
         fermentation_turn_id=turn.pk,
     )
+
+
+def evaluate(today, now) -> list[NotificationDraft]:
+    """Los volteos pendientes de las fermentaciones en curso, en la evaluación de cada hora.
+
+    Como una actividad: mientras no ha pasado nada, se le recuerda solo al responsable que se
+    acerca el primer volteo; cuando la hora de un volteo llega sin que se registre, se le avisa
+    también a quienes voltean en la finca (el Productor entre ellos). El número del volteo va en la
+    clave, así que cada uno avisa una sola vez."""
+    processes = list(
+        FermentationProcess.objects.filter(ended_at__isnull=True)
+        .select_related("lot__harvest__plot__farm", "responsible")
+        .annotate(turn_count=Count("turns"), last_turned_at=Max("turns__turned_at"))
+    )
+    producer_ids = {process.lot.harvest.plot.farm.producer_id for process in processes}
+    parameters = {
+        producer_id: fermentation_parameters(producer_id) for producer_id in producer_ids
+    }
+    accounts = FarmAccounts(producer_ids, TURN_PERMISSION)
+    found = []
+    for process in processes:
+        farm = process.lot.harvest.plot.farm
+        due_at = next_turn_due_at(
+            process.started_at, process.last_turned_at, parameters[farm.producer_id]
+        )
+        if now >= due_at:
+            number = process.turn_count + 1
+            recipients = accounts.on_farm_with(farm.producer_id, farm.pk, process.responsible)
+            key = f"{process.lot_id}:turn:{number}"
+            found.extend(_pending(process, TURN_DUE, key, due_at, recipients))
+        elif process.turn_count == 0 and due_at - now <= FIRST_TURN_WARNING:
+            if process.responsible.is_active:
+                key = f"{process.lot_id}:first_turn"
+                found.extend(
+                    _pending(process, FIRST_TURN_DUE, key, due_at, {process.responsible_id})
+                )
+    return found
+
+
+def _pending(process, kind, key, due_at, recipient_ids) -> list[NotificationDraft]:
+    return [
+        NotificationDraft(
+            recipient_id=recipient_id,
+            kind=kind,
+            condition_key=key,
+            # Un solo hilo por lote: el volteo pendiente reemplaza al recordatorio, y el de hoy al
+            # de ayer.
+            thread_key=f"lot:{process.lot_id}",
+            lot_id=process.lot_id,
+            condition_at=due_at,
+        )
+        for recipient_id in sorted(recipient_ids, key=str)
+    ]

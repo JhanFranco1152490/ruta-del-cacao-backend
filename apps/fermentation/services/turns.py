@@ -10,11 +10,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.common.audit import field_changes
-from apps.common.contracts.alerts import notify, withdraw
+from apps.common.contracts.alerts import notify, resolve, withdraw
 from apps.common.db import save_translating_unique
 from apps.common.versioning import check_expected_version, save_next_version
 
-from ..alerts import stale_deviation_kinds, turn_alerts
+from ..alerts import PENDING_KINDS, stale_deviation_kinds, turn_alerts
 from ..exceptions import (
     DuplicateTurnTime,
     FermentationNotInProgress,
@@ -58,6 +58,9 @@ def record_turn(actor, lot_id, data: dict) -> tuple[FermentationTurn, bool]:
     if existing is not None:
         return _resent(existing, process, sent), False
     _record(turn, actor, FermentationProcessAuditEvent.Action.TURN_CREATED, {}, turn_values(turn))
+    # Llegó un volteo: lo que estaba pendiente deja de pedir atención. Si era viejo (llegó tarde
+    # desde la cola), la siguiente evaluación avisa el que sigue.
+    resolve(process.lot_id, PENDING_KINDS)
     notify(turn_alerts(turn))
     return turn, True
 

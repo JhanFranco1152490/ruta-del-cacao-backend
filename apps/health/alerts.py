@@ -19,8 +19,9 @@ from .models import Detection
 CONTROL_PENDING_DAYS = 10
 
 
-def evaluate(today):
-    # Los días se cuentan con la fecha de Bogotá de la solicitud, no con la UTC.
+def evaluate(today, now=None):
+    # Los días se cuentan con la fecha de Bogotá de la solicitud, no con la UTC; la hora no
+    # cambia nada.
     first_day = today - timedelta(days=CONTROL_PENDING_DAYS - 1)
     detections = list(
         Detection.objects.filter(

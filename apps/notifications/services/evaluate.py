@@ -40,7 +40,7 @@ def evaluate_alerts(today, now) -> EvaluationResult:
     result = EvaluationResult()
     for name, evaluate in evaluators().items():
         try:
-            result.created[name] = create_notifications(list(evaluate(today)))
+            result.created[name] = create_notifications(list(evaluate(today, now)))
         except Exception as exc:
             log_unhandled_error(exc, where=f"el evaluador {name}")
             result.failed.append(name)

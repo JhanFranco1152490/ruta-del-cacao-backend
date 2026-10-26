@@ -4,14 +4,15 @@ Cada app sabe cuándo algo suyo merece un aviso (una actividad que se acerca o s
 ninguna app importa de otra. Por eso se encuentran aquí:
 
 - una app con condiciones periódicas registra en su `ready()` un evaluador, una función que con
-  la fecha de hoy devuelve los avisos que corresponden. Solo calcula: no escribe;
+  la fecha de hoy y la hora de la evaluación devuelve los avisos que corresponden. Solo calcula:
+  no escribe;
 - la app de notificaciones registra la función que los guarda (`register_sink`);
 - una app que detecta una condición al guardar algo llama a `notify()` dentro de su transacción.
 """
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from django.db import transaction
 
@@ -32,7 +33,9 @@ class NotificationDraft:
     condition_date: date | None = None
 
 
-Evaluator = Callable[[date], Iterable[NotificationDraft]]
+# El día cuenta para lo que se mide en fechas (una actividad) y la hora para lo que se mide en
+# horas (un volteo); cada evaluador usa lo que necesita.
+Evaluator = Callable[[date, datetime], Iterable[NotificationDraft]]
 Sink = Callable[[list[NotificationDraft]], int]
 
 _evaluators: dict[str, Evaluator] = {}

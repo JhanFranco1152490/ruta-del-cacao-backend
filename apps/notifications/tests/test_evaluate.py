@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from django.core.management import CommandError, call_command
+from django.utils import timezone
 
 from apps.accounts.tests.factories import UserFactory
 from apps.activities.choices import ActivityStatus
@@ -71,12 +72,31 @@ def failing_evaluator(monkeypatch):
     # de código, y en código real nunca hay datos personales escritos.
     message = f"{activity.assignee.get_full_name()}, documento 1090123456"
 
-    def broken(today):
+    def broken(today, now):
         raise ValueError(message)
 
     monkeypatch.setattr(
-        alerts, "_evaluators", {"broken": broken, "working": lambda today: [draft]}
+        alerts, "_evaluators", {"broken": broken, "working": lambda today, now: [draft]}
     )
+
+
+@pytest.fixture
+def received(monkeypatch):
+    """Un evaluador que solo anota con qué día y qué hora lo llamaron."""
+    calls = []
+
+    def recording(today, now):
+        calls.append((today, now))
+        return []
+
+    monkeypatch.setattr(alerts, "_evaluators", {"recording": recording})
+    return calls
+
+
+def test_each_evaluator_receives_the_day_and_the_time(received):
+    evaluate_alerts(TODAY, NOW)
+
+    assert received == [(TODAY, NOW)]
 
 
 def test_a_failing_evaluator_does_not_stop_the_others(failing_evaluator):
@@ -182,6 +202,31 @@ def test_the_command_evaluates_the_given_day(capsys):
     assert "activities: 1" in output
     assert "Luis" not in output
     assert activity.assignee.email not in output
+
+
+@pytest.fixture
+def frozen_now(monkeypatch):
+    # 20:30 UTC son las 15:30 en Bogotá.
+    instant = datetime(2026, 10, 20, 20, 30, tzinfo=UTC)
+    monkeypatch.setattr(timezone, "now", lambda: instant)
+    return instant
+
+
+def test_the_command_passes_the_current_time(received, frozen_now):
+    call_command("evaluate_alerts")
+
+    assert received == [(date(2026, 10, 20), frozen_now)]
+
+
+def test_with_a_given_day_the_time_is_that_day_at_the_current_bogota_hour(received, frozen_now):
+    # Las alertas que cuentan horas ven el día pedido como si fuera la hora de ahora.
+    call_command("evaluate_alerts", "--today", "2026-10-16")
+
+    ((today, now),) = received
+    assert today == date(2026, 10, 16)
+    assert timezone.localtime(now) == datetime(
+        2026, 10, 16, 15, 30, tzinfo=timezone.get_current_timezone()
+    )
 
 
 def test_the_command_rejects_a_malformed_date():

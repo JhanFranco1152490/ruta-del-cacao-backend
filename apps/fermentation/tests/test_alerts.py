@@ -311,3 +311,26 @@ def test_correcting_a_turn_withdraws_what_it_no_longer_is(
     assert response.status_code == 200, response.data
     assert response.data["alerts"] == []
     assert not Notification.objects.filter(kind="fermentation_temperature_high").exists()
+
+
+def test_a_failure_while_correcting_withdraws_nothing(
+    auth_client, started, monkeypatch, django_capture_on_commit_callbacks
+):
+    # Si no se pueden calcular los desvíos, no se sabe cuáles ya no cumple: no se retira ninguno.
+    client = auth_client(started.foreman)
+    with django_capture_on_commit_callbacks(execute=True):
+        logged = register(client, started, turn_body(started, 50, temperature="53.0")).data
+
+    def broken(producer_id):
+        raise ValueError("falla")
+
+    monkeypatch.setattr(fermentation_alerts, "fermentation_parameters", broken)
+    with django_capture_on_commit_callbacks(execute=True):
+        response = client.patch(
+            f"/api/fermentation/{started.lot.pk}/turns/{logged['id']}",
+            {"notes": "Corregido.", "expected_version": logged["version"]},
+            format="json",
+        )
+
+    assert response.status_code == 200, response.data
+    assert Notification.objects.filter(kind="fermentation_temperature_high").exists()

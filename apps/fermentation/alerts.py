@@ -87,6 +87,11 @@ def measurement_deviations(
 def turn_deviations(turn: FermentationTurn) -> list[Deviation]:
     """Los desvíos de un volteo guardado. Un fallo al calcularlos no impide guardarlo: queda
     registrado y el volteo sale sin desvíos."""
+    return _evaluated(turn) or []
+
+
+def _evaluated(turn: FermentationTurn) -> list[Deviation] | None:
+    """Los desvíos, o `None` si no se pudieron calcular: no es lo mismo que no tener ninguno."""
     try:
         process = turn.process
         parameters = fermentation_parameters(process.lot.harvest.plot.farm.producer_id)
@@ -95,12 +100,17 @@ def turn_deviations(turn: FermentationTurn) -> list[Deviation]:
         )
     except Exception as exc:
         log_unhandled_error(exc, where="los desvíos de un volteo")
-        return []
+        return None
 
 
 def stale_deviation_kinds(turn: FermentationTurn) -> list[str]:
-    """Los desvíos que el volteo ya no cumple, para retirar su aviso al corregirlo."""
-    current = {deviation.kind for deviation in turn_deviations(turn)}
+    """Los desvíos que el volteo ya no cumple, para retirar su aviso al corregirlo. Si no se
+    pudieron calcular, ninguno: retirarlos todos borraría avisos que pueden seguir siendo ciertos.
+    """
+    deviations = _evaluated(turn)
+    if deviations is None:
+        return []
+    current = {deviation.kind for deviation in deviations}
     return [kind for kind in DEVIATION_KINDS if kind not in current]
 
 

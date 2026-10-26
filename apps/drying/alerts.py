@@ -70,6 +70,11 @@ def moisture_deviations(
 def log_deviations(entry: DryingLogEntry) -> list[Deviation]:
     """Los desvíos de una bitácora guardada. Un fallo al calcularlos no impide guardarla: queda
     registrado y la bitácora sale sin desvíos."""
+    return _evaluated(entry) or []
+
+
+def _evaluated(entry: DryingLogEntry) -> list[Deviation] | None:
+    """Los desvíos, o `None` si no se pudieron calcular: no es lo mismo que no tener ninguno."""
     try:
         process = entry.process
         parameters = drying_parameters(process.lot.harvest.plot.farm.producer_id)
@@ -78,7 +83,7 @@ def log_deviations(entry: DryingLogEntry) -> list[Deviation]:
         )
     except Exception as exc:
         log_unhandled_error(exc, where="los desvíos de una bitácora de secado")
-        return []
+        return None
 
 
 def _drop(entry: DryingLogEntry, parameters: DryingParameters) -> Decimal | None:
@@ -98,8 +103,13 @@ def _drop(entry: DryingLogEntry, parameters: DryingParameters) -> Decimal | None
 
 
 def stale_deviation_kinds(entry: DryingLogEntry) -> list[str]:
-    """Los desvíos que la bitácora ya no cumple, para retirar su aviso al corregirla."""
-    current = {deviation.kind for deviation in log_deviations(entry)}
+    """Los desvíos que la bitácora ya no cumple, para retirar su aviso al corregirla. Si no se
+    pudieron calcular, ninguno: retirarlos todos borraría avisos que pueden seguir siendo ciertos.
+    """
+    deviations = _evaluated(entry)
+    if deviations is None:
+        return []
+    current = {deviation.kind for deviation in deviations}
     return [kind for kind in DEVIATION_KINDS if kind not in current]
 
 

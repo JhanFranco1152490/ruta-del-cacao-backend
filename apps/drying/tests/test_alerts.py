@@ -339,3 +339,26 @@ def test_correcting_into_another_deviation_tells_it(
 
     assert [alert["kind"] for alert in response.data["alerts"]] == ["drying_near_target"]
     assert set(Notification.objects.values_list("kind", flat=True)) == {"drying_near_target"}
+
+
+def test_a_failure_while_correcting_withdraws_nothing(
+    auth_client, started, monkeypatch, django_capture_on_commit_callbacks
+):
+    # Si no se pueden calcular los desvíos, no se sabe cuáles ya no cumple: no se retira ninguno.
+    client = auth_client(started.foreman)
+    with django_capture_on_commit_callbacks(execute=True):
+        logged = register(client, started, log_body(started, 4, "5.8")).data
+
+    def broken(producer_id):
+        raise ValueError("falla")
+
+    monkeypatch.setattr(drying_alerts, "drying_parameters", broken)
+    with django_capture_on_commit_callbacks(execute=True):
+        response = client.patch(
+            f"/api/drying/{started.lot.pk}/logs/{logged['id']}",
+            {"sun_hours": "4.0", "expected_version": logged["version"]},
+            format="json",
+        )
+
+    assert response.status_code == 200, response.data
+    assert Notification.objects.filter(kind="drying_overdried").exists()

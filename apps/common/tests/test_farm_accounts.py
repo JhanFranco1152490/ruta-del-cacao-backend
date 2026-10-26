@@ -112,6 +112,19 @@ def test_no_producers_need_no_queries(django_assert_num_queries):
         assert FarmAccounts(set(), TURNS).on_farm(1, 1) == set()
 
 
+def test_the_responsible_is_added_once_and_only_while_active(producer, farm):
+    foreman = grant_role(UserFactory(producer=producer, farm=farm), get_system_role(FOREMAN))
+    outsider = UserFactory(producer=producer)
+    accounts = FarmAccounts({producer.pk}, TURNS)
+
+    # El capataz ya está por su rol: no se cuenta dos veces.
+    assert accounts.on_farm_with(producer.pk, farm.pk, foreman) == {foreman.pk}
+    # Quien responde por la etapa recibe aunque no tenga el permiso en la finca.
+    assert accounts.on_farm_with(producer.pk, farm.pk, outsider) == {foreman.pk, outsider.pk}
+    outsider.is_active = False
+    assert accounts.on_farm_with(producer.pk, farm.pk, outsider) == {foreman.pk}
+
+
 def test_schedulers_are_the_accounts_that_can_schedule(producer, farm):
     scheduler = make_delegate(producer, ["activities.add_agriculturalactivity"], farm=farm)
     make_delegate(producer, [TURNS], farm=farm)

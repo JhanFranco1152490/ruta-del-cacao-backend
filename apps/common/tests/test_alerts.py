@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -48,6 +48,40 @@ def test_an_evaluator_only_computes(empty_registry):
     (drafts,) = [list(fn(date(2026, 10, 16))) for fn in alerts.evaluators().values()]
 
     assert drafts == [draft(condition_date=date(2026, 10, 16))]
+
+
+def test_deviation_drafts_give_one_per_deviation_and_person():
+    at = datetime(2026, 10, 27, 15, 30, tzinfo=UTC)
+    deviations = [
+        alerts.Deviation("drying_accelerated", "normal", "5.8", "15.0"),
+        alerts.Deviation("drying_overdried", "critical", "5.8", "6.0"),
+    ]
+
+    drafts = alerts.deviation_drafts(
+        deviations, {2, 1}, lot_id="lot-1", condition_at=at, drying_log_id="log-1"
+    )
+
+    assert [(d.recipient_id, d.kind) for d in drafts] == [
+        (1, "drying_accelerated"),
+        (2, "drying_accelerated"),
+        (1, "drying_overdried"),
+        (2, "drying_overdried"),
+    ]
+    overdried = drafts[-1]
+    assert overdried.severity == "critical"
+    assert overdried.condition_key == "log-1:drying_overdried"
+    # Cada desvío en su hilo: uno no oculta a otro.
+    assert overdried.thread_key == "lot:lot-1:drying_overdried"
+    assert (overdried.lot_id, overdried.drying_log_id) == ("lot-1", "log-1")
+    assert overdried.fermentation_turn_id is None
+    assert overdried.condition_at == at
+
+
+def test_deviation_drafts_name_exactly_one_record():
+    deviation = alerts.Deviation("drying_overdried", "critical", "5.8", "6.0")
+
+    with pytest.raises(ValueError):
+        alerts.deviation_drafts([deviation], {1}, lot_id="l", condition_at=None)
 
 
 @pytest.fixture

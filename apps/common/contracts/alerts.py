@@ -51,6 +51,39 @@ class Deviation:
     limit: str
 
 
+def deviation_drafts(
+    deviations: Iterable[Deviation],
+    recipient_ids: Iterable,
+    *,
+    lot_id,
+    condition_at: datetime | None,
+    fermentation_turn_id=None,
+    drying_log_id=None,
+) -> list[NotificationDraft]:
+    """Un aviso por desvío y por persona, del volteo o de la bitácora que lo midió."""
+    record = fermentation_turn_id if fermentation_turn_id is not None else drying_log_id
+    if (fermentation_turn_id is None) == (drying_log_id is None):
+        raise ValueError("Un desvío es de un solo registro.")
+    return [
+        NotificationDraft(
+            recipient_id=recipient_id,
+            kind=deviation.kind,
+            severity=deviation.severity,
+            # Guardar dos veces el mismo registro (un reenvío de la cola) no repite el aviso.
+            condition_key=f"{record}:{deviation.kind}",
+            # Cada desvío en su hilo: el de hoy reemplaza al de ayer del mismo lote, pero un
+            # secado lento no oculta un sobresecado.
+            thread_key=f"lot:{lot_id}:{deviation.kind}",
+            lot_id=lot_id,
+            fermentation_turn_id=fermentation_turn_id,
+            drying_log_id=drying_log_id,
+            condition_at=condition_at,
+        )
+        for deviation in deviations
+        for recipient_id in sorted(recipient_ids, key=str)
+    ]
+
+
 # El día cuenta para lo que se mide en fechas (una actividad) y la hora para lo que se mide en
 # horas (un volteo); cada evaluador usa lo que necesita.
 Evaluator = Callable[[date, datetime], Iterable[NotificationDraft]]

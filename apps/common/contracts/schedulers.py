@@ -50,6 +50,14 @@ class FarmAccounts:
             if farm_ids is None or farm_id in farm_ids
         }
 
+    def on_farm_with(self, producer_id, farm_id, responsible) -> set:
+        """Las de la finca y quien responde por la etapa, si su cuenta está activa: es quien tiene
+        que hacer lo que falta, tenga o no el permiso."""
+        accounts = self.on_farm(producer_id, farm_id)
+        if responsible is not None and responsible.is_active:
+            accounts.add(responsible.pk)
+        return accounts
+
 
 class Schedulers(FarmAccounts):
     """Las cuentas que pueden programar labores en cada finca."""

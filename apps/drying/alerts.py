@@ -9,7 +9,7 @@ ya guardada, y manda lo que devuelve a notificar. Los umbrales son los del produ
 from datetime import timedelta
 from decimal import Decimal
 
-from apps.common.contracts.alerts import Deviation, NotificationDraft
+from apps.common.contracts.alerts import Deviation, NotificationDraft, deviation_drafts
 from apps.common.contracts.postharvest_parameters import DryingParameters, drying_parameters
 from apps.common.contracts.schedulers import FarmAccounts
 from apps.common.exceptions import log_unhandled_error
@@ -99,26 +99,14 @@ def drying_log_alerts(entry: DryingLogEntry) -> list[NotificationDraft]:
     if not deviations:
         return []
     process = entry.process
-    lot = process.lot
-    farm = lot.harvest.plot.farm
-    recipients = FarmAccounts({farm.producer_id}, LOG_PERMISSION).on_farm(
-        farm.producer_id, farm.pk
+    farm = process.lot.harvest.plot.farm
+    recipients = FarmAccounts({farm.producer_id}, LOG_PERMISSION).on_farm_with(
+        farm.producer_id, farm.pk, process.responsible
     )
-    if process.responsible.is_active:
-        recipients.add(process.responsible_id)
-    return [
-        NotificationDraft(
-            recipient_id=recipient_id,
-            kind=deviation.kind,
-            severity=deviation.severity,
-            condition_key=f"{entry.pk}:{deviation.kind}",
-            # Cada desvío en su hilo: el de hoy reemplaza al de ayer del mismo lote, pero un
-            # secado lento no oculta un sobresecado.
-            thread_key=f"lot:{lot.pk}:{deviation.kind}",
-            lot_id=lot.pk,
-            drying_log_id=entry.pk,
-            condition_at=entry.measured_at,
-        )
-        for deviation in deviations
-        for recipient_id in sorted(recipients, key=str)
-    ]
+    return deviation_drafts(
+        deviations,
+        recipients,
+        lot_id=process.lot_id,
+        condition_at=entry.measured_at,
+        drying_log_id=entry.pk,
+    )

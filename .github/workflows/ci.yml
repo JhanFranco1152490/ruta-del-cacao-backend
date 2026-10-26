@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [dev, main]
+    paths-ignore: ["**.md"]
+  push:
+    branches: [dev, main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+# Un push nuevo a un PR cancela la corrida anterior de ese mismo PR. En dev y main no se
+# cancela: cada integración conserva su resultado.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    # Un PR en borrador no gasta minutos hasta que se marca como listo.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cacao
+          POSTGRES_PASSWORD: cacao
+          POSTGRES_DB: rutadelcacao
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cacao"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_NAME: rutadelcacao
+      DB_USER: cacao
+      DB_PASSWORD: cacao
+      DB_HOST: localhost
+      DB_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Lint y formato
+        run: |
+          ruff check .
+          black --check .
+          pre-commit run no-question-mark-for-accents --all-files
+
+      - name: Chequeos de Django
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py spectacular --validate --fail-on-warn --file "$RUNNER_TEMP/schema.yml"
+
+      - name: Pruebas
+        run: pytest --cov -q

@@ -15,6 +15,13 @@ def _clear_cache():
 
 
 @pytest.fixture(autouse=True)
+def _fast_password_hasher(settings):
+    # El hasher de producción es deliberadamente lento (cientos de miles de iteraciones) y cada
+    # usuario de prueba lo paga al crearse y al iniciar sesión. En las pruebas no protege nada.
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+
+@pytest.fixture(autouse=True)
 def _files_in_memory(settings):
     # Los archivos subidos en las pruebas quedan en memoria y no en la base ni en el disco. Las
     # pruebas del almacenamiento en la base lo instancian directamente.

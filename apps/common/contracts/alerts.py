@@ -40,6 +40,17 @@ class NotificationDraft:
     condition_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class Deviation:
+    """Una medición fuera de los parámetros, como la ve quien acaba de registrarla: qué desvío es,
+    el valor que se comparó y el límite que cruzó (`"7.6-8.5"` en un rango)."""
+
+    kind: str
+    severity: str
+    value: str
+    limit: str
+
+
 # El día cuenta para lo que se mide en fechas (una actividad) y la hora para lo que se mide en
 # horas (un volteo); cada evaluador usa lo que necesita.
 Evaluator = Callable[[date, datetime], Iterable[NotificationDraft]]

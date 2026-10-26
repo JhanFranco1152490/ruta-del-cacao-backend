@@ -2,7 +2,11 @@
 
 from rest_framework import serializers
 
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    DeviationSerializer,
+    RejectUnknownFieldsMixin,
+)
 
 from .models import (
     MAX_DAY_HOURS,
@@ -84,6 +88,12 @@ class DryingLogUpdateSerializer(RejectUnknownFieldsMixin, DryingLogContentMixin)
         if len(attrs) == 1:
             raise serializers.ValidationError("Debe enviar al menos un campo para actualizar.")
         return attrs
+
+
+class DryingLogSavedSerializer(DryingLogSerializer):
+    # Los desvíos de la bitácora recién guardada, para que quien la registró los vea en el
+    # momento y no solo en la bandeja.
+    alerts = DeviationSerializer(many=True)
 
 
 class DryingLogDeleteSerializer(serializers.Serializer):

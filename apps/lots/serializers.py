@@ -4,7 +4,7 @@ from apps.common.contracts.harvest_representation import (
     HarvestRecorderSerializer,
     HarvestRepresentationSerializer,
 )
-from apps.common.contracts.lot_details import lot_detail_fields
+from apps.common.contracts.lot_details import lot_detail_fields, lot_detail_prefetch
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
 from .choices import LotStatus
@@ -43,6 +43,28 @@ class LotSerializer(serializers.Serializer):
     def get_created_by(self, lot) -> HarvestRecorderSerializer(allow_null=True):
         account = lot.created_by
         return None if account is None else {"id": account.pk, "full_name": full_name(account)}
+
+
+class LotFarmSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class LotBriefSerializer(serializers.Serializer):
+    # Un lote nombrado desde otra app (un aviso): su código, su estado, su finca y la etapa en que
+    # está, sin su cosecha completa.
+    id = serializers.UUIDField()
+    code = serializers.CharField()
+    status = serializers.ChoiceField(choices=LotStatus.choices)
+    farm = LotFarmSerializer(source="harvest.plot.farm")
+
+    def get_fields(self):
+        # Como en `LotSerializer`: la fermentación y el secado, con su cajón o su marquesina.
+        return {**super().get_fields(), **lot_detail_fields()}
+
+
+def lot_brief_prefetch() -> list[str]:
+    return ["harvest__plot__farm", *lot_detail_prefetch()]
 
 
 class LotCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):

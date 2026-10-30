@@ -2,16 +2,19 @@
 
 Registrar llega desde la cola del dispositivo, también sin conexión: el `id` lo genera el
 dispositivo, y reenviar el mismo volteo devuelve el que ya existe. Corregir y eliminar se hacen en
-línea.
+línea. Registrar y corregir evalúan los desvíos con el volteo ya guardado; corregir además retira
+los avisos de los desvíos que ya no cumple.
 """
 
 from django.db import transaction
 from django.utils import timezone
 
 from apps.common.audit import field_changes
+from apps.common.contracts.alerts import notify, resolve, withdraw
 from apps.common.db import save_translating_unique
 from apps.common.versioning import check_expected_version, save_next_version
 
+from ..alerts import PENDING_KINDS, stale_deviation_kinds, turn_alerts
 from ..exceptions import (
     DuplicateTurnTime,
     FermentationNotInProgress,
@@ -55,6 +58,10 @@ def record_turn(actor, lot_id, data: dict) -> tuple[FermentationTurn, bool]:
     if existing is not None:
         return _resent(existing, process, sent), False
     _record(turn, actor, FermentationProcessAuditEvent.Action.TURN_CREATED, {}, turn_values(turn))
+    # Llegó un volteo: lo que estaba pendiente deja de pedir atención. Si era viejo (llegó tarde
+    # desde la cola), la siguiente evaluación avisa el que sigue.
+    resolve(process.lot_id, PENDING_KINDS)
+    notify(turn_alerts(turn))
     return turn, True
 
 
@@ -83,6 +90,10 @@ def update_turn(actor, lot_id, turn_id, expected_version: int, changes: dict) ->
         duplicate=lambda: _duplicate_time(process, turn.turned_at),
     )
     _record(turn, actor, FermentationProcessAuditEvent.Action.TURN_UPDATED, before, after)
+    # Un dato mal tecleado que se corrige no deja una alarma falsa: lo que ya no cumple se retira.
+    if stale := stale_deviation_kinds(turn):
+        withdraw(stale, fermentation_turn_id=turn.pk)
+    notify(turn_alerts(turn))
     return turn
 
 

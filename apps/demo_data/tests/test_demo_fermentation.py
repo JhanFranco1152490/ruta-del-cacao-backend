@@ -31,7 +31,10 @@ def demo_lots(status):
 
 def test_the_seed_leaves_a_lot_to_start_one_fermenting_and_one_fermented(seeded):
     ready = demo_lots(LotStatus.GENERATED)
-    running = FermentationProcess.objects.get(lot__status=LotStatus.FERMENTING)
+    # El de C-02: los de C-03 y C-04 muestran los avisos de poscosecha.
+    running = FermentationProcess.objects.get(
+        lot__status=LotStatus.FERMENTING, facility__name="C-02"
+    )
     done = FermentationProcess.objects.get(lot__status=LotStatus.FERMENTED)
 
     assert ready.exists()

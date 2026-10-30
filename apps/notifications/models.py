@@ -3,12 +3,20 @@ import uuid
 from django.db import models
 from django.db.models import Q
 
-from .choices import ACTIVITY_KINDS, NotificationKind, NotificationSeverity
+from .choices import (
+    ACTIVITY_KINDS,
+    DRYING_DEVIATION_KINDS,
+    FERMENTATION_DEVIATION_KINDS,
+    LOT_KINDS,
+    NotificationKind,
+    NotificationSeverity,
+)
 
 
 class Notification(models.Model):
     """El aviso que recibe una persona por una condición: una actividad próxima, retrasada o
-    vencida. Si la condición le toca a tres personas, son tres avisos, y cada una lo lee o lo
+    vencida, un control pendiente, o un lote con un registro pendiente o una medición fuera de los
+    parámetros. Si la condición le toca a tres personas, son tres avisos, y cada una lo lee o lo
     elimina por su cuenta."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -41,8 +49,34 @@ class Notification(models.Model):
         blank=True,
         related_name="+",
     )
+    # El lote de un aviso de poscosecha.
+    lot = models.ForeignKey(
+        "lots.Lot", on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+    # El volteo o la bitácora que midió fuera de los parámetros. Si se elimina, su aviso también:
+    # ya no hay medición de la que avisar.
+    fermentation_turn = models.ForeignKey(
+        "fermentation.FermentationTurn",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    drying_log = models.ForeignKey(
+        "drying.DryingLogEntry",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     # La fecha programada que tenía la actividad al avisar: si ya no es la misma, se reprogramó.
     condition_date = models.DateField(null=True, blank=True)
+    # La hora a la que se refiere un aviso de lote: cuándo tocaba el registro que falta, o cuándo
+    # se midió el desvío. Un registro que llega tarde desde el teléfono avisa con su hora.
+    condition_at = models.DateTimeField(null=True, blank=True)
+    # Cuándo llegó el registro que faltaba o el lote terminó la etapa. El aviso sigue en la
+    # bandeja, pero ya no pide atención.
+    resolved_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
     # Eliminada de la bandeja. La fila se queda: es lo que impide que la siguiente evaluación,
@@ -65,6 +99,19 @@ class Notification(models.Model):
                 condition=~Q(kind=NotificationKind.DETECTION_CONTROL_PENDING)
                 | Q(activity__isnull=False, detection__isnull=False),
                 name="notifications_control_pending_has_detection",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind__in=LOT_KINDS) | Q(lot__isnull=False),
+                name="notifications_lot_kinds_have_lot",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind__in=FERMENTATION_DEVIATION_KINDS)
+                | Q(fermentation_turn__isnull=False),
+                name="notifications_fermentation_deviations_have_turn",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind__in=DRYING_DEVIATION_KINDS) | Q(drying_log__isnull=False),
+                name="notifications_drying_deviations_have_log",
             ),
         ]
         indexes = [

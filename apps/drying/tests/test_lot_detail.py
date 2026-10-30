@@ -43,6 +43,7 @@ def test_a_lot_in_drying_shows_its_start_and_nothing_of_the_result(auth_client, 
     assert detail["drying"] == {
         "started_at": timezone.localtime(process.started_at).isoformat(),
         "ended_at": None,
+        "facility": process.facility.name,
         "final_moisture_pct": None,
         "dry_weight_kg": None,
         "yield_pct": None,
@@ -74,12 +75,17 @@ def test_a_dried_lot_shows_its_dry_weight_and_yield(auth_client, estate):
 
 
 def test_the_lot_list_shows_the_drying_without_more_queries(auth_client, estate):
+    def drying_on(day):
+        harvest = HarvestFactory(plot=estate.plot_a, harvest_date=date(2026, 9, day))
+        drying_of(LotFactory(harvest=harvest, status=LotStatus.DRYING))
+
+    # Con uno ya: la marquesina se precarga en una consulta que sin ningún secado no hace falta.
+    drying_on(1)
     client = auth_client(estate.owner)
     with CaptureQueriesContext(connection) as few:
         client.get("/api/lots")
-    for day in range(1, 6):
-        harvest = HarvestFactory(plot=estate.plot_a, harvest_date=date(2026, 9, day))
-        drying_of(LotFactory(harvest=harvest, status=LotStatus.DRYING))
+    for day in range(2, 6):
+        drying_on(day)
 
     with CaptureQueriesContext(connection) as many:
         response = client.get("/api/lots", {"page_size": 100})

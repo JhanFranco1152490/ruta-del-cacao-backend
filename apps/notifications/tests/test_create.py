@@ -9,6 +9,9 @@ from apps.accounts.tests.factories import UserFactory
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.common.contracts import alerts
 from apps.common.contracts.alerts import NotificationDraft
+from apps.drying.tests.factories import DryingLogEntryFactory
+from apps.fermentation.tests.factories import FermentationTurnFactory
+from apps.lots.tests.factories import LotFactory
 from apps.notifications.models import Notification
 from apps.notifications.services.create import create_notifications
 from apps.notifications.tests.factories import NotificationFactory
@@ -189,5 +192,182 @@ def test_hiding_keeps_when_it_was_read():
     assert Notification.objects.get(condition_key="day-2").read_at == read_at
 
 
+# Los avisos de un lote.
+
+
+def lot_draft(lot, recipient, kind, key, **fields):
+    return NotificationDraft(
+        recipient_id=recipient.pk,
+        kind=kind,
+        condition_key=key,
+        thread_key=f"lot:{lot.pk}",
+        lot_id=lot.pk,
+        **fields,
+    )
+
+
+def test_a_lot_draft_keeps_its_lot_and_its_condition_time():
+    lot = LotFactory()
+    recipient = UserFactory()
+    due_at = timezone.now()
+
+    create_notifications(
+        [lot_draft(lot, recipient, "fermentation_turn_due", "t:2", condition_at=due_at)]
+    )
+
+    notification = Notification.objects.get()
+    assert notification.lot == lot
+    assert notification.activity is None
+    assert notification.condition_at == due_at
+
+
+def test_a_lot_moment_draft_keeps_its_record():
+    turn = FermentationTurnFactory()
+    entry = DryingLogEntryFactory()
+    recipient = UserFactory()
+
+    create_notifications(
+        [
+            lot_draft(
+                turn.process.lot,
+                recipient,
+                "fermentation_ph_low",
+                f"{turn.pk}:fermentation_ph_low",
+                fermentation_turn_id=turn.pk,
+            ),
+            lot_draft(
+                entry.process.lot,
+                recipient,
+                "drying_overdried",
+                f"{entry.pk}:drying_overdried",
+                drying_log_id=entry.pk,
+                severity="critical",
+            ),
+        ]
+    )
+
+    assert Notification.objects.get(kind="fermentation_ph_low").fermentation_turn == turn
+    overdried = Notification.objects.get(kind="drying_overdried")
+    assert overdried.drying_log == entry
+    assert overdried.severity == "critical"
+
+
+def test_the_pending_turn_replaces_the_reminder_of_the_same_lot():
+    lot = LotFactory()
+    responsible = UserFactory()
+    create_notifications(
+        [lot_draft(lot, responsible, "fermentation_first_turn_due", f"{lot.pk}:first_turn")]
+    )
+
+    create_notifications(
+        [lot_draft(lot, responsible, "fermentation_turn_due", f"{lot.pk}:turn:1")]
+    )
+
+    reminder = Notification.objects.get(kind="fermentation_first_turn_due")
+    assert reminder.dismissed_at is not None
+    assert Notification.objects.get(kind="fermentation_turn_due").dismissed_at is None
+
+
+def hours_ago(hours):
+    return timezone.now() - timedelta(hours=hours)
+
+
+def lot_moment_draft(lot, recipient, key, condition_at):
+    return lot_draft(lot, recipient, "fermentation_turn_due", key, condition_at=condition_at)
+
+
+def test_a_newer_measurement_replaces_the_older_one_of_its_thread():
+    lot = LotFactory()
+    recipient = UserFactory()
+    create_notifications([lot_moment_draft(lot, recipient, "old", hours_ago(30))])
+
+    create_notifications([lot_moment_draft(lot, recipient, "new", hours_ago(6))])
+
+    assert Notification.objects.get(condition_key="old").dismissed_at is not None
+    assert Notification.objects.get(condition_key="new").dismissed_at is None
+
+
+def test_an_older_measurement_arriving_late_does_not_replace_the_newer_one():
+    lot = LotFactory()
+    recipient = UserFactory()
+    create_notifications([lot_moment_draft(lot, recipient, "new", hours_ago(6))])
+
+    created = create_notifications([lot_moment_draft(lot, recipient, "late", hours_ago(30))])
+
+    assert created == 1
+    assert Notification.objects.get(condition_key="new").dismissed_at is None
+    late = Notification.objects.get(condition_key="late")
+    assert late.dismissed_at is not None
+    assert late.read_at is not None
+
+
+def test_a_late_one_is_not_created_again_by_the_next_evaluation():
+    lot = LotFactory()
+    recipient = UserFactory()
+    create_notifications([lot_moment_draft(lot, recipient, "new", hours_ago(6))])
+    late = [lot_moment_draft(lot, recipient, "late", hours_ago(30))]
+    create_notifications(late)
+
+    assert create_notifications(late) == 0
+
+
+def test_two_new_ones_of_a_thread_in_one_batch_both_stay():
+    lot = LotFactory()
+    recipient = UserFactory()
+
+    create_notifications(
+        [
+            lot_moment_draft(lot, recipient, "first", hours_ago(30)),
+            lot_moment_draft(lot, recipient, "second", hours_ago(6)),
+        ]
+    )
+
+    assert Notification.objects.filter(dismissed_at__isnull=True).count() == 2
+
+
+def test_the_same_moment_replaces_the_previous_one():
+    lot = LotFactory()
+    recipient = UserFactory()
+    moment = hours_ago(6)
+    create_notifications([lot_moment_draft(lot, recipient, "first", moment)])
+
+    create_notifications([lot_moment_draft(lot, recipient, "second", moment)])
+
+    assert Notification.objects.get(condition_key="first").dismissed_at is not None
+    assert Notification.objects.get(condition_key="second").dismissed_at is None
+
+
+def test_the_order_is_per_person():
+    lot = LotFactory()
+    first, second = UserFactory(), UserFactory()
+    create_notifications([lot_moment_draft(lot, first, "new", hours_ago(6))])
+
+    create_notifications([lot_moment_draft(lot, second, "late", hours_ago(30))])
+
+    assert Notification.objects.get(recipient=second).dismissed_at is None
+
+
+def test_hiding_the_late_ones_goes_in_bounded_statements(monkeypatch):
+    monkeypatch.setattr("apps.notifications.services.create.CHUNK_SIZE", 2, raising=False)
+    recipient = UserFactory()
+    lots = [LotFactory() for _ in range(5)]
+    create_notifications(
+        [lot_moment_draft(lot, recipient, f"new:{lot.pk}", hours_ago(6)) for lot in lots]
+    )
+
+    with CaptureQueriesContext(connection) as captured:
+        create_notifications(
+            [lot_moment_draft(lot, recipient, f"late:{lot.pk}", hours_ago(30)) for lot in lots]
+        )
+
+    assert (
+        Notification.objects.filter(
+            condition_key__startswith="late:", dismissed_at__isnull=False
+        ).count()
+        == 5
+    )
+    assert len(statements(captured, "UPDATE")) == 3
+
+
 def test_notifications_registers_itself_as_the_sink():
-    assert alerts._sink is create_notifications
+    assert alerts._sink.create is create_notifications

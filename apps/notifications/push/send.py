@@ -49,7 +49,9 @@ def push_enabled() -> bool:
     )
 
 
-def send_pending_pushes(now) -> SendResult:
+def send_pending_pushes(now, notification_ids=None) -> SendResult:
+    """Envía las push pendientes. Con `notification_ids`, solo las de esos avisos: un sobresecado
+    sale al crearse sin adelantar las de los demás, que esperan a la evaluación siguiente."""
     result = SendResult()
     if not push_enabled():
         return result
@@ -58,7 +60,7 @@ def send_pending_pushes(now) -> SendResult:
     if not PUSH_START_HOUR <= timezone.localtime(now).hour < PUSH_END_HOUR:
         return result
 
-    claimed = claim_pending(now)
+    claimed = claim_pending(now, notification_ids)
     by_recipient: dict = {}
     for notification in claimed:
         by_recipient.setdefault(notification.recipient_id, []).append(notification)
@@ -81,14 +83,17 @@ def send_pending_pushes(now) -> SendResult:
     return result
 
 
-def claim_pending(now) -> list[Notification]:
+def claim_pending(now, notification_ids=None) -> list[Notification]:
     """Toma los avisos por enviar y los marca enviados en la misma transacción. Las filas que
     otra evaluación ya está tomando se saltan: dos evaluaciones a la vez no mandan dos veces la
     misma push. Solo se toman los que la persona ve hoy en su bandeja: una push con el código de
     la parcela y la finca no debe llegar a quien ya no alcanza esa finca."""
+    notifications = Notification.objects.all()
+    if notification_ids is not None:
+        notifications = notifications.filter(pk__in=notification_ids)
     with transaction.atomic():
         candidates = list(
-            Notification.objects.select_for_update(skip_locked=True, of=("self",))
+            notifications.select_for_update(skip_locked=True, of=("self",))
             .select_related("recipient")
             .filter(
                 Exists(PushSubscription.objects.filter(user_id=OuterRef("recipient_id"))),
@@ -103,7 +108,11 @@ def claim_pending(now) -> list[Notification]:
         Notification.objects.filter(pk__in=ids).update(pushed_at=now)
     return list(
         Notification.objects.filter(pk__in=ids).select_related(
-            "activity__plot__farm", "detection__pest_disease"
+            "activity__plot__farm",
+            "detection__pest_disease",
+            "lot__harvest__plot__farm",
+            "fermentation_turn",
+            "drying_log",
         )
     )
 

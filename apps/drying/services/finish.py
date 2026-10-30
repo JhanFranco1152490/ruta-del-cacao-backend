@@ -4,8 +4,10 @@ from django.db import transaction
 from django.db.models import Max, Sum
 from django.utils import timezone
 
+from apps.common.contracts.alerts import resolve
 from apps.common.versioning import check_expected_version, save_next_version
 
+from ..alerts import LOG_DUE
 from ..exceptions import (
     DryingNotInProgress,
     DryingWithoutLogs,
@@ -52,6 +54,8 @@ def finish_drying(actor, lot_id, expected_version: int, data: dict) -> DryingPro
         before=before,
         after=_result_values(process),
     )
+    # Terminado el secado, ninguna bitácora queda pendiente.
+    resolve(lot.pk, [LOG_DUE])
     return process
 
 

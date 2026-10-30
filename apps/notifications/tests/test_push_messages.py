@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -150,3 +151,114 @@ def test_no_name_ever_reaches_the_phone():
     result = message([notification("activity_overdue", named)], recipient_id=FOREMAN)
 
     assert "Luis" not in str(result)
+
+
+# Los avisos de un lote.
+
+LOT_CODE = "000123-F02-P05-261014-1"
+
+
+def lot_notification(kind, pk="n9", **fields):
+    lot = SimpleNamespace(
+        pk="l1",
+        code=LOT_CODE,
+        harvest=SimpleNamespace(plot=SimpleNamespace(farm=SimpleNamespace(name="La Esperanza"))),
+    )
+    return SimpleNamespace(
+        pk=pk,
+        kind=kind,
+        activity=None,
+        lot=lot,
+        fermentation_turn=fields.pop("turn", None),
+        drying_log=fields.pop("log", None),
+        condition_at=fields.pop("condition_at", None),
+        thread_key=f"lot:l1:{kind}",
+        **fields,
+    )
+
+
+def test_a_lot_notification_opens_the_lot_and_marks_itself_read():
+    result = message([lot_notification("drying_log_due")])
+
+    assert result["url"] == "/lotes/detalle?id=l1&notificacion=n9"
+    assert result["tag"] == "lot:l1:drying_log_due"
+    assert result["title"] == "Bitácora de secado pendiente"
+    assert result["body"] == f"{LOT_CODE} · La Esperanza · Falta la bitácora del día"
+
+
+def test_a_pending_turn_says_its_hour_in_bogota():
+    # 19:00 UTC son las 14:00 en Bogotá.
+    at = datetime(2026, 10, 16, 19, 0, tzinfo=UTC)
+
+    reminder = message([lot_notification("fermentation_first_turn_due", condition_at=at)])
+    pending = message([lot_notification("fermentation_turn_due", condition_at=at)])
+
+    assert reminder["title"] == "Se acerca el primer volteo"
+    assert reminder["body"] == f"{LOT_CODE} · La Esperanza · A las 14:00"
+    assert pending["title"] == "Volteo pendiente"
+    assert pending["body"] == f"{LOT_CODE} · La Esperanza · Desde las 14:00"
+
+
+@pytest.mark.parametrize(
+    ("kind", "title"),
+    [
+        ("drying_slow_stalled", "Secado lento – riesgo de hongo"),
+        ("drying_slow_duration", "Secado lento – riesgo de hongo"),
+        ("drying_accelerated", "Secado acelerado – riesgo de daño físico"),
+        ("drying_near_target", "Próximo a meta – preparar ensacado"),
+        ("drying_overdried", "Sobresecado"),
+    ],
+)
+def test_a_drying_deviation_says_the_moisture_with_a_decimal_comma(kind, title):
+    log = SimpleNamespace(moisture_pct=Decimal("5.8"))
+
+    result = message([lot_notification(kind, log=log)])
+
+    assert result["title"] == title
+    assert result["body"] == f"{LOT_CODE} · La Esperanza · Humedad 5,8 %"
+
+
+@pytest.mark.parametrize(
+    ("kind", "title", "detail"),
+    [
+        ("fermentation_temperature_low", "Temperatura por debajo del rango", "37,5 °C"),
+        ("fermentation_temperature_high", "Temperatura por encima del rango", "37,5 °C"),
+        ("fermentation_ph_low", "Grano demasiado ácido", "pH 3,90"),
+        ("fermentation_ph_high", "La fermentación no avanza", "pH 3,90"),
+    ],
+)
+def test_a_fermentation_deviation_says_what_was_measured(kind, title, detail):
+    turn = SimpleNamespace(temperature_c=Decimal("37.5"), ph=Decimal("3.90"))
+
+    result = message([lot_notification(kind, turn=turn)])
+
+    assert result["title"] == title
+    assert result["body"] == f"{LOT_CODE} · La Esperanza · {detail}"
+
+
+def test_the_summary_counts_postharvest_records_and_deviations():
+    log = SimpleNamespace(moisture_pct=Decimal("5.8"))
+    result = message(
+        [
+            notification("activity_overdue", pk="n1"),
+            lot_notification("fermentation_turn_due", pk="n2"),
+            lot_notification("drying_log_due", pk="n3"),
+            lot_notification("drying_overdried", pk="n4", log=log),
+        ]
+    )
+
+    assert result["body"] == (
+        "1 actividad vencida, 2 registros de poscosecha pendientes y 1 desvío de poscosecha"
+    )
+
+
+def test_a_single_postharvest_part_reads_well():
+    log = SimpleNamespace(moisture_pct=Decimal("8.1"))
+    result = message(
+        [
+            lot_notification("drying_near_target", pk="n1", log=log),
+            lot_notification("drying_overdried", pk="n2", log=log),
+        ]
+    )
+
+    assert result["body"] == "2 desvíos de poscosecha"

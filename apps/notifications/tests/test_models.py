@@ -2,9 +2,23 @@ import pytest
 from django.db import IntegrityError, transaction
 
 from apps.accounts.tests.factories import UserFactory
-from apps.notifications.choices import NotificationKind, NotificationSeverity
+from apps.drying.tests.factories import DryingLogEntryFactory
+from apps.fermentation.tests.factories import FermentationTurnFactory
+from apps.notifications.choices import (
+    DRYING_DEVIATION_KINDS,
+    FERMENTATION_DEVIATION_KINDS,
+    LOT_KINDS,
+    PENDING_FERMENTATION_KINDS,
+    PENDING_LOT_KINDS,
+    NotificationKind,
+    NotificationSeverity,
+)
 from apps.notifications.models import Notification, PushSubscription
-from apps.notifications.tests.factories import NotificationFactory, PushSubscriptionFactory
+from apps.notifications.tests.factories import (
+    LotNotificationFactory,
+    NotificationFactory,
+    PushSubscriptionFactory,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -101,6 +115,82 @@ def test_deleting_the_account_deletes_its_subscriptions():
     subscription.user.delete()
 
     assert not PushSubscription.objects.filter(pk=subscription.pk).exists()
+
+
+# Los avisos de un lote.
+
+
+def test_a_lot_notification_starts_without_condition_time_and_unresolved():
+    notification = LotNotificationFactory()
+
+    assert notification.activity is None
+    assert notification.condition_at is None
+    assert notification.resolved_at is None
+
+
+@pytest.mark.parametrize("kind", LOT_KINDS)
+def test_a_lot_notification_needs_its_lot(kind):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Notification.objects.create(
+            recipient=UserFactory(), kind=kind, condition_key="x", thread_key="lot:x"
+        )
+
+
+@pytest.mark.parametrize("kind", FERMENTATION_DEVIATION_KINDS)
+def test_a_fermentation_deviation_needs_its_turn(kind):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        LotNotificationFactory(kind=kind)
+
+
+@pytest.mark.parametrize("kind", DRYING_DEVIATION_KINDS)
+def test_a_drying_deviation_needs_its_log(kind):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        LotNotificationFactory(kind=kind)
+
+
+@pytest.mark.parametrize("kind", PENDING_LOT_KINDS)
+def test_a_pending_record_needs_only_its_lot(kind):
+    assert LotNotificationFactory(kind=kind).pk
+
+
+def test_every_postharvest_kind_is_a_lot_kind():
+    assert set(PENDING_LOT_KINDS) | set(FERMENTATION_DEVIATION_KINDS) | set(
+        DRYING_DEVIATION_KINDS
+    ) == set(LOT_KINDS)
+    assert set(PENDING_FERMENTATION_KINDS) < set(PENDING_LOT_KINDS)
+    assert len(LOT_KINDS) == 12
+
+
+def test_deleting_the_lot_deletes_its_notifications():
+    notification = LotNotificationFactory()
+
+    notification.lot.delete()
+
+    assert not Notification.objects.filter(pk=notification.pk).exists()
+
+
+def test_deleting_the_turn_deletes_its_deviation():
+    turn = FermentationTurnFactory()
+    notification = LotNotificationFactory(
+        lot=turn.process.lot,
+        kind=NotificationKind.FERMENTATION_TEMPERATURE_HIGH,
+        fermentation_turn=turn,
+    )
+
+    turn.delete()
+
+    assert not Notification.objects.filter(pk=notification.pk).exists()
+
+
+def test_deleting_the_log_deletes_its_deviation():
+    entry = DryingLogEntryFactory()
+    notification = LotNotificationFactory(
+        lot=entry.process.lot, kind=NotificationKind.DRYING_OVERDRIED, drying_log=entry
+    )
+
+    entry.delete()
+
+    assert not Notification.objects.filter(pk=notification.pk).exists()
 
 
 def test_a_pending_control_needs_its_detection():

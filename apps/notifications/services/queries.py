@@ -1,31 +1,68 @@
 """Qué avisos ve cada persona.
 
-Solo los suyos, sin los que eliminó, y de ellos solo los de actividades que alcanza hoy: si a un
-empleado le quitan una finca, los avisos de esa finca dejan de verse (y vuelven si se la
-devuelven). Así la bandeja nunca muestra una parcela que la persona ya no puede abrir.
+Solo los suyos, sin los que eliminó, y de ellos solo los de lo que alcanza hoy: las actividades
+con el permiso de verlas y los lotes con el de ver lotes, cada uno en las fincas de la persona. Si
+a un empleado le quitan una finca, los avisos de esa finca dejan de verse (y vuelven si se la
+devuelven). Así la bandeja nunca muestra una parcela o un lote que la persona ya no puede abrir.
 """
 
-from django.db.models import Case, IntegerField, Prefetch, QuerySet, Value, When
+from django.db.models import (
+    Case,
+    Count,
+    IntegerField,
+    OuterRef,
+    Prefetch,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
 
+from apps.common.contracts.lot_representation import lot_brief_prefetch
 from apps.common.ownership import owner_filter
 
-from ..choices import NotificationSeverity
+from ..choices import LOT_KINDS, NotificationSeverity
 from ..models import Notification
 
-# La actividad se toma de la relación y no de su app: ninguna app importa de otra.
+# La actividad y el volteo se toman de la relación y no de su app: ninguna app importa de otra.
 AgriculturalActivity = Notification._meta.get_field("activity").related_model
+FermentationTurn = Notification._meta.get_field("fermentation_turn").related_model
 
 VIEW_PERMISSION = "activities.view_agriculturalactivity"
+LOT_VIEW_PERMISSION = "lots.view_lot"
 
 
 def reachable(actor) -> QuerySet[Notification]:
     """Los avisos de la cuenta que alcanza hoy, también los que eliminó (para deshacerlo)."""
-    if not actor.has_perm(VIEW_PERMISSION):
+    scopes = []
+    if actor.has_perm(VIEW_PERMISSION):
+        # Los de actividades y los de sanidad, que cuelgan de la actividad del monitoreo.
+        scopes.append(
+            ~Q(kind__in=LOT_KINDS)
+            & Q(
+                **owner_filter(
+                    actor, "activity__plot__farm__producer_id", farm="activity__plot__farm_id"
+                )
+            )
+        )
+    if actor.has_perm(LOT_VIEW_PERMISSION):
+        scopes.append(
+            Q(kind__in=LOT_KINDS)
+            & Q(
+                **owner_filter(
+                    actor,
+                    "lot__harvest__plot__farm__producer_id",
+                    farm="lot__harvest__plot__farm_id",
+                )
+            )
+        )
+    if not scopes:
         return Notification.objects.none()
-    return Notification.objects.filter(
-        recipient=actor,
-        **owner_filter(actor, "activity__plot__farm__producer_id", farm="activity__plot__farm_id"),
-    )
+    allowed = scopes[0]
+    for scope in scopes[1:]:
+        allowed |= scope
+    return Notification.objects.filter(allowed, recipient=actor)
 
 
 def visible(actor) -> QuerySet[Notification]:
@@ -48,15 +85,35 @@ def inbox(actor, *, unread_only=False) -> QuerySet[Notification]:
             )
         )
         .prefetch_related(
-            # La actividad con lo que su representación necesita: sin una consulta por aviso.
+            # Lo que la representación de cada aviso necesita: sin una consulta por aviso.
             Prefetch(
                 "activity",
                 queryset=AgriculturalActivity.with_representation(
                     AgriculturalActivity.objects.all()
                 ),
-            )
+            ),
+            *lot_brief_prefetch("lot"),
+            Prefetch("fermentation_turn", queryset=_numbered_turns()),
+            "drying_log",
         )
         .order_by("critical_first", "-created_at", "-id")
+    )
+
+
+def _numbered_turns() -> QuerySet:
+    """Los volteos con su número: su posición por hora entre los de su fermentación, como los
+    numera la fermentación."""
+    up_to_this_one = (
+        FermentationTurn.objects.filter(
+            process_id=OuterRef("process_id"), turned_at__lte=OuterRef("turned_at")
+        )
+        .order_by()
+        .values("process_id")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+    return FermentationTurn.objects.annotate(
+        number=Subquery(up_to_this_one, output_field=IntegerField())
     )
 
 

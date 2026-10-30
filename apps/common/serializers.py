@@ -79,6 +79,15 @@ class DetailSerializer(serializers.Serializer):
     detail = serializers.CharField()
 
 
+class DeviationSerializer(serializers.Serializer):
+    # Un desvío de lo que se acaba de guardar, para avisarlo en el momento. `limit` es texto
+    # porque en un rango son dos valores (`"7.6-8.5"`).
+    kind = serializers.CharField()
+    severity = serializers.ChoiceField(choices=["normal", "critical"])
+    value = serializers.CharField()
+    limit = serializers.CharField()
+
+
 class PeriodQuerySerializer(serializers.Serializer):
     # Una lista que se pide por periodo, `from` y `to` incluidos, hasta `max_days`: cubre lo que se
     # ve sin abrir la puerta a pedir años enteros sin paginar. Cada lista suma sus filtros en

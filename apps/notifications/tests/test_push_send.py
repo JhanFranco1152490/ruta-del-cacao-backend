@@ -1,9 +1,11 @@
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 from django.core.management import call_command
+from django.utils import timezone
 from py_vapid import Vapid02
 from pywebpush import WebPushException
 
@@ -11,12 +13,21 @@ from apps.accounts.system_roles import PRODUCER, get_system_role
 from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import grant_role, make_delegate
 from apps.activities.tests.factories import AgriculturalActivityFactory
+from apps.common.contracts.alerts import NotificationDraft
+from apps.drying.tests.factories import DryingLogEntryFactory
 from apps.farms.tests.factories import FarmFactory
+from apps.lots.tests.factories import LotFactory
 from apps.notifications.models import Notification, PushSubscription
 from apps.notifications.push import send
 from apps.notifications.push.send import send_pending_pushes
+from apps.notifications.services import create
+from apps.notifications.services.create import create_notifications
 from apps.notifications.services.evaluate import evaluate_alerts
-from apps.notifications.tests.factories import NotificationFactory, PushSubscriptionFactory
+from apps.notifications.tests.factories import (
+    LotNotificationFactory,
+    NotificationFactory,
+    PushSubscriptionFactory,
+)
 from apps.plots.tests.factories import PlotFactory
 
 pytestmark = pytest.mark.django_db
@@ -378,3 +389,152 @@ def test_one_from_a_farm_the_recipient_reaches_is_pushed(sent):
     send_pending_pushes(MORNING)
 
     assert len(sent) == 1
+
+
+# Los avisos de un lote.
+
+
+def lot_recipient(lot):
+    farm = lot.harvest.plot.farm
+    return make_delegate(farm.producer, ["lots.view_lot"], farm=farm)
+
+
+def test_a_lot_notification_is_pushed_to_whoever_sees_the_lot(sent):
+    lot = LotFactory()
+    recipient = lot_recipient(lot)
+    notification = LotNotificationFactory(lot=lot, recipient=recipient)
+    Notification.objects.filter(pk=notification.pk).update(created_at=MORNING)
+    PushSubscriptionFactory(user=recipient)
+
+    send_pending_pushes(MORNING)
+
+    ((_, payload),) = sent
+    assert payload["title"] == "Volteo pendiente"
+    assert payload["url"] == f"/lotes/detalle?id={lot.pk}&notificacion={notification.pk}"
+
+
+@pytest.fixture
+def overdrying():
+    """Un sobresecado y un próximo a meta de la misma bitácora, listos para crear, para alguien
+    con un dispositivo."""
+    entry = DryingLogEntryFactory()
+    lot = entry.process.lot
+    recipient = lot_recipient(lot)
+    PushSubscriptionFactory(user=recipient)
+
+    def draft(kind, severity):
+        return NotificationDraft(
+            recipient_id=recipient.pk,
+            kind=kind,
+            severity=severity,
+            condition_key=f"{entry.pk}:{kind}",
+            thread_key=f"lot:{lot.pk}:{kind}",
+            lot_id=lot.pk,
+            drying_log_id=entry.pk,
+        )
+
+    return [draft("drying_overdried", "critical"), draft("drying_near_target", "normal")]
+
+
+def at(monkeypatch, instant):
+    monkeypatch.setattr(timezone, "now", lambda: instant)
+
+
+@pytest.fixture
+def inline_background(monkeypatch):
+    """El envío de fondo corre en el mismo hilo: el hilo de verdad usaría su propia conexión y no
+    vería lo que la prueba todavía no confirmó."""
+    monkeypatch.setattr(create, "run_in_background", lambda task, *a, where, **kw: task(*a, **kw))
+
+
+def test_an_overdrying_is_pushed_as_soon_as_it_is_created(
+    sent, overdrying, inline_background, django_capture_on_commit_callbacks, monkeypatch
+):
+    # 20:00 UTC son las 15:00 en Bogotá.
+    at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+
+    with django_capture_on_commit_callbacks(execute=True):
+        create_notifications(overdrying)
+
+    ((_, payload),) = sent
+    assert payload["title"] == "Sobresecado"
+    # Lo que no es crítico espera a la evaluación siguiente.
+    assert Notification.objects.get(kind="drying_near_target").pushed_at is None
+
+
+def test_at_night_an_overdrying_waits_for_the_morning(
+    sent, overdrying, inline_background, django_capture_on_commit_callbacks, monkeypatch
+):
+    # 02:00 UTC son las 21:00 en Bogotá.
+    at(monkeypatch, datetime(2026, 10, 17, 2, 0, tzinfo=UTC))
+
+    with django_capture_on_commit_callbacks(execute=True):
+        create_notifications(overdrying)
+
+    assert sent == []
+    assert Notification.objects.get(kind="drying_overdried").pushed_at is None
+
+
+def test_the_immediate_push_leaves_the_request_and_waits_for_the_commit(
+    sent, overdrying, django_capture_on_commit_callbacks, monkeypatch
+):
+    at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+    scheduled = []
+    monkeypatch.setattr(
+        create, "run_in_background", lambda task, *a, where, **kw: scheduled.append((task, a, kw))
+    )
+
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        create_notifications(overdrying)
+
+    # Hasta que la transacción se confirme no se programa nada, y programarlo no envía nada.
+    assert scheduled == []
+    assert len(callbacks) == 1
+    callbacks[0]()
+    ((task, args, kwargs),) = scheduled
+    assert task is send_pending_pushes
+    assert kwargs["notification_ids"] == [Notification.objects.get(kind="drying_overdried").pk]
+    assert sent == []
+
+    task(*args, **kwargs)
+
+    assert [payload["title"] for _, payload in sent] == ["Sobresecado"]
+
+
+def test_one_that_is_not_critical_schedules_nothing(
+    overdrying, django_capture_on_commit_callbacks, monkeypatch
+):
+    scheduled = []
+    monkeypatch.setattr(create, "run_in_background", lambda *a, **kw: scheduled.append(a))
+    normal = [draft for draft in overdrying if draft.severity != "critical"]
+
+    with django_capture_on_commit_callbacks(execute=True) as callbacks:
+        create_notifications(normal)
+
+    assert callbacks == []
+    assert scheduled == []
+
+
+def test_a_late_overdrying_is_hidden_and_not_pushed(
+    sent, overdrying, inline_background, django_capture_on_commit_callbacks, monkeypatch
+):
+    at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+    critical = overdrying[0]
+    # Una medición más reciente del mismo lote y tipo ya está en la bandeja.
+    Notification.objects.create(
+        recipient_id=critical.recipient_id,
+        kind=critical.kind,
+        severity="critical",
+        condition_key="newer",
+        thread_key=critical.thread_key,
+        lot_id=critical.lot_id,
+        drying_log=DryingLogEntryFactory(),
+        condition_at=datetime(2026, 10, 16, 18, 0, tzinfo=UTC),
+    )
+    late = replace(critical, condition_at=datetime(2026, 10, 15, 18, 0, tzinfo=UTC))
+
+    with django_capture_on_commit_callbacks(execute=True):
+        create_notifications([late])
+
+    assert sent == []
+    assert Notification.objects.get(condition_key=late.condition_key).dismissed_at is not None

@@ -10,7 +10,12 @@ from apps.common.contracts.harvest_representation import (
 )
 from apps.common.contracts.postharvest_parameters import fermentation_parameters
 from apps.common.hours import hours_between
-from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
+from apps.common.serializers import (
+    ApiErrorSerializer,
+    DeviationSerializer,
+    RejectUnknownFieldsMixin,
+    full_name,
+)
 
 from .alerts import next_turn_due_at
 from .models import MAX_PH, MAX_TEMPERATURE_C, NOTES_MAX_LENGTH, FermentationProcess
@@ -74,6 +79,12 @@ class FermentationTurnSerializer(serializers.Serializer):
     notes = serializers.CharField(max_length=NOTES_MAX_LENGTH)
     recorded_by = HarvestRecorderSerializer()
     version = serializers.IntegerField()
+
+
+class FermentationTurnSavedSerializer(FermentationTurnSerializer):
+    # Los desvíos del volteo recién guardado, para que quien lo registró los vea en el momento y
+    # no solo en la bandeja.
+    alerts = DeviationSerializer(many=True)
 
 
 def turn_row(turn, number: int, started_at) -> dict:

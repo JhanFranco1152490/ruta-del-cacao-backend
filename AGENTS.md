@@ -528,7 +528,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     corren con `transaction.on_commit`.
   - **Sin duplicados:** única (`recipient`, `kind`, `condition_key`). `thread_key` agrupa lo de una
     misma actividad o detección: el aviso nuevo de una persona deja leídos y eliminados los
-    anteriores del hilo (así el recordatorio de hoy reemplaza al de ayer). Eliminar desde la
+    anteriores del hilo (así el recordatorio de hoy reemplaza al de ayer), salvo que se refiera a
+    un momento anterior (`condition_at`) al de uno que ya está en la bandeja: un registro viejo que
+    llega tarde de la cola o que se corrige nace oculto y no le quita el lugar al más reciente. Los
+    avisos sin hora (actividades) siempre reemplazan. Eliminar desde la
     bandeja marca `dismissed_at` y no borra la fila: sin ella, la siguiente evaluación avisaría
     otra vez. La purga borra solo lo leído o eliminado de más de 90 días cuya condición ya pasó.
   - **Condiciones de hoy:** actividad próxima (días 2, 1 y 0, al responsable), retrasada (días 1 y
@@ -563,7 +566,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     una suscripción inválida, que no detiene a los demás dispositivos) reintenta la hora siguiente,
     y una cuenta inactiva pierde sus dispositivos. Un aviso **crítico** (el sobresecado) no espera a
     la evaluación: `create_notifications` lo envía al crearse, dentro del horario, con
-    `send_pending_pushes(now, notification_ids=…)`, que no adelanta los demás. La push de un lote
+    `send_pending_pushes(now, notification_ids=…)`, que no adelanta los demás. El envío corre
+    **fuera de la petición** (`push/background.py`, un grupo de dos hilos) y cuando se confirma la
+    transacción: un servicio de push lento no demora el guardado, y si el proceso se apaga a medias
+    el aviso sigue en la bandeja. La push de un lote
     lleva su código, la finca y lo medido con coma decimal, y abre la ficha del lote. `python manage.py
     generate_vapid_keys` imprime las llaves listas para las variables de entorno.
 - **Los archivos subidos van a PostgreSQL** (`STORAGES["default"]` es

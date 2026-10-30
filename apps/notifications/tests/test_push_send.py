@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -439,11 +440,21 @@ def at(monkeypatch, instant):
     monkeypatch.setattr(timezone, "now", lambda: instant)
 
 
-def test_an_overdrying_is_pushed_as_soon_as_it_is_created(sent, overdrying, monkeypatch):
+@pytest.fixture
+def inline_background(monkeypatch):
+    """El envío de fondo corre en el mismo hilo: el hilo de verdad usaría su propia conexión y no
+    vería lo que la prueba todavía no confirmó."""
+    monkeypatch.setattr(create, "run_in_background", lambda task, *a, where, **kw: task(*a, **kw))
+
+
+def test_an_overdrying_is_pushed_as_soon_as_it_is_created(
+    sent, overdrying, inline_background, django_capture_on_commit_callbacks, monkeypatch
+):
     # 20:00 UTC son las 15:00 en Bogotá.
     at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
 
-    create_notifications(overdrying)
+    with django_capture_on_commit_callbacks(execute=True):
+        create_notifications(overdrying)
 
     ((_, payload),) = sent
     assert payload["title"] == "Sobresecado"
@@ -451,22 +462,79 @@ def test_an_overdrying_is_pushed_as_soon_as_it_is_created(sent, overdrying, monk
     assert Notification.objects.get(kind="drying_near_target").pushed_at is None
 
 
-def test_at_night_an_overdrying_waits_for_the_morning(sent, overdrying, monkeypatch):
+def test_at_night_an_overdrying_waits_for_the_morning(
+    sent, overdrying, inline_background, django_capture_on_commit_callbacks, monkeypatch
+):
     # 02:00 UTC son las 21:00 en Bogotá.
     at(monkeypatch, datetime(2026, 10, 17, 2, 0, tzinfo=UTC))
 
-    create_notifications(overdrying)
+    with django_capture_on_commit_callbacks(execute=True):
+        create_notifications(overdrying)
 
     assert sent == []
     assert Notification.objects.get(kind="drying_overdried").pushed_at is None
 
 
-def test_a_failed_immediate_push_keeps_the_notification(overdrying, monkeypatch):
+def test_the_immediate_push_leaves_the_request_and_waits_for_the_commit(
+    sent, overdrying, django_capture_on_commit_callbacks, monkeypatch
+):
     at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+    scheduled = []
+    monkeypatch.setattr(
+        create, "run_in_background", lambda task, *a, where, **kw: scheduled.append((task, a, kw))
+    )
 
-    def broken(now, notification_ids=None):
-        raise RuntimeError("sin red")
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        create_notifications(overdrying)
 
-    monkeypatch.setattr(create, "send_pending_pushes", broken)
+    # Hasta que la transacción se confirme no se programa nada, y programarlo no envía nada.
+    assert scheduled == []
+    assert len(callbacks) == 1
+    callbacks[0]()
+    ((task, args, kwargs),) = scheduled
+    assert task is send_pending_pushes
+    assert kwargs["notification_ids"] == [Notification.objects.get(kind="drying_overdried").pk]
+    assert sent == []
 
-    assert create_notifications(overdrying) == 2
+    task(*args, **kwargs)
+
+    assert [payload["title"] for _, payload in sent] == ["Sobresecado"]
+
+
+def test_one_that_is_not_critical_schedules_nothing(
+    overdrying, django_capture_on_commit_callbacks, monkeypatch
+):
+    scheduled = []
+    monkeypatch.setattr(create, "run_in_background", lambda *a, **kw: scheduled.append(a))
+    normal = [draft for draft in overdrying if draft.severity != "critical"]
+
+    with django_capture_on_commit_callbacks(execute=True) as callbacks:
+        create_notifications(normal)
+
+    assert callbacks == []
+    assert scheduled == []
+
+
+def test_a_late_overdrying_is_hidden_and_not_pushed(
+    sent, overdrying, inline_background, django_capture_on_commit_callbacks, monkeypatch
+):
+    at(monkeypatch, datetime(2026, 10, 16, 20, 0, tzinfo=UTC))
+    critical = overdrying[0]
+    # Una medición más reciente del mismo lote y tipo ya está en la bandeja.
+    Notification.objects.create(
+        recipient_id=critical.recipient_id,
+        kind=critical.kind,
+        severity="critical",
+        condition_key="newer",
+        thread_key=critical.thread_key,
+        lot_id=critical.lot_id,
+        drying_log=DryingLogEntryFactory(),
+        condition_at=datetime(2026, 10, 16, 18, 0, tzinfo=UTC),
+    )
+    late = replace(critical, condition_at=datetime(2026, 10, 15, 18, 0, tzinfo=UTC))
+
+    with django_capture_on_commit_callbacks(execute=True):
+        create_notifications([late])
+
+    assert sent == []
+    assert Notification.objects.get(condition_key=late.condition_key).dismissed_at is not None

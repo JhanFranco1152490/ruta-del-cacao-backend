@@ -1,5 +1,5 @@
 import time
-from datetime import date
+from datetime import date, datetime
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
@@ -30,7 +30,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         started = time.monotonic()
         now = timezone.now()
-        today = _day(options["today"]) if options["today"] else evaluation_date(now)
+        if options["today"]:
+            today = _day(options["today"])
+            # Ese día a la hora de ahora en Bogotá: lo que se mide en horas (un volteo) lo ve
+            # como si la evaluación corriera ese día.
+            now = timezone.make_aware(datetime.combine(today, timezone.localtime(now).time()))
+        else:
+            today = evaluation_date(now)
 
         result = evaluate_alerts(today, now)
 

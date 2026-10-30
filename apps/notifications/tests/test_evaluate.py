@@ -3,16 +3,20 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from django.core.management import CommandError, call_command
+from django.utils import timezone
 
 from apps.accounts.tests.factories import UserFactory
 from apps.activities.choices import ActivityStatus
 from apps.activities.tests.factories import AgriculturalActivityFactory
 from apps.common.contracts import alerts
 from apps.common.contracts.alerts import NotificationDraft
+from apps.drying.tests.factories import DryingLogEntryFactory
 from apps.health.tests.factories import DetectionFactory, PhytosanitaryTreatmentFactory
+from apps.lots.choices import LotStatus
+from apps.notifications.choices import NotificationKind
 from apps.notifications.models import Notification
 from apps.notifications.services.evaluate import evaluate_alerts, evaluation_date
-from apps.notifications.tests.factories import NotificationFactory
+from apps.notifications.tests.factories import LotNotificationFactory, NotificationFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -71,12 +75,31 @@ def failing_evaluator(monkeypatch):
     # de código, y en código real nunca hay datos personales escritos.
     message = f"{activity.assignee.get_full_name()}, documento 1090123456"
 
-    def broken(today):
+    def broken(today, now):
         raise ValueError(message)
 
     monkeypatch.setattr(
-        alerts, "_evaluators", {"broken": broken, "working": lambda today: [draft]}
+        alerts, "_evaluators", {"broken": broken, "working": lambda today, now: [draft]}
     )
+
+
+@pytest.fixture
+def received(monkeypatch):
+    """Un evaluador que solo anota con qué día y qué hora lo llamaron."""
+    calls = []
+
+    def recording(today, now):
+        calls.append((today, now))
+        return []
+
+    monkeypatch.setattr(alerts, "_evaluators", {"recording": recording})
+    return calls
+
+
+def test_each_evaluator_receives_the_day_and_the_time(received):
+    evaluate_alerts(TODAY, NOW)
+
+    assert received == [(TODAY, NOW)]
 
 
 def test_a_failing_evaluator_does_not_stop_the_others(failing_evaluator):
@@ -169,6 +192,69 @@ def test_a_recent_read_notification_of_a_done_activity_is_kept():
     assert remains(notification)
 
 
+# Los de un lote.
+
+
+def test_an_old_read_pending_that_was_resolved_is_purged():
+    notification = old(
+        LotNotificationFactory(lot__status=LotStatus.FERMENTING, read_at=NOW, resolved_at=NOW)
+    )
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(notification)
+
+
+def test_an_old_read_pending_whose_lot_left_the_stage_is_purged():
+    turn_due = old(LotNotificationFactory(lot__status=LotStatus.FERMENTED, read_at=NOW))
+    log_due = old(
+        LotNotificationFactory(
+            lot__status=LotStatus.DRIED, kind=NotificationKind.DRYING_LOG_DUE, read_at=NOW
+        )
+    )
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(turn_due)
+    assert not remains(log_due)
+
+
+def test_an_old_dismissed_pending_still_in_its_stage_is_kept():
+    # Si se borrara, la siguiente evaluación vería el volteo que falta y avisaría de nuevo.
+    turn_due = old(LotNotificationFactory(lot__status=LotStatus.FERMENTING, dismissed_at=NOW))
+    log_due = old(
+        LotNotificationFactory(
+            lot__status=LotStatus.DRYING, kind=NotificationKind.DRYING_LOG_DUE, dismissed_at=NOW
+        )
+    )
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert remains(turn_due)
+    assert remains(log_due)
+
+
+def test_an_old_read_deviation_is_purged_and_an_unread_one_is_kept():
+    def deviation(**fields):
+        entry = DryingLogEntryFactory()
+        return old(
+            LotNotificationFactory(
+                lot=entry.process.lot,
+                kind=NotificationKind.DRYING_OVERDRIED,
+                drying_log=entry,
+                **fields,
+            )
+        )
+
+    read = deviation(read_at=NOW)
+    unread = deviation()
+
+    evaluate_alerts(TODAY, NOW)
+
+    assert not remains(read)
+    assert remains(unread)
+
+
 # El comando.
 
 
@@ -182,6 +268,31 @@ def test_the_command_evaluates_the_given_day(capsys):
     assert "activities: 1" in output
     assert "Luis" not in output
     assert activity.assignee.email not in output
+
+
+@pytest.fixture
+def frozen_now(monkeypatch):
+    # 20:30 UTC son las 15:30 en Bogotá.
+    instant = datetime(2026, 10, 20, 20, 30, tzinfo=UTC)
+    monkeypatch.setattr(timezone, "now", lambda: instant)
+    return instant
+
+
+def test_the_command_passes_the_current_time(received, frozen_now):
+    call_command("evaluate_alerts")
+
+    assert received == [(date(2026, 10, 20), frozen_now)]
+
+
+def test_with_a_given_day_the_time_is_that_day_at_the_current_bogota_hour(received, frozen_now):
+    # Las alertas que cuentan horas ven el día pedido como si fuera la hora de ahora.
+    call_command("evaluate_alerts", "--today", "2026-10-16")
+
+    ((today, now),) = received
+    assert today == date(2026, 10, 16)
+    assert timezone.localtime(now) == datetime(
+        2026, 10, 16, 15, 30, tzinfo=timezone.get_current_timezone()
+    )
 
 
 def test_the_command_rejects_a_malformed_date():

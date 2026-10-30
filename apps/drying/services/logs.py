@@ -2,17 +2,18 @@
 
 Registrar llega desde la cola del dispositivo, también sin conexión: el `id` lo genera el
 dispositivo, y reenviar la misma bitácora devuelve la que ya existe. Corregir y eliminar se hacen
-en línea. Registrar y corregir evalúan los desvíos con la bitácora ya guardada.
+en línea. Registrar y corregir evalúan los desvíos con la bitácora ya guardada; corregir además
+retira los avisos de los desvíos que ya no cumple.
 """
 
 from django.db import transaction
 from django.utils import timezone
 
-from apps.common.contracts.alerts import notify
+from apps.common.contracts.alerts import notify, resolve, withdraw
 from apps.common.db import save_translating_unique
 from apps.common.versioning import check_expected_version, save_next_version
 
-from ..alerts import drying_log_alerts
+from ..alerts import LOG_DUE, drying_log_alerts, stale_deviation_kinds
 from ..exceptions import (
     DryingHoursExceeded,
     DryingLogIdConflict,
@@ -69,6 +70,8 @@ def record_log(actor, lot_id, data: dict) -> tuple[DryingLogEntry, bool]:
     if existing is not None:
         return _resent(existing, process, sent), False
     _record(entry, actor, DryingProcessAuditEvent.Action.LOG_CREATED, {}, log_values(entry))
+    # Llegó una bitácora: la que estaba pendiente deja de pedir atención.
+    resolve(process.lot_id, [LOG_DUE])
     notify(drying_log_alerts(entry))
     return entry, True
 
@@ -98,6 +101,9 @@ def update_log(actor, lot_id, log_id, expected_version: int, changes: dict) -> D
         duplicate=lambda: _duplicate_date(process, entry.log_date, other_than=entry.pk),
     )
     _record(entry, actor, DryingProcessAuditEvent.Action.LOG_UPDATED, before, after)
+    # Un dato mal tecleado que se corrige no deja una alarma falsa: lo que ya no cumple se retira.
+    if stale := stale_deviation_kinds(entry):
+        withdraw(stale, drying_log_id=entry.pk)
     notify(drying_log_alerts(entry))
     return entry
 

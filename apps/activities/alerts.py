@@ -19,7 +19,8 @@ from .state import ActivityState, activity_state
 UPCOMING_DAYS = 2
 
 
-def evaluate(today):
+def evaluate(today, now=None):
+    # Las actividades se miden en días: la hora no cambia nada.
     activities = list(
         AgriculturalActivity.objects.filter(
             status=ActivityStatus.SCHEDULED,

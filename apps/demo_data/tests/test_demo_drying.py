@@ -29,7 +29,8 @@ def demo_lots(status):
 
 def test_the_seed_leaves_a_dried_lot_one_drying_and_one_ready(seeded):
     done = DryingProcess.objects.get(lot__status=LotStatus.DRIED)
-    running = DryingProcess.objects.get(lot__status=LotStatus.DRYING)
+    # El de M-02: el de M-03 muestra el aviso de próximo a meta.
+    running = DryingProcess.objects.get(lot__status=LotStatus.DRYING, facility__name="M-02")
 
     assert done.yield_pct is not None and done.dry_weight_kg is not None
     assert done.facility.current_lot_id is None
@@ -79,7 +80,7 @@ def test_the_demonstration_starts_logs_and_finishes_a_drying(seeded, auth_client
 
     # La bitácora de hoy del lote que ya estaba secando. Sin sol: hoy solo cuenta hasta ahora, y la
     # prueba puede correr de madrugada.
-    running = DryingProcess.objects.filter(lot__status=LotStatus.DRYING).exclude(pk=lot.pk).get()
+    running = DryingProcess.objects.get(lot__status=LotStatus.DRYING, facility__name="M-02")
     body = {
         "id": str(uuid.uuid4()),
         "measured_at": timezone.now().isoformat(),

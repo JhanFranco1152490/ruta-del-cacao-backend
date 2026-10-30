@@ -18,3 +18,10 @@ class FermentationConfig(AppConfig):
             },
             prefetch=["fermentation__facility"],
         )
+
+        # Los volteos pendientes, en la evaluación de cada hora.
+        from apps.common.contracts.alerts import register_evaluator
+
+        from .alerts import evaluate
+
+        register_evaluator("fermentation", evaluate)

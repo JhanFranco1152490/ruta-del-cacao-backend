@@ -7,16 +7,24 @@ from django.utils import timezone
 from apps.common.contracts.alerts import evaluators
 from apps.common.exceptions import log_unhandled_error
 
-from ..choices import ACTIVITY_KINDS, NotificationKind
+from ..choices import (
+    ACTIVITY_KINDS,
+    DRYING_DEVIATION_KINDS,
+    FERMENTATION_DEVIATION_KINDS,
+    PENDING_FERMENTATION_KINDS,
+    NotificationKind,
+)
 from ..models import Notification
 from ..push.send import SendResult, send_pending_pushes
 from .create import create_notifications
 
 # Cuánto se guarda un aviso que ya se leyó o se eliminó y cuya condición ya pasó.
 KEEP_DAYS = 90
-# El estado guardado de una actividad realizada. Va como texto porque esta app no importa de
-# la de actividades.
+# El estado guardado de una actividad realizada y los de un lote en fermentación y en secado. Van
+# como texto porque esta app no importa de las de actividades y lotes.
 DONE_STATUS = "done"
+FERMENTING_STATUS = "fermenting"
+DRYING_STATUS = "drying"
 
 
 @dataclass
@@ -40,7 +48,7 @@ def evaluate_alerts(today, now) -> EvaluationResult:
     result = EvaluationResult()
     for name, evaluate in evaluators().items():
         try:
-            result.created[name] = create_notifications(list(evaluate(today)))
+            result.created[name] = create_notifications(list(evaluate(today, now)))
         except Exception as exc:
             log_unhandled_error(exc, where=f"el evaluador {name}")
             result.failed.append(name)
@@ -56,8 +64,9 @@ def evaluate_alerts(today, now) -> EvaluationResult:
 
 def _purge(now) -> int:
     """Borra los avisos leídos o eliminados de hace más de `KEEP_DAYS` cuya condición ya pasó: la
-    actividad se realizó o se reprogramó, o la detección ya tiene un control o no lo requiere.
-    Uno de algo que sigue pendiente se queda: sin él, la siguiente evaluación avisaría otra vez."""
+    actividad se realizó o se reprogramó, la detección ya tiene un control o no lo requiere, el
+    registro que faltaba de un lote llegó, o es un desvío. Uno de algo que sigue pendiente se
+    queda: sin él, la siguiente evaluación avisaría otra vez."""
     activity_passed = Q(kind__in=ACTIVITY_KINDS) & (
         Q(activity__status=DONE_STATUS) | ~Q(activity__scheduled_date=F("condition_date"))
     )
@@ -65,7 +74,16 @@ def _purge(now) -> int:
     control_passed = Q(kind=NotificationKind.DETECTION_CONTROL_PENDING) & (
         Q(detection__control_dismissed_at__isnull=False) | Q(detection__treatments__isnull=False)
     )
-    passed = activity_passed | control_passed
+    # Un registro que faltaba ya llegó, o el lote salió de la etapa en que faltaba.
+    turn_passed = Q(kind__in=PENDING_FERMENTATION_KINDS) & (
+        Q(resolved_at__isnull=False) | ~Q(lot__status=FERMENTING_STATUS)
+    )
+    log_passed = Q(kind=NotificationKind.DRYING_LOG_DUE) & (
+        Q(resolved_at__isnull=False) | ~Q(lot__status=DRYING_STATUS)
+    )
+    # Un desvío es algo que ya ocurrió: ninguna evaluación lo vuelve a crear.
+    deviation_passed = Q(kind__in=FERMENTATION_DEVIATION_KINDS + DRYING_DEVIATION_KINDS)
+    passed = activity_passed | control_passed | turn_passed | log_passed | deviation_passed
     deleted, _ = (
         Notification.objects.filter(
             Q(read_at__isnull=False) | Q(dismissed_at__isnull=False),

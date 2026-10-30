@@ -6,11 +6,14 @@ from rest_framework.viewsets import GenericViewSet
 
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
+from apps.common.serializers import DeviationSerializer
 
+from .alerts import turn_deviations
 from .exceptions import StaleTurnVersion
 from .serializers import (
     FermentationTurnCreateSerializer,
     FermentationTurnDeleteSerializer,
+    FermentationTurnSavedSerializer,
     FermentationTurnSerializer,
     FermentationTurnUpdateSerializer,
     TurnConflictErrorSerializer,
@@ -25,6 +28,13 @@ def represent(turn) -> dict:
     ).data
 
 
+def saved(turn) -> dict:
+    """El volteo guardado con sus desvíos. Un reenvío desde la cola también los dice: el teléfono
+    los muestra la primera vez que el volteo llega."""
+    deviations = DeviationSerializer(turn_deviations(turn), many=True).data
+    return {**represent(turn), "alerts": deviations}
+
+
 @extend_schema_view(
     create=extend_schema(
         description=(
@@ -33,12 +43,13 @@ def represent(turn) -> dict:
             "responde 200 con el que ya existe, y con otros datos 409 `turn_id_conflict`. La "
             "hora se guarda sin segundos, y dos volteos de la misma fermentación en el mismo "
             "minuto son el mismo: 409 `duplicate_turn_time` con el existente en `existing`. El "
-            "número es su posición por hora."
+            "número es su posición por hora. `alerts` trae los desvíos de temperatura y de pH "
+            "del grano (también en un reenvío); un desvío nunca impide guardarlo."
         ),
         request=FermentationTurnCreateSerializer,
         responses={
-            201: FermentationTurnSerializer,
-            200: FermentationTurnSerializer,
+            201: FermentationTurnSavedSerializer,
+            200: FermentationTurnSavedSerializer,
             409: TurnConflictErrorSerializer,
             **error_responses(400, 401, 403, 404),
         },
@@ -47,11 +58,13 @@ def represent(turn) -> dict:
         description=(
             "Corrige un volteo mientras la fermentación sigue en curso. Requiere "
             "`expected_version`; si cambió, 409 `stale_version` con el vigente en `current`. Con "
-            "la fermentación terminada, 409 `fermentation_not_in_progress`."
+            "la fermentación terminada, 409 `fermentation_not_in_progress`. `alerts` trae los "
+            "desvíos que el volteo cumple tras corregirlo; los avisos de los que ya no cumple se "
+            "retiran."
         ),
         request=FermentationTurnUpdateSerializer,
         responses={
-            200: FermentationTurnSerializer,
+            200: FermentationTurnSavedSerializer,
             409: TurnConflictErrorSerializer,
             **error_responses(400, 401, 403, 404),
         },
@@ -93,7 +106,7 @@ class FermentationTurnViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         turn, created = record_turn(request.user, lot_id, serializer.validated_data)
         return Response(
-            represent(turn), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            saved(turn), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
     def partial_update(self, request, lot_id, pk):
@@ -101,7 +114,7 @@ class FermentationTurnViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
         expected_version = data.pop("expected_version")
-        return Response(represent(update_turn(request.user, lot_id, pk, expected_version, data)))
+        return Response(saved(update_turn(request.user, lot_id, pk, expected_version, data)))
 
     def destroy(self, request, lot_id, pk):
         # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP.

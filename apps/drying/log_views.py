@@ -6,13 +6,16 @@ from rest_framework.viewsets import GenericViewSet
 
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
+from apps.common.serializers import DeviationSerializer
 
+from .alerts import log_deviations
 from .exceptions import StaleDryingLogVersion
 from .log_serializers import (
     DryingHoursErrorSerializer,
     DryingLogConflictErrorSerializer,
     DryingLogCreateSerializer,
     DryingLogDeleteSerializer,
+    DryingLogSavedSerializer,
     DryingLogUpdateSerializer,
 )
 from .serializers import DryingLogSerializer
@@ -28,12 +31,14 @@ from .services.logs import delete_log, record_log, update_log
             "Una por fecha (la local de `measured_at`): otra el mismo día es 409 "
             "`duplicate_drying_log_date` con la existente en `existing`. El día de secado se "
             "cuenta desde la fecha de inicio. Las horas al sol y a la sombra no pasan de las que "
-            "ese día estuvo en secado (400 en `fields.sun_hours`, con `available_hours`)."
+            "ese día estuvo en secado (400 en `fields.sun_hours`, con `available_hours`). "
+            "`alerts` trae los desvíos de la bitácora (también en un reenvío); un desvío nunca "
+            "impide guardarla."
         ),
         request=DryingLogCreateSerializer,
         responses={
-            201: DryingLogSerializer,
-            200: DryingLogSerializer,
+            201: DryingLogSavedSerializer,
+            200: DryingLogSavedSerializer,
             400: DryingHoursErrorSerializer,
             409: DryingLogConflictErrorSerializer,
             **error_responses(401, 403, 404),
@@ -44,11 +49,12 @@ from .services.logs import delete_log, record_log, update_log
             "Corrige una bitácora mientras el secado sigue en curso; cambiar la hora de la "
             "medición puede cambiar su fecha y su día. Requiere `expected_version`; si cambió, "
             "409 `stale_version` con la vigente en `current`. Con el secado terminado, 409 "
-            "`drying_not_in_progress`."
+            "`drying_not_in_progress`. `alerts` trae los desvíos que la bitácora cumple tras "
+            "corregirla; los avisos de los que ya no cumple se retiran."
         ),
         request=DryingLogUpdateSerializer,
         responses={
-            200: DryingLogSerializer,
+            200: DryingLogSavedSerializer,
             400: DryingHoursErrorSerializer,
             409: DryingLogConflictErrorSerializer,
             **error_responses(401, 403, 404),
@@ -91,8 +97,7 @@ class DryingLogViewSet(GenericViewSet):
         serializer.is_valid(raise_exception=True)
         entry, created = record_log(request.user, lot_id, serializer.validated_data)
         return Response(
-            DryingLogSerializer(entry).data,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            _saved(entry), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
 
     def partial_update(self, request, lot_id, pk):
@@ -101,7 +106,7 @@ class DryingLogViewSet(GenericViewSet):
         data = dict(serializer.validated_data)
         expected_version = data.pop("expected_version")
         entry = update_log(request.user, lot_id, pk, expected_version, data)
-        return Response(DryingLogSerializer(entry).data)
+        return Response(_saved(entry))
 
     def destroy(self, request, lot_id, pk):
         # La versión va en la URL: un cuerpo en DELETE no tiene significado definido en HTTP.
@@ -114,3 +119,10 @@ class DryingLogViewSet(GenericViewSet):
         if isinstance(exc, StaleDryingLogVersion):
             exc.extra = {"current": DryingLogSerializer(exc.current_entry).data}
         return super().handle_exception(exc)
+
+
+def _saved(entry) -> dict:
+    """La bitácora guardada con sus desvíos. Un reenvío desde la cola también los dice: el
+    teléfono los muestra la primera vez que la bitácora llega."""
+    deviations = DeviationSerializer(log_deviations(entry), many=True).data
+    return {**DryingLogSerializer(entry).data, "alerts": deviations}

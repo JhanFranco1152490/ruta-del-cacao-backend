@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "apps.fermentation",
     "apps.postharvest_parameters",
     "apps.drying",
+    "apps.quality",
     "apps.demo_data",
 ]
 

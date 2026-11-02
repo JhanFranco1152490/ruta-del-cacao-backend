@@ -352,9 +352,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   paginado, con `status`, `farm`, `plot`, `variety`, `from`, `to` (fecha de la cosecha), `search` por
   parte del código y `producer` (solo la cuenta técnica). Eliminar (`DELETE ?expected_version=`) solo
   un lote Generado (`409 lot_invalid_status` con `current_status`): la cosecha queda sin lote y el
-  código no se reutiliza. **El estado** es `generated`, `fermenting`, `fermented`, `drying`, `dried`
-  y solo cambia por `advance_lot_status(lot, expected, new, actor=...)` (`apps/lots/services/
-  status.py`), que exige estar en `expected` y que `new` sea el siguiente; los demás módulos la
+  código no se reutiliza. **El estado** es `generated`, `fermenting`, `fermented`, `drying`, `dried`,
+  `evaluated` y de ahí `classified` o `discarded` (los dos finales), y solo cambia por
+  `advance_lot_status(lot, expected, new, actor=...)` (`apps/lots/services/status.py`), que exige
+  estar en `expected` y que `new` esté en `allowed_next(expected)` (el mapa `TRANSITIONS` de
+  `apps/lots/choices.py`); los demás módulos la
   llaman como método del modelo, `lot.advance_status(expected, new, actor=...)`, dentro de su
   transacción con el lote ya bloqueado (la finca de su parcela) y sin importar `lots`. El historial
   (`LotAuditEvent`) guarda el código y la cosecha de origen y sobrevive al lote. **Lo que otra app

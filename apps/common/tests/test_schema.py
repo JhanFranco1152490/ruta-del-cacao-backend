@@ -235,6 +235,9 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/drying/{lot_id}/logs"),
     ("patch", "/api/drying/{lot_id}/logs/{id}"),
     ("delete", "/api/drying/{lot_id}/logs/{id}"),
+    ("get", "/api/quality"),
+    ("get", "/api/quality/{id}"),
+    ("get", "/api/quality/summary"),
 }
 
 

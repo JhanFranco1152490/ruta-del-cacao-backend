@@ -32,6 +32,7 @@ from apps.lots.tests.factories import LotFactory
 from apps.notifications.tests.factories import LotNotificationFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
+from apps.quality.tests.helpers import dried_lot
 
 pytestmark = pytest.mark.django_db
 
@@ -317,6 +318,7 @@ HARVEST_FIELD_PERMISSIONS = [
     "lots.add_lot",
     "fermentation.log_turns",
     "drying.log_drying",
+    "quality.evaluate_lot",
 ]
 
 
@@ -351,6 +353,9 @@ class HarvestWorld:
         # Y un secado en curso por finca, para la pantalla y la ficha del secado.
         self.drying_a = self.drying(self.plot_a)
         self.drying_b = self.drying(self.plot_b)
+        # Y un lote seco por finca, para la pantalla y la ficha de calidad.
+        self.dried_a = dried_lot(self.plot_a, harvest_date=date(2026, 9, 17))
+        self.dried_b = dried_lot(self.plot_b, harvest_date=date(2026, 9, 17))
         self.owner = make_producer_owner(self.producer)
         self.employee = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS)
@@ -382,8 +387,8 @@ HARVEST_LISTS = {
     ),
     "lots": (
         lambda w: ("/api/lots", {}),
-        {"lot_a", "fermentation_a", "drying_a"},
-        {"lot_b", "fermentation_b", "drying_b"},
+        {"lot_a", "fermentation_a", "drying_a", "dried_a"},
+        {"lot_b", "fermentation_b", "drying_b", "dried_b"},
     ),
 }
 
@@ -392,6 +397,7 @@ HARVEST_DETAILS = {
     "lot": ("/api/lots/{}", "lot_a", "lot_b"),
     "fermentation": ("/api/fermentation/{}", "fermentation_a", "fermentation_b"),
     "drying": ("/api/drying/{}", "drying_a", "drying_b"),
+    "quality": ("/api/quality/{}", "dried_a", "dried_b"),
 }
 
 
@@ -453,6 +459,17 @@ def test_an_employee_lists_only_the_dryings_of_its_farm(auth_client, harvest_wor
     assert listed(harvest_world.employee) == names(harvest_world, {"drying_a"})
     assert listed(harvest_world.unassigned) == set()
     assert listed(harvest_world.owner) == names(harvest_world, {"drying_a", "drying_b"})
+
+
+def test_an_employee_lists_only_the_quality_lots_of_its_farm(auth_client, harvest_world):
+    def listed(user):
+        response = auth_client(user).get("/api/quality")
+        assert response.status_code == 200, response.data
+        return {row["lot"]["id"] for row in response.data["results"]}
+
+    assert listed(harvest_world.employee) == names(harvest_world, {"dried_a"})
+    assert listed(harvest_world.unassigned) == set()
+    assert listed(harvest_world.owner) == names(harvest_world, {"dried_a", "dried_b"})
 
 
 def test_an_employee_sees_only_the_lot_notifications_of_its_farm(auth_client, harvest_world):

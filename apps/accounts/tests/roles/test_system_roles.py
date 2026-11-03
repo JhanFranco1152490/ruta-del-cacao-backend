@@ -83,15 +83,15 @@ def test_only_the_producer_role_manages_farms_and_plots(permissions):
         assert granted == (permissions if code == PRODUCER else set()), code
 
 
-def test_only_the_producer_and_the_foreman_see_plots():
-    # La asociación no ve parcelas. El Capataz/Operario las consulta para programar actividades
-    # en ellas.
+def test_the_association_does_not_see_plots():
+    # El Capataz/Operario las consulta para programar actividades en ellas, y el Encargado de
+    # calidad porque ver un lote es ver de qué parcela salió.
     readers = {
         code
         for code, definition in SYSTEM_ROLES.items()
         if "plots.view_plot" in definition["permissions"]
     }
-    assert readers == {PRODUCER, FOREMAN}
+    assert readers == {PRODUCER, FOREMAN, QUALITY_MANAGER}
 
 
 @pytest.mark.parametrize(
@@ -112,13 +112,13 @@ def test_each_crops_permission_belongs_to_a_single_system_role(permission, holde
     assert granted == {holder}
 
 
-def test_the_producer_the_association_and_the_foreman_read_farms():
+def test_the_producer_the_association_the_foreman_and_quality_read_farms():
     readers = {
         code
         for code, definition in SYSTEM_ROLES.items()
         if "farms.view_farm" in definition["permissions"]
     }
-    assert readers == {PRODUCER, ADMINISTRATOR, FOREMAN}
+    assert readers == {PRODUCER, ADMINISTRATOR, FOREMAN, QUALITY_MANAGER}
 
 
 def test_only_the_association_can_delete_producers():

@@ -6,7 +6,7 @@ from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
 
 from .choices import DiscardReason
 from .models import DETAIL_MAX_LENGTH, MAX_PERCENT, NOTES_MAX_LENGTH, ONE_DECIMAL
-from .rules import discard_reason_errors
+from .rules import DETAIL_REQUIRED, REASON_REQUIRED, discard_reason_errors
 from .serializers import LotQualitySerializer
 
 PERCENT_MESSAGE = "El valor debe estar entre 0 y 100"
@@ -80,6 +80,24 @@ class ClassificationCreateSerializer(RejectUnknownFieldsMixin, serializers.Seria
         )
         if errors:
             raise serializers.ValidationError(errors)
+        return attrs
+
+
+class DiscardCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    expected_lot_version = serializers.IntegerField(min_value=1)
+    # Admite vacío para responder lo mismo que si falta: el motivo es lo que hay que pedir.
+    reason = serializers.ChoiceField(
+        choices=DiscardReason.choices, allow_blank=True, required=False, default=""
+    )
+    detail = serializers.CharField(
+        max_length=DETAIL_MAX_LENGTH, allow_blank=True, required=False, default=""
+    )
+
+    def validate(self, attrs):
+        if not attrs["reason"]:
+            raise serializers.ValidationError({"reason": [REASON_REQUIRED]})
+        if attrs["reason"] == DiscardReason.OTHER and not attrs["detail"].strip():
+            raise serializers.ValidationError({"detail": [DETAIL_REQUIRED]})
         return attrs
 
 

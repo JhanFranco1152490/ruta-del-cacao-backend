@@ -13,6 +13,7 @@ from .exceptions import StaleQualityVersion
 from .request_serializers import (
     ClassificationCreateSerializer,
     ClassificationSumErrorSerializer,
+    DiscardCreateSerializer,
     EvaluationCreateSerializer,
     EvaluationUpdateSerializer,
     QualityConflictErrorSerializer,
@@ -25,6 +26,7 @@ from .serializers import (
     QualitySummarySerializer,
 )
 from .services.classification import classify_lot
+from .services.discard import discard_lot
 from .services.evaluation import correct_evaluation, record_evaluation
 from .services.queries import get_quality_lot, list_quality_lots, quality_summary
 
@@ -58,6 +60,7 @@ class QualityViewSet(GenericViewSet):
         "evaluation": EVALUATE,
         "correct_evaluation": EVALUATE,
         "classification": "quality.classify_lot",
+        "discard": "quality.discard_lot",
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -160,6 +163,32 @@ class QualityViewSet(GenericViewSet):
         serializer = ClassificationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         classify_lot(request.user, pk, serializer.validated_data)
+        return Response(
+            LotQualitySerializer(get_quality_lot(request.user, pk)).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("quality-detail", args=[pk])},
+        )
+
+    @extend_schema(
+        description=(
+            "Descarta un lote Evaluado completo, con su motivo (y con `other`, su detalle). Es "
+            "irreversible: el lote queda Descartado y no se clasifica, no entra a bodega ni se "
+            "vende. Avisa a las cuentas que trabajan la calidad en la finca del lote, menos a "
+            "quien descarta. La confirmación la pide el cliente. Requiere `expected_lot_version`; "
+            "en otro estado, 409 `lot_invalid_status`."
+        ),
+        request=DiscardCreateSerializer,
+        responses={
+            201: LotQualitySerializer,
+            409: QualityConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def discard(self, request, pk):
+        serializer = DiscardCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        discard_lot(request.user, pk, serializer.validated_data)
         return Response(
             LotQualitySerializer(get_quality_lot(request.user, pk)).data,
             status=status.HTTP_201_CREATED,

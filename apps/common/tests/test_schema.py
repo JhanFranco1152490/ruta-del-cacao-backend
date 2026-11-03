@@ -241,6 +241,7 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/quality/{id}/evaluation"),
     ("patch", "/api/quality/{id}/evaluation"),
     ("post", "/api/quality/{id}/classification"),
+    ("post", "/api/quality/{id}/discard"),
 }
 
 

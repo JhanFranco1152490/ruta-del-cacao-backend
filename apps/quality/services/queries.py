@@ -11,6 +11,7 @@ from django.db.models import Count, Q, QuerySet, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 
 from ..exceptions import QualityLotNotFound
@@ -104,3 +105,19 @@ def get_quality_lot(actor, lot_id):
     if lot is None:
         raise QualityLotNotFound()
     return lot
+
+
+def lock_lot(actor, lot_id):
+    """El lote, en cualquier estado, con la finca de su parcela bloqueada hasta el final de la
+    transacción. Quien llama decide si el estado le sirve: uno que no lo es responde su estado,
+    no 404."""
+    lock_aggregate_root(
+        Lot,
+        lot_id,
+        root="harvest__plot__farm",
+        scope=owner_filter(actor, LOT_SCOPE["field"], farm=LOT_SCOPE["farm"]),
+        not_found=QualityLotNotFound,
+    )
+    return Lot.objects.select_related("harvest__plot__farm", "drying", "quality_evaluation").get(
+        pk=lot_id
+    )

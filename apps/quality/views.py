@@ -11,6 +11,8 @@ from apps.common.schema import error_responses
 
 from .exceptions import StaleQualityVersion
 from .request_serializers import (
+    ClassificationCreateSerializer,
+    ClassificationSumErrorSerializer,
     EvaluationCreateSerializer,
     EvaluationUpdateSerializer,
     QualityConflictErrorSerializer,
@@ -22,6 +24,7 @@ from .serializers import (
     QualitySummaryQuerySerializer,
     QualitySummarySerializer,
 )
+from .services.classification import classify_lot
 from .services.evaluation import correct_evaluation, record_evaluation
 from .services.queries import get_quality_lot, list_quality_lots, quality_summary
 
@@ -54,6 +57,7 @@ class QualityViewSet(GenericViewSet):
         "summary": EVALUATE,
         "evaluation": EVALUATE,
         "correct_evaluation": EVALUATE,
+        "classification": "quality.classify_lot",
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -134,6 +138,33 @@ class QualityViewSet(GenericViewSet):
         expected_version = data.pop("expected_version")
         correct_evaluation(request.user, pk, expected_version, data)
         return Response(LotQualitySerializer(get_quality_lot(request.user, pk)).data)
+
+    @extend_schema(
+        description=(
+            "Clasifica un lote Evaluado: reparte su peso seco entre G1, G2 y descarte. La suma "
+            "debe ser exactamente el peso seco; si no, 400 `classification_sum_mismatch` con lo "
+            "que falta o sobra. Con kilos de descarte, `discard_reason` es obligatorio (y con "
+            "`other`, `discard_detail`). El lote pasa a Clasificado. Requiere "
+            "`expected_lot_version`; en otro estado, 409 `lot_invalid_status`."
+        ),
+        request=ClassificationCreateSerializer,
+        responses={
+            201: LotQualitySerializer,
+            400: ClassificationSumErrorSerializer,
+            409: QualityConflictErrorSerializer,
+            **error_responses(401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def classification(self, request, pk):
+        serializer = ClassificationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        classify_lot(request.user, pk, serializer.validated_data)
+        return Response(
+            LotQualitySerializer(get_quality_lot(request.user, pk)).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("quality-detail", args=[pk])},
+        )
 
     def handle_exception(self, exc):
         # El servicio lanza el conflicto con el lote; aquí se arma lo que el formulario necesita

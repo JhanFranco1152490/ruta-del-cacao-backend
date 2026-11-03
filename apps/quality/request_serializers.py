@@ -4,7 +4,9 @@ from rest_framework import serializers
 
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin
 
-from .models import MAX_PERCENT, NOTES_MAX_LENGTH, ONE_DECIMAL
+from .choices import DiscardReason
+from .models import DETAIL_MAX_LENGTH, MAX_PERCENT, NOTES_MAX_LENGTH, ONE_DECIMAL
+from .rules import discard_reason_errors
 from .serializers import LotQualitySerializer
 
 PERCENT_MESSAGE = "El valor debe estar entre 0 y 100"
@@ -50,6 +52,37 @@ class EvaluationUpdateSerializer(RejectUnknownFieldsMixin, serializers.Serialize
         return attrs
 
 
+def kilos_input():
+    return serializers.DecimalField(
+        max_digits=8,
+        decimal_places=ONE_DECIMAL,
+        min_value=0,
+        error_messages={"min_value": "No puede ser negativo."},
+    )
+
+
+class ClassificationCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    expected_lot_version = serializers.IntegerField(min_value=1)
+    g1_kg = kilos_input()
+    g2_kg = kilos_input()
+    discard_kg = kilos_input()
+    # Solo con kilos de descarte.
+    discard_reason = serializers.ChoiceField(
+        choices=DiscardReason.choices, allow_blank=True, required=False, default=""
+    )
+    discard_detail = serializers.CharField(
+        max_length=DETAIL_MAX_LENGTH, allow_blank=True, required=False, default=""
+    )
+
+    def validate(self, attrs):
+        errors = discard_reason_errors(
+            attrs["discard_kg"], attrs["discard_reason"], attrs["discard_detail"]
+        )
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+
 class QualityConflictErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
     # `stale_version` y `current_status` con `lot_invalid_status`.
@@ -60,3 +93,11 @@ class QualityConflictErrorSerializer(ApiErrorSerializer):
 class QualitySumErrorSerializer(ApiErrorSerializer):
     # Solo se documenta: `total_pct` llega con `quality_sum_exceeds_100`.
     total_pct = serializers.CharField(required=False)
+
+
+class ClassificationSumErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: llegan con `classification_sum_mismatch`. `difference_kg` es lo que falta
+    # por distribuir, negativo si sobra.
+    expected_kg = serializers.CharField(required=False)
+    received_kg = serializers.CharField(required=False)
+    difference_kg = serializers.CharField(required=False)

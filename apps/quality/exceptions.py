@@ -44,3 +44,20 @@ class QualitySumExceeds100(ApiError):
             fields={"non_field_errors": [self.default_detail]},
             extra={"total_pct": f"{total:.1f}"},
         )
+
+
+class ClassificationSumMismatch(ApiError):
+    # G1, G2 y descarte reparten el peso seco del lote: ni sobra ni falta un kilo.
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "La clasificación debe sumar el peso seco del lote."
+    default_code = "classification_sum_mismatch"
+
+    def __init__(self, message: str, *, expected_kg, received_kg, difference_kg):
+        super().__init__(
+            fields={"non_field_errors": [message]},
+            extra={
+                "expected_kg": f"{expected_kg:.1f}",
+                "received_kg": f"{received_kg:.1f}",
+                "difference_kg": f"{difference_kg:.1f}",
+            },
+        )

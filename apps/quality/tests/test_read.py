@@ -1,6 +1,6 @@
 """Consultar la calidad: la pantalla de trabajo, su recuento, la ficha y el campo del lote."""
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 import pytest
 from django.db import connection
@@ -164,6 +164,119 @@ def test_without_the_evaluation_permission_the_screen_is_forbidden(auth_client, 
 
 def test_without_a_session_it_is_401(anonymous_client):
     assert anonymous_client.get(URL).status_code == 401
+
+
+def close_on(estate, lot, day, *, at=time(12, 0)):
+    """Mueve el cierre de un lote cerrado a ese día, a esa hora de Bogotá."""
+    moment = timezone.make_aware(datetime.combine(day, at))
+    if lot == estate.classified:
+        lot.classification.classified_at = moment
+        lot.classification.save()
+    else:
+        lot.discard.discarded_at = moment
+        lot.discard.save()
+
+
+def test_the_closed_view_filters_by_result(auth_client, estate):
+    client = auth_client(estate.owner)
+
+    discarded = client.get(URL, {"view": "closed", "result": "discarded"})
+    classified = client.get(URL, {"view": "closed", "result": "classified"})
+
+    assert codes(discarded) == [estate.discarded.code]
+    assert codes(classified) == [estate.classified.code]
+
+
+def test_the_closed_view_filters_by_the_closing_period_with_both_days_included(
+    auth_client, estate
+):
+    today = timezone.localdate()
+    close_on(estate, estate.classified, today - timedelta(days=10), at=time(0, 0))
+    close_on(estate, estate.discarded, today - timedelta(days=3), at=time(23, 59))
+    client = auth_client(estate.owner)
+
+    def listed(**period):
+        return codes(client.get(URL, {"view": "closed", **period}))
+
+    first, second = estate.discarded.code, estate.classified.code
+    assert listed(closed_from=str(today - timedelta(days=10))) == [first, second]
+    assert listed(closed_from=str(today - timedelta(days=9))) == [first]
+    assert listed(closed_to=str(today - timedelta(days=3))) == [first, second]
+    assert listed(closed_to=str(today - timedelta(days=4))) == [second]
+    assert listed(
+        closed_from=str(today - timedelta(days=3)), closed_to=str(today - timedelta(days=3))
+    ) == [first]
+    assert listed(closed_from=str(today + timedelta(days=1))) == []
+
+
+def test_the_result_and_the_period_only_act_on_the_closed_view(auth_client, estate):
+    today = timezone.localdate()
+    response = auth_client(estate.owner).get(
+        URL, {"view": "evaluated", "result": "discarded", "closed_from": str(today)}
+    )
+
+    assert codes(response) == [estate.evaluated.code]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        {"result": "evaluated"},
+        {"closed_from": "ayer"},
+        {"closed_from": "2026-11-05", "closed_to": "2026-11-04"},
+    ],
+)
+def test_a_wrong_result_or_period_is_refused(auth_client, estate, query):
+    response = auth_client(estate.owner).get(URL, {"view": "closed", **query})
+
+    assert response.status_code == 400
+
+
+# --- Lo que dejó el periodo ---
+
+
+def test_the_closed_totals_add_the_grades_and_what_was_left_out(auth_client, estate):
+    response = auth_client(estate.owner).get(f"{URL}/closed-summary")
+
+    assert response.status_code == 200
+    # 8,0 kg de descarte parcial más los 313,2 kg del lote descartado completo.
+    assert response.data == {
+        "classified": 1,
+        "discarded": 1,
+        "g1_kg": "250.0",
+        "g2_kg": "55.2",
+        "discarded_kg": "321.2",
+    }
+
+
+def test_the_closed_totals_follow_the_period_and_are_zero_without_lots(auth_client, estate):
+    today = timezone.localdate()
+    close_on(estate, estate.classified, today - timedelta(days=40))
+    client = auth_client(estate.owner)
+
+    recent = client.get(f"{URL}/closed-summary", {"closed_from": str(today - timedelta(days=7))})
+    none = client.get(f"{URL}/closed-summary", {"closed_from": str(today + timedelta(days=1))})
+
+    assert (recent.data["classified"], recent.data["discarded"]) == (0, 1)
+    assert recent.data["g1_kg"] == "0.0"
+    assert none.data == {
+        "classified": 0,
+        "discarded": 0,
+        "g1_kg": "0.0",
+        "g2_kg": "0.0",
+        "discarded_kg": "0.0",
+    }
+
+
+def test_the_closed_totals_respect_the_reach_and_the_permission(auth_client, estate):
+    foreman = UserFactory(producer=estate.producer, farm=estate.farm_a)
+    grant_role(foreman, get_system_role(FOREMAN))
+
+    assert auth_client(estate.inspector).get(f"{URL}/closed-summary").data["classified"] == 1
+    assert auth_client(foreman).get(f"{URL}/closed-summary").status_code == 403
+    other = QualityEstate()
+    # Cada productor suma solo lo suyo: con los dos juntos serían 500,0 kg de G1.
+    assert auth_client(other.owner).get(f"{URL}/closed-summary").data["g1_kg"] == "250.0"
 
 
 # --- El recuento ---

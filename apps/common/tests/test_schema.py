@@ -238,6 +238,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/quality"),
     ("get", "/api/quality/{id}"),
     ("get", "/api/quality/summary"),
+    ("get", "/api/quality/closed-summary"),
     ("post", "/api/quality/{id}/evaluation"),
     ("patch", "/api/quality/{id}/evaluation"),
     ("post", "/api/quality/{id}/classification"),

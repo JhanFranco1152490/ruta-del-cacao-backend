@@ -20,6 +20,8 @@ from .request_serializers import (
     QualitySumErrorSerializer,
 )
 from .serializers import (
+    ClosedSummaryQuerySerializer,
+    ClosedSummarySerializer,
     LotQualitySerializer,
     QualityListQuerySerializer,
     QualitySummaryQuerySerializer,
@@ -28,7 +30,12 @@ from .serializers import (
 from .services.classification import classify_lot
 from .services.discard import discard_lot
 from .services.evaluation import correct_evaluation, record_evaluation
-from .services.queries import get_quality_lot, list_quality_lots, quality_summary
+from .services.queries import (
+    closed_summary,
+    get_quality_lot,
+    list_quality_lots,
+    quality_summary,
+)
 
 EVALUATE = "quality.evaluate_lot"
 PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")
@@ -40,7 +47,9 @@ PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la
             "Los lotes de calidad de las fincas que la cuenta alcanza, paginados. `view` elige "
             "cuáles: `to_evaluate` (por defecto, los Seco, del que se secó primero), `evaluated` "
             "(del que se evaluó primero) o `closed` (Clasificado y Descartado, del más reciente). "
-            "`search` busca una parte del código, sin distinguir mayúsculas."
+            "`search` busca una parte del código, sin distinguir mayúsculas. En `closed`, "
+            "`result` (`classified` o `discarded`) y el periodo de cierre (`closed_from` y "
+            "`closed_to`, días incluidos) acotan la lista."
         ),
         parameters=[QualityListQuerySerializer, PRODUCER_PARAMETER],
         responses={200: LotQualitySerializer(many=True), **error_responses(400, 401, 403, 404)},
@@ -57,6 +66,7 @@ class QualityViewSet(GenericViewSet):
         "list": EVALUATE,
         "retrieve": EVALUATE,
         "summary": EVALUATE,
+        "closed_totals": EVALUATE,
         "evaluation": EVALUATE,
         "correct_evaluation": EVALUATE,
         "classification": "quality.classify_lot",
@@ -89,6 +99,23 @@ class QualityViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         return Response(
             QualitySummarySerializer(quality_summary(request.user, query.validated_data)).data
+        )
+
+    @extend_schema(
+        description=(
+            "Lo que dejó el periodo de cierre: lotes clasificados y descartados, kilos de G1 y G2 "
+            "y kilos que quedaron fuera. Con los filtros de la lista de Cerrados (`farm`, "
+            "`search`, `closed_from` y `closed_to`)."
+        ),
+        parameters=[ClosedSummaryQuerySerializer, PRODUCER_PARAMETER],
+        responses={200: ClosedSummarySerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="closed-summary", pagination_class=None)
+    def closed_totals(self, request):
+        query = ClosedSummaryQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        return Response(
+            ClosedSummarySerializer(closed_summary(request.user, query.validated_data)).data
         )
 
     @extend_schema(

@@ -4,7 +4,7 @@ from apps.common.serializers import full_name
 
 from .choices import DiscardReason
 from .models import ONE_DECIMAL, QualityEvaluation
-from .services.queries import VIEWS
+from .services.queries import CLOSED_RESULTS, VIEWS
 
 # Las opciones del estado del lote se toman de su campo por la relación, sin importar su app: así
 # el esquema las reconoce como el mismo enum de los lotes.
@@ -83,20 +83,45 @@ class LotQualitySerializer(serializers.Serializer):
     discard = QualityDiscardSerializer(allow_null=True)
 
 
-class QualityListQuerySerializer(serializers.Serializer):
-    # Los filtros de la pantalla; `page` y `page_size` los lee la paginación.
+class ClosedPeriodQuerySerializer(serializers.Serializer):
+    """El periodo de cierre de la pestaña Cerrados: días incluidos, en la hora de Bogotá."""
+
+    closed_from = serializers.DateField(required=False)
+    closed_to = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        start, end = attrs.get("closed_from"), attrs.get("closed_to")
+        if start and end and start > end:
+            raise serializers.ValidationError(
+                {"closed_to": ["La fecha final no puede ser anterior a la inicial."]}
+            )
+        return attrs
+
+
+class QualityListQuerySerializer(ClosedPeriodQuerySerializer):
+    # Los filtros de la pantalla; `page` y `page_size` los lee la paginación. `result`,
+    # `closed_from` y `closed_to` solo cuentan en la vista `closed`.
     view = serializers.ChoiceField(choices=list(VIEWS), required=False)
+    result = serializers.ChoiceField(choices=list(CLOSED_RESULTS), required=False)
     farm = serializers.UUIDField(required=False)
     search = serializers.CharField(required=False, allow_blank=True, max_length=40)
     producer = serializers.UUIDField(required=False)
 
 
 class QualitySummaryQuerySerializer(QualityListQuerySerializer):
-    # Los mismos filtros de la lista menos la vista: las cifras son de todas.
+    # Los mismos filtros de la lista menos la vista y lo que solo es de Cerrados: las cifras son de
+    # todas las vistas.
     def get_fields(self):
         fields = super().get_fields()
-        fields.pop("view")
+        for name in ("view", "result", "closed_from", "closed_to"):
+            fields.pop(name)
         return fields
+
+
+class ClosedSummaryQuerySerializer(ClosedPeriodQuerySerializer):
+    farm = serializers.UUIDField(required=False)
+    search = serializers.CharField(required=False, allow_blank=True, max_length=40)
+    producer = serializers.UUIDField(required=False)
 
 
 class QualitySummarySerializer(serializers.Serializer):
@@ -104,3 +129,13 @@ class QualitySummarySerializer(serializers.Serializer):
     to_evaluate_kg = serializers.DecimalField(max_digits=12, decimal_places=ONE_DECIMAL)
     evaluated = serializers.IntegerField()
     discarded_this_month = serializers.IntegerField()
+
+
+class ClosedSummarySerializer(serializers.Serializer):
+    classified = serializers.IntegerField()
+    discarded = serializers.IntegerField()
+    g1_kg = serializers.DecimalField(max_digits=12, decimal_places=ONE_DECIMAL)
+    g2_kg = serializers.DecimalField(max_digits=12, decimal_places=ONE_DECIMAL)
+    # Los kilos que quedaron fuera: el descarte de las clasificaciones y el de los lotes
+    # descartados completos.
+    discarded_kg = serializers.DecimalField(max_digits=12, decimal_places=ONE_DECIMAL)

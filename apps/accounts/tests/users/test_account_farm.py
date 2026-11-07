@@ -254,7 +254,7 @@ def test_an_employee_keeps_its_farm_after_it_is_deactivated(auth_client, owner, 
 
 
 def test_an_employee_that_edits_accounts_cannot_move_them(auth_client, producer, farm, other_farm):
-    target = grant_role(UserFactory(producer=producer, farm=farm), get_system_role(SALES_MANAGER))
+    target = make_delegate(producer, ["accounts.users_view"], farm=farm)
     delegate = make_delegate(producer, ["accounts.users_update", "accounts.users_view"], farm=farm)
 
     response = auth_client(delegate).patch(

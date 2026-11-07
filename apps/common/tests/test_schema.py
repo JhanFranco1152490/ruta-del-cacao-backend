@@ -242,6 +242,19 @@ DOCUMENTED_OPERATIONS = {
     ("patch", "/api/quality/{id}/evaluation"),
     ("post", "/api/quality/{id}/classification"),
     ("post", "/api/quality/{id}/discard"),
+    ("get", "/api/warehouses"),
+    ("post", "/api/warehouses"),
+    ("patch", "/api/warehouses/{id}"),
+    ("delete", "/api/warehouses/{id}"),
+    ("get", "/api/stock"),
+    ("get", "/api/stock/{id}"),
+    ("get", "/api/stock/summary"),
+    ("get", "/api/stock/locations"),
+    ("get", "/api/stock/pending-entry"),
+    ("post", "/api/stock/{id}/entry"),
+    ("patch", "/api/stock/{id}/entry"),
+    ("post", "/api/stock/{id}/exits"),
+    ("post", "/api/stock/{id}/exits/{exit_id}/void"),
 }
 
 

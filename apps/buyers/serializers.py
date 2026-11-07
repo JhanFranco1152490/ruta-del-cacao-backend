@@ -10,8 +10,6 @@ from apps.common.serializers import (
 
 from .models import NAME_MAX_LENGTH, Buyer
 
-OPTIONAL_FIELDS = ("contact_name", "phone", "email")
-
 
 class BuyerProducerSerializer(serializers.Serializer):
     id = serializers.UUIDField()
@@ -74,13 +72,9 @@ class BuyerWriteSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     )
 
     def to_model_data(self) -> dict:
-        data = dict(self.validated_data)
-        for name in OPTIONAL_FIELDS:
-            if name in data and not data[name]:
-                data[name] = None
-        if data.get("email"):
-            data["email"] = data["email"].lower()
-        return data
+        # Llegan ya recortados: el modelo pasa a `null` los opcionales vacíos y el correo a
+        # minúsculas.
+        return dict(self.validated_data)
 
 
 class BuyerCreateSerializer(BuyerWriteSerializer):

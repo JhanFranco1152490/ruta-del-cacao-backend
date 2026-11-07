@@ -60,6 +60,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`. En `alerts.py`, la regla del próximo volteo, el evaluador de los volteos pendientes y los desvíos de temperatura y de pH del grano de cada volteo |
 | `apps/postharvest_parameters/` | Parámetros de poscosecha de cada productor (secado: humedad de entrada y meta, días estimados y umbrales de las alertas de desvío; fermentación: cuándo toca cada volteo y la temperatura y el pH de referencia): consultar con la línea base al lado, guardar los veintiún valores juntos y restablecer la línea base, con su historial. Las demás apps los leen con `drying_parameters(producer_id)` y `fermentation_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py` |
 | `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details`, con su marquesina. En `alerts.py`, el evaluador de la bitácora pendiente y los desvíos de humedad de cada bitácora |
+| `apps/buyers/` | Directorio de compradores de cada productor (no de una finca): nombre, documento (tipo y número, único en el directorio), tipo de cliente y contacto (persona, teléfono y correo, con al menos teléfono o correo). Alta (solo en línea), consulta, edición (también del documento), activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial sin valores, que sobrevive al borrado. Se eliminan con un productor creado por error |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha y los desvíos), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
@@ -121,7 +122,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
   `lot_id_conflict`, `lot_invalid_status`, `duplicate_pest_disease_name`, `evidence_requires_done`,
   `evidence_limit_reached`, `fermentation_has_turns`, `fermentation_not_in_progress`,
-  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time`, `buyer_has_records` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
   `payload_too_large`, `evidence_too_large` (413); `unsupported_media_type`,
   `evidence_format_not_allowed` (415); `invalid_coordinates`,
@@ -462,6 +463,22 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   duración, secado acelerado, próximo a meta y sobresecado, el único `critical`. Corregir retira
   los que ya no cumple. `POST` y `PATCH` de bitácoras responden también con `alerts`, como los
   volteos.
+- **Compradores** (`/api/buyers`): el directorio es de **todo el productor**, no de una finca: un
+  empleado con el permiso lo ve completo, trabaje en las fincas que trabaje, y la cuenta técnica
+  filtra con `producer`. Permisos `buyers.{view,add,change,delete}_buyer`, delegables y **no de
+  campo**; el Productor los tiene todos y el Comercializador todos menos eliminar; la asociación,
+  ninguno. El listado se entrega completo, sin paginar, con activos e inactivos: la búsqueda y los
+  filtros corren en el dispositivo. **Lo identifica el documento:** tipo y número no se repiten en el
+  directorio, tampoco entre inactivos (`409 duplicate_document` con el existente en `existing`, sin
+  repetir el número en el mensaje); el nombre sí se puede repetir. El documento sigue la regla del
+  productor (6 a 15 dígitos) y se puede editar: lo que apunta a un comprador lo hace por su `id`.
+  Hace falta un teléfono o un correo, sobre el resultado de una edición (los dos campos en
+  `fields`). Eliminar solo lo que ningún registro usa (`409 buyer_has_records`, que sugiere
+  desactivar); las ventas contarán solas por las relaciones del modelo (`usage.py`). **Datos
+  personales:** un comprador puede ser una persona natural, así que su historial
+  (`BuyerAuditEvent`) guarda solo los nombres de los campos que cambiaron, y el evento `deleted`
+  solo el `id` y el tipo de cliente; el motivo que da al bloquear el borrado de un productor
+  tampoco lo nombra. No hay bloqueo de finca: la edición bloquea la fila del comprador.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden

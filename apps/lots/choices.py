@@ -3,7 +3,7 @@ from django.db import models
 
 class LotStatus(models.TextChoices):
     """Los estados de un lote, en el orden del proceso. Cada módulo mueve el lote con
-    `advance_lot_status`; bodega y venta agregan sus estados después de Clasificado."""
+    `advance_lot_status`; la venta agrega su estado después de En bodega."""
 
     GENERATED = "generated", "Generado"
     FERMENTING = "fermenting", "En fermentación"
@@ -12,11 +12,13 @@ class LotStatus(models.TextChoices):
     DRIED = "dried", "Seco"
     EVALUATED = "evaluated", "Evaluado"
     CLASSIFIED = "classified", "Clasificado"
+    IN_WAREHOUSE = "in_warehouse", "En bodega"
     DISCARDED = "discarded", "Descartado"
 
 
 # A qué estados puede pasar cada uno. Es una cadena salvo en Evaluado, que se abre en dos: el lote
-# se clasifica por calibre o se descarta completo, y desde ahí ya no cambia.
+# se clasifica por calibre o se descarta completo. Clasificado sigue a En bodega; desde ahí o desde
+# Descartado el lote ya no cambia.
 TRANSITIONS: dict[str, frozenset[str]] = {
     LotStatus.GENERATED: frozenset({LotStatus.FERMENTING}),
     LotStatus.FERMENTING: frozenset({LotStatus.FERMENTED}),
@@ -24,7 +26,8 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     LotStatus.DRYING: frozenset({LotStatus.DRIED}),
     LotStatus.DRIED: frozenset({LotStatus.EVALUATED}),
     LotStatus.EVALUATED: frozenset({LotStatus.CLASSIFIED, LotStatus.DISCARDED}),
-    LotStatus.CLASSIFIED: frozenset(),
+    LotStatus.CLASSIFIED: frozenset({LotStatus.IN_WAREHOUSE}),
+    LotStatus.IN_WAREHOUSE: frozenset(),
     LotStatus.DISCARDED: frozenset(),
 }
 

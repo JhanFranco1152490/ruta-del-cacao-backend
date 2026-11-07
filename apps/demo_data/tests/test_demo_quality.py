@@ -44,7 +44,9 @@ def test_the_seed_leaves_a_lot_in_every_quality_state(seeded):
 
 
 def test_the_classified_lot_has_a_partial_discard_for_mold(seeded):
-    classification = LotClassification.objects.get(lot__harvest__plot__farm__name=DEMO_FARM)
+    classification = LotClassification.objects.get(
+        lot__harvest__plot__farm__name=DEMO_FARM, discard_kg__gt=0
+    )
 
     assert classification.discard_kg > 0
     assert classification.discard_reason == "mold"

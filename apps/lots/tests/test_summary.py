@@ -49,6 +49,9 @@ def test_counts_the_lots_and_kilos_of_every_status_in_order(auth_client, estate)
         "fermented",
         "drying",
         "dried",
+        "evaluated",
+        "classified",
+        "discarded",
     ]
     assert totals(response) == {
         "generated": (2, "200.5"),
@@ -56,6 +59,9 @@ def test_counts_the_lots_and_kilos_of_every_status_in_order(auth_client, estate)
         "fermented": (0, "0.0"),
         "drying": (0, "0.0"),
         "dried": (0, "0.0"),
+        "evaluated": (0, "0.0"),
+        "classified": (0, "0.0"),
+        "discarded": (0, "0.0"),
     }
 
 

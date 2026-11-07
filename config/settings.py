@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "apps.fermentation",
     "apps.postharvest_parameters",
     "apps.drying",
+    "apps.quality",
     "apps.demo_data",
 ]
 
@@ -252,6 +253,7 @@ SPECTACULAR_SETTINGS = {
         "ControlModeEnum": "apps.health.choices.ControlMode",
         "PostharvestFacilityStatusEnum": "apps.facilities.status.FacilityStatus",
         "DryingWeatherEnum": "apps.drying.models.Weather",
+        "QualityDiscardReasonEnum": "apps.quality.choices.DiscardReason",
     },
 }
 

@@ -16,6 +16,7 @@ DEMO_ADMIN_EMAIL = "administrador@example.com"
 DEMO_PRODUCER_EMAIL = "productor@example.com"
 DEMO_FOREMAN_EMAIL = "capataz@example.com"
 DEMO_OPERATOR_EMAIL = "operario@example.com"
+DEMO_QUALITY_EMAIL = "calidad@example.com"
 
 DEMO_ADMIN = {
     "email": DEMO_ADMIN_EMAIL,
@@ -47,6 +48,15 @@ DEMO_EMPLOYEES = [
         "farm": "El Mirador",
     },
 ]
+
+# El Encargado de calidad del productor de demostración: recibe lotes de todas sus fincas.
+DEMO_QUALITY_MANAGER = {
+    "email": DEMO_QUALITY_EMAIL,
+    "document_type": "CC",
+    "identity_document": "1000000013",
+    "first_name": "Diana Carolina",
+    "last_name": "Rojas Peñaranda",
+}
 
 # La finca y la parcela donde se hacen las demostraciones en vivo (el código de la parcela, P01, lo
 # asigna el servidor: es la primera de la finca).

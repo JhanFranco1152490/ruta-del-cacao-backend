@@ -18,6 +18,7 @@ class NotificationKind(models.TextChoices):
     DRYING_ACCELERATED = "drying_accelerated", "Secado acelerado"
     DRYING_NEAR_TARGET = "drying_near_target", "Próximo a meta"
     DRYING_OVERDRIED = "drying_overdried", "Sobresecado"
+    LOT_DISCARDED = "lot_discarded", "Lote descartado"
 
 
 # Los tipos que hablan de una actividad: todos llevan la actividad.
@@ -50,8 +51,16 @@ DRYING_DEVIATION_KINDS = (
     NotificationKind.DRYING_OVERDRIED,
 )
 
+# Lo que se decidió de un lote: nace al guardarlo y ninguna evaluación lo vuelve a crear.
+QUALITY_KINDS = (NotificationKind.LOT_DISCARDED,)
+
 # Los tipos que hablan de un lote: todos llevan el lote.
-LOT_KINDS = (*PENDING_LOT_KINDS, *FERMENTATION_DEVIATION_KINDS, *DRYING_DEVIATION_KINDS)
+LOT_KINDS = (
+    *PENDING_LOT_KINDS,
+    *FERMENTATION_DEVIATION_KINDS,
+    *DRYING_DEVIATION_KINDS,
+    *QUALITY_KINDS,
+)
 
 
 class NotificationSeverity(models.TextChoices):

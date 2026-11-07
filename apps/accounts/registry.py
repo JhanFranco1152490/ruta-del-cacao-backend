@@ -85,6 +85,10 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "drying.log_drying": PermissionInfo(area="drying", delegable=True),
     # Quien lo tiene puede ser nombrado responsable de un secado.
     "drying.manage_drying": PermissionInfo(area="drying", delegable=True),
+    "quality.evaluate_lot": PermissionInfo(area="quality", delegable=True),
+    "quality.classify_lot": PermissionInfo(area="quality", delegable=True),
+    # Aparte de clasificar porque no se deshace: el productor puede darlo a menos personas.
+    "quality.discard_lot": PermissionInfo(area="quality", delegable=True),
 }
 
 
@@ -102,6 +106,7 @@ FIELD_AREAS = frozenset(
         "facilities",
         "fermentation",
         "drying",
+        "quality",
     }
 )
 
@@ -191,6 +196,11 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     # bitácora: así quien responde por un secado siempre puede hacer todo en él.
     "drying.log_drying": "lots.view_lot",
     "drying.manage_drying": "drying.log_drying",
+    # La calidad se trabaja sobre el lote. Clasificar y descartar se hacen en la pantalla de
+    # calidad, que pide evaluar.
+    "quality.evaluate_lot": "lots.view_lot",
+    "quality.classify_lot": "quality.evaluate_lot",
+    "quality.discard_lot": "quality.evaluate_lot",
 }
 
 

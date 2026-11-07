@@ -262,3 +262,25 @@ def test_a_single_postharvest_part_reads_well():
     )
 
     assert result["body"] == "2 desvíos de poscosecha"
+
+
+def discarded_notification(pk="n9", reason="Moho"):
+    notice = lot_notification("lot_discarded", pk=pk)
+    notice.lot.discard = SimpleNamespace(get_reason_display=lambda: reason)
+    return notice
+
+
+def test_a_discarded_lot_says_why():
+    result = message([discarded_notification()])
+
+    assert result["title"] == "Lote descartado"
+    assert result["body"] == f"{LOT_CODE} · La Esperanza · Moho"
+    assert result["url"] == "/lotes/detalle?id=l1&notificacion=n9"
+
+
+def test_the_summary_counts_the_discarded_lots():
+    one = message([notification("activity_overdue", pk="n1"), discarded_notification(pk="n2")])
+    two = message([discarded_notification(pk="n1"), discarded_notification(pk="n2")])
+
+    assert one["body"] == "1 actividad vencida y 1 lote descartado"
+    assert two["body"] == "2 lotes descartados"

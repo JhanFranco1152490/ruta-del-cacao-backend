@@ -39,8 +39,8 @@ class Lot(models.Model):
         return self.code
 
     def advance_status(self, expected, new, *, actor):
-        """Mueve el lote de `expected` a `new`. Lo llaman fermentación y secado dentro de su
-        transacción, con la finca del lote ya bloqueada, por este método y sin importar esta
+        """Mueve el lote de `expected` a `new`. Lo llaman fermentación, secado y calidad dentro de
+        su transacción, con la finca del lote ya bloqueada, por este método y sin importar esta
         app."""
         from .services.status import advance_lot_status
 

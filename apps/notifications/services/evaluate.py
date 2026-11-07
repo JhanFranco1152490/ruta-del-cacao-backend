@@ -12,6 +12,7 @@ from ..choices import (
     DRYING_DEVIATION_KINDS,
     FERMENTATION_DEVIATION_KINDS,
     PENDING_FERMENTATION_KINDS,
+    QUALITY_KINDS,
     NotificationKind,
 )
 from ..models import Notification
@@ -81,8 +82,10 @@ def _purge(now) -> int:
     log_passed = Q(kind=NotificationKind.DRYING_LOG_DUE) & (
         Q(resolved_at__isnull=False) | ~Q(lot__status=DRYING_STATUS)
     )
-    # Un desvío es algo que ya ocurrió: ninguna evaluación lo vuelve a crear.
-    deviation_passed = Q(kind__in=FERMENTATION_DEVIATION_KINDS + DRYING_DEVIATION_KINDS)
+    # Un desvío o un descarte es algo que ya ocurrió: ninguna evaluación lo vuelve a crear.
+    deviation_passed = Q(
+        kind__in=FERMENTATION_DEVIATION_KINDS + DRYING_DEVIATION_KINDS + QUALITY_KINDS
+    )
     passed = activity_passed | control_passed | turn_passed | log_passed | deviation_passed
     deleted, _ = (
         Notification.objects.filter(

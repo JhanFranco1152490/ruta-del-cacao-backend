@@ -83,6 +83,9 @@ SYSTEM_ROLES = {
             "postharvest_parameters.change_postharvestparameters",
             "drying.log_drying",
             "drying.manage_drying",
+            "quality.evaluate_lot",
+            "quality.classify_lot",
+            "quality.discard_lot",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -130,7 +133,16 @@ SYSTEM_ROLES = {
         "name": "Encargado de calidad",
         # Trabaja con lotes, que pueden venir de varias fincas.
         "farm_scope": Role.FarmScope.MANY,
-        "permissions": [],
+        "permissions": [
+            # Ver el lote es ver de qué cosecha, parcela y finca salió; no los edita.
+            "farms.view_farm",
+            "plots.view_plot",
+            "harvests.view_harvest",
+            "lots.view_lot",
+            "quality.evaluate_lot",
+            "quality.classify_lot",
+            "quality.discard_lot",
+        ],
     },
     SALES_MANAGER: {
         "kind": Role.Kind.PREDEFINED,

@@ -60,8 +60,9 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`. En `alerts.py`, la regla del próximo volteo, el evaluador de los volteos pendientes y los desvíos de temperatura y de pH del grano de cada volteo |
 | `apps/postharvest_parameters/` | Parámetros de poscosecha de cada productor (secado: humedad de entrada y meta, días estimados y umbrales de las alertas de desvío; fermentación: cuándo toca cada volteo y la temperatura y el pH de referencia): consultar con la línea base al lado, guardar los veintiún valores juntos y restablecer la línea base, con su historial. Las demás apps los leen con `drying_parameters(producer_id)` y `fermentation_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py` |
 | `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details`, con su marquesina. En `alerts.py`, el evaluador de la bitácora pendiente y los desvíos de humedad de cada bitácora |
+| `apps/quality/` | Control de calidad del lote: la evaluación física de un lote Seco (granos bien fermentados, con moho y con otros defectos, hasta 100 % entre los tres) y su corrección mientras siga Evaluado, la clasificación de su peso seco entre G1, G2 y descarte, y el descarte del lote completo con su motivo, que avisa a quienes trabajan la calidad en la finca. El lote pasa de Seco a Evaluado y de ahí a Clasificado o a Descartado. Suma el campo `quality` al lote por `lot_details`. Solo en línea |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
-| `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha y los desvíos), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
+| `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha, los desvíos y el descarte), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -111,8 +112,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   cuerpo: nunca se responde `Response({...})` a mano con otra forma. Una ruta que no existe
   bajo `/api/` (404) y un fallo no controlado (500, sin datos técnicos) responden con la misma
   forma (con `DEBUG=True`, Django muestra en su lugar su página técnica de depuración).
-- **Códigos:** `validation_error`, `invalid_reset_token`, `parse_error`, `location_required`
-  (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
+- **Códigos:** `validation_error`, `invalid_reset_token`, `parse_error`, `location_required`,
+  `quality_sum_exceeds_100`, `classification_sum_mismatch` (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
@@ -352,9 +353,11 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   paginado, con `status`, `farm`, `plot`, `variety`, `from`, `to` (fecha de la cosecha), `search` por
   parte del código y `producer` (solo la cuenta técnica). Eliminar (`DELETE ?expected_version=`) solo
   un lote Generado (`409 lot_invalid_status` con `current_status`): la cosecha queda sin lote y el
-  código no se reutiliza. **El estado** es `generated`, `fermenting`, `fermented`, `drying`, `dried`
-  y solo cambia por `advance_lot_status(lot, expected, new, actor=...)` (`apps/lots/services/
-  status.py`), que exige estar en `expected` y que `new` sea el siguiente; los demás módulos la
+  código no se reutiliza. **El estado** es `generated`, `fermenting`, `fermented`, `drying`, `dried`,
+  `evaluated` y de ahí `classified` o `discarded` (los dos finales), y solo cambia por
+  `advance_lot_status(lot, expected, new, actor=...)` (`apps/lots/services/status.py`), que exige
+  estar en `expected` y que `new` esté en `allowed_next(expected)` (el mapa `TRANSITIONS` de
+  `apps/lots/choices.py`); los demás módulos la
   llaman como método del modelo, `lot.advance_status(expected, new, actor=...)`, dentro de su
   transacción con el lote ya bloqueado (la finca de su parcela) y sin importar `lots`. El historial
   (`LotAuditEvent`) guarda el código y la cosecha de origen y sobrevive al lote. **Lo que otra app
@@ -462,6 +465,42 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   duración, secado acelerado, próximo a meta y sobresecado, el único `critical`. Corregir retira
   los que ya no cumple. `POST` y `PATCH` de bitácoras responden también con `alerts`, como los
   volteos.
+- **Calidad** (`/api/quality`, se busca por el lote). Todo es **solo en línea**, sin cola.
+  - **Permisos:** `quality.evaluate_lot` (depende de `lots.view_lot`; da la pantalla, el recuento
+    y la ficha), `quality.classify_lot` y `quality.discard_lot` (dependen de `evaluate_lot`; descartar
+    va aparte porque no se deshace). Delegables y de campo, para el Productor y el Encargado de
+    calidad, que además ve lotes, cosechas, parcelas y fincas (ver un lote lo exige).
+  - **Consultar:** la lista (`GET`, paginada) solo tiene lotes Seco o posteriores, en tres vistas
+    (`view`): `to_evaluate` (los Seco, del que se secó primero), `evaluated` y `closed`
+    (Clasificado y Descartado, del más reciente). `GET …/summary` da las cifras con los mismos
+    filtros menos la vista, y `GET …/{lot_id}` es `404` para un lote anterior a Seco. Toda la
+    representación sale en una sola consulta: secado, evaluación, clasificación y descarte son uno
+    a uno con el lote.
+  - **Cerrados con filtros:** en la vista `closed` la lista acepta `result` (`classified` o
+    `discarded`) y el periodo de cierre, `closed_from` y `closed_to` (días incluidos, en la hora de
+    Bogotá; el cierre es la clasificación o el descarte, el que tenga el lote). En las otras vistas
+    se ignoran. `GET …/closed-summary` da lo que dejó el periodo con los filtros de finca, búsqueda
+    y periodo: lotes clasificados y descartados, kilos de G1 y G2, y `discarded_kg`, los kilos que
+    quedaron fuera (el descarte de las clasificaciones y el peso seco de los lotes descartados
+    completos).
+  - **Evaluar** (`POST …/{lot_id}/evaluation`, con `expected_lot_version`): solo un lote Seco; los
+    tres porcentajes de 0 a 100 con un decimal y hasta 100 entre los tres (`400
+    quality_sum_exceeds_100` con `total_pct`). **Corregir** (`PATCH` del mismo recurso, con
+    `expected_version` de la evaluación): solo con el lote Evaluado, guarda quién y cuándo; sin
+    cambios reales no escribe.
+  - **Clasificar** (`POST …/{lot_id}/classification`): G1 + G2 + descarte deben ser exactamente el
+    peso seco del secado del lote (`400 classification_sum_mismatch` con el mensaje de lo que falta
+    o sobra, `expected_kg`, `received_kg` y `difference_kg`, negativo si sobra). Con kilos de
+    descarte va el motivo (lista `DiscardReason`, con `other` y su detalle), y sin ellos no.
+  - **Descartar** (`POST …/{lot_id}/discard`): el lote completo, con su motivo; es irreversible.
+    En la misma transacción avisa (`notify`, tipo `lot_discarded`) a las cuentas activas con
+    `quality.evaluate_lot` que alcanzan la finca (`FarmAccounts`), menos quien descartó.
+  - El estado se revisa antes que la versión: lo de otro estado es `409 lot_invalid_status` con
+    `current_status`, y una versión vieja, `409 stale_version` con el vigente en `current`.
+  - El campo `quality` del lote (`lot_details`) es nulo sin evaluación; trae los porcentajes, y al
+    cerrar, los kilos de G1 y G2 (que bodega toma como máximos) o el motivo y la hora del descarte.
+  - Las cuentas que evalúan, corrigen, clasifican o descartan son `PROTECT`, y el historial
+    (`QualityAuditEvent`) apunta al lote con `PROTECT`: un lote Seco o posterior no se elimina.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
@@ -759,15 +798,18 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
 - **`seed_demo_data`** (management command) carga productores, fincas, parcelas y fichas
   inventados y deja cuentas con contraseña pública, la misma que muestra la pantalla de inicio de
   sesión del frontend: `administrador@example.com`, `productor@example.com`, `capataz@example.com`
-  (Capataz/Operario de La Esperanza) y `operario@example.com` (de El Mirador). Además llena **La
+  (Capataz/Operario de La Esperanza), `operario@example.com` (de El Mirador) y
+  `calidad@example.com` (Encargado de calidad, en todas las fincas). Además llena **La
   Esperanza** con lo que se hace en ella (`apps/demo_data/operations.py`): insumos con existencias,
   cajones y marquesina, labores (programadas, una retrasada, una vencida y realizadas con insumos
   descontados), monitoreos del pasado (con detecciones, un control hecho y otro pendiente), tres
   cosechas y dos lotes, la fermentación (un lote fermentado, uno fermentando con el volteo siguiente
   pendiente y uno Generado con un cajón libre para iniciarla en vivo), el secado, los lotes que
   muestran cada aviso de poscosecha (`postharvest_alerts.py`, en C-03, C-04 y M-03: primer volteo
-  próximo, temperatura y pH del grano fuera de rango, próximo a meta) y los avisos de la campana
-  (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
+  próximo, temperatura y pH del grano fuera de rango, próximo a meta), la calidad (`quality.py`: el
+  lote Seco del secado para evaluar en vivo, uno Evaluado, uno Clasificado con descarte por moho y
+  uno Descartado; si en una demostración se usaron, vuelve a dejar uno Seco y uno Evaluado) y los
+  avisos de la campana (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
   M-02, para registrar en vivo la del sobresecado. Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
   fecha. Deja listo lo que piden las demostraciones en vivo: dos monitoreos programados para hoy
@@ -797,7 +839,9 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   datos de sus fotos (sin el archivo), y el **historial de la evidencia**: de solo lectura y solo
   para superusuarios. **Fermentaciones** con sus volteos, y su historial: de solo lectura y solo
   para superusuarios, porque iniciar, voltear y finalizar ocupan y liberan el cajón y cambian el
-  estado del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
+  estado del lote. **Evaluaciones, clasificaciones, descartes** y su historial
+  (`apps/quality/admin.py`): de solo lectura y solo para superusuarios, por la misma razón (y el
+  descarte avisa al equipo de la finca). `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
   solo guarda bytes.
 
 ## Variables de entorno

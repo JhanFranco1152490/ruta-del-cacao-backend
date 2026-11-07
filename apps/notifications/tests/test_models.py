@@ -10,6 +10,7 @@ from apps.notifications.choices import (
     LOT_KINDS,
     PENDING_FERMENTATION_KINDS,
     PENDING_LOT_KINDS,
+    QUALITY_KINDS,
     NotificationKind,
     NotificationSeverity,
 )
@@ -153,12 +154,12 @@ def test_a_pending_record_needs_only_its_lot(kind):
     assert LotNotificationFactory(kind=kind).pk
 
 
-def test_every_postharvest_kind_is_a_lot_kind():
+def test_every_postharvest_and_quality_kind_is_a_lot_kind():
     assert set(PENDING_LOT_KINDS) | set(FERMENTATION_DEVIATION_KINDS) | set(
         DRYING_DEVIATION_KINDS
-    ) == set(LOT_KINDS)
+    ) | set(QUALITY_KINDS) == set(LOT_KINDS)
     assert set(PENDING_FERMENTATION_KINDS) < set(PENDING_LOT_KINDS)
-    assert len(LOT_KINDS) == 12
+    assert len(LOT_KINDS) == 13
 
 
 def test_deleting_the_lot_deletes_its_notifications():

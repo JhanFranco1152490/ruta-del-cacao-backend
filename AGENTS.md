@@ -486,6 +486,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     y periodo: lotes clasificados y descartados, kilos de G1 y G2, y `discarded_kg`, los kilos que
     quedaron fuera (el descarte de las clasificaciones y el peso seco de los lotes descartados
     completos).
+    Un lote clasificado que bodega ya guardó (`in_warehouse`) sigue en Cerrados, en `result=classified`
+    y en esos totales: lo cerrado se decide por tener clasificación o descarte, no por el estado.
   - **Evaluar** (`POST …/{lot_id}/evaluation`, con `expected_lot_version`): solo un lote Seco; los
     tres porcentajes de 0 a 100 con un decimal y hasta 100 entre los tres (`400
     quality_sum_exceeds_100` con `total_pct`). **Corregir** (`PATCH` del mismo recurso, con

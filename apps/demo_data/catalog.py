@@ -17,6 +17,7 @@ DEMO_ADMIN_EMAIL = "administrador@example.com"
 DEMO_PRODUCER_EMAIL = "productor@example.com"
 DEMO_FOREMAN_EMAIL = "capataz@example.com"
 DEMO_OPERATOR_EMAIL = "operario@example.com"
+DEMO_QUALITY_EMAIL = "calidad@example.com"
 DEMO_SALES_MANAGER_EMAIL = "comercializador@example.com"
 
 DEMO_ADMIN = {
@@ -50,6 +51,15 @@ DEMO_EMPLOYEES = [
     },
 ]
 
+# El Encargado de calidad del productor de demostración: recibe lotes de todas sus fincas.
+DEMO_QUALITY_MANAGER = {
+    "email": DEMO_QUALITY_EMAIL,
+    "document_type": "CC",
+    "identity_document": "1000000013",
+    "first_name": "Diana Carolina",
+    "last_name": "Rojas Peñaranda",
+}
+
 # La finca y la parcela donde se hacen las demostraciones en vivo (el código de la parcela, P01, lo
 # asigna el servidor: es la primera de la finca).
 DEMO_FARM = "La Esperanza"
@@ -63,7 +73,7 @@ LIVE_FACILITY_NAME = "CF-01"
 DEMO_SALES_MANAGER = {
     "email": DEMO_SALES_MANAGER_EMAIL,
     "document_type": "CC",
-    "identity_document": "1000000013",
+    "identity_document": "1000000014",
     "first_name": "Andrés Felipe",
     "last_name": "Contreras Rojas",
 }

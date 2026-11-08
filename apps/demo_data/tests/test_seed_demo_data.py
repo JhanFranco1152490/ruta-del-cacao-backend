@@ -15,6 +15,7 @@ from apps.demo_data.catalog import (
     DEMO_OPERATOR_EMAIL,
     DEMO_PASSWORD,
     DEMO_PRODUCER_EMAIL,
+    DEMO_QUALITY_EMAIL,
     DEMO_SALES_MANAGER_EMAIL,
     PRODUCERS,
 )
@@ -86,6 +87,7 @@ def test_the_other_producer_accounts_stay_pending_activation():
             DEMO_PRODUCER_EMAIL,
             DEMO_FOREMAN_EMAIL,
             DEMO_OPERATOR_EMAIL,
+            DEMO_QUALITY_EMAIL,
             DEMO_SALES_MANAGER_EMAIL,
         ]
     )

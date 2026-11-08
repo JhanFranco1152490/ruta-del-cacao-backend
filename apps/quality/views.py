@@ -1,0 +1,231 @@
+from django.urls import reverse
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet
+
+from apps.common.permissions import ActionPermission
+from apps.common.schema import error_responses
+
+from .exceptions import StaleQualityVersion
+from .request_serializers import (
+    ClassificationCreateSerializer,
+    ClassificationSumErrorSerializer,
+    DiscardCreateSerializer,
+    EvaluationCreateSerializer,
+    EvaluationUpdateSerializer,
+    QualityConflictErrorSerializer,
+    QualitySumErrorSerializer,
+)
+from .serializers import (
+    ClosedSummaryQuerySerializer,
+    ClosedSummarySerializer,
+    LotQualitySerializer,
+    QualityListQuerySerializer,
+    QualitySummaryQuerySerializer,
+    QualitySummarySerializer,
+)
+from .services.classification import classify_lot
+from .services.discard import discard_lot
+from .services.evaluation import correct_evaluation, record_evaluation
+from .services.queries import (
+    closed_summary,
+    get_quality_lot,
+    list_quality_lots,
+    quality_summary,
+)
+
+EVALUATE = "quality.evaluate_lot"
+PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description=(
+            "Los lotes de calidad de las fincas que la cuenta alcanza, paginados. `view` elige "
+            "cuáles: `to_evaluate` (por defecto, los Seco, del que se secó primero), `evaluated` "
+            "(del que se evaluó primero) o `closed` (Clasificado y Descartado, del más reciente). "
+            "`search` busca una parte del código, sin distinguir mayúsculas. En `closed`, "
+            "`result` (`classified` o `discarded`) y el periodo de cierre (`closed_from` y "
+            "`closed_to`, días incluidos) acotan la lista."
+        ),
+        parameters=[QualityListQuerySerializer, PRODUCER_PARAMETER],
+        responses={200: LotQualitySerializer(many=True), **error_responses(400, 401, 403, 404)},
+    ),
+    retrieve=extend_schema(
+        description="La calidad de un lote Seco o posterior. Un lote anterior a Seco es 404.",
+        responses={200: LotQualitySerializer, **error_responses(401, 403, 404)},
+    ),
+)
+class QualityViewSet(GenericViewSet):
+    serializer_class = LotQualitySerializer
+    permission_classes = [IsAuthenticated, ActionPermission]
+    action_permissions = {
+        "list": EVALUATE,
+        "retrieve": EVALUATE,
+        "summary": EVALUATE,
+        "closed_totals": EVALUATE,
+        "evaluation": EVALUATE,
+        "correct_evaluation": EVALUATE,
+        "classification": "quality.classify_lot",
+        "discard": "quality.discard_lot",
+    }
+    filter_backends = []
+    lookup_value_converter = "uuid"
+
+    def list(self, request):
+        query = QualityListQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        page = self.paginate_queryset(list_quality_lots(request.user, query.validated_data))
+        return self.get_paginated_response(LotQualitySerializer(page, many=True).data)
+
+    def retrieve(self, request, pk):
+        return Response(LotQualitySerializer(get_quality_lot(request.user, pk)).data)
+
+    @extend_schema(
+        description=(
+            "Las cifras de la pantalla de calidad: cuántos lotes y kilos secos esperan su "
+            "evaluación, cuántos esperan clasificarse y cuántos se descartaron este mes. Con los "
+            "mismos filtros de la lista menos `view`."
+        ),
+        parameters=[QualitySummaryQuerySerializer, PRODUCER_PARAMETER],
+        responses={200: QualitySummarySerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], pagination_class=None)
+    def summary(self, request):
+        query = QualitySummaryQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        return Response(
+            QualitySummarySerializer(quality_summary(request.user, query.validated_data)).data
+        )
+
+    @extend_schema(
+        description=(
+            "Lo que dejó el periodo de cierre: lotes clasificados y descartados, kilos de G1 y G2 "
+            "y kilos que quedaron fuera. Con los filtros de la lista de Cerrados (`farm`, "
+            "`search`, `closed_from` y `closed_to`)."
+        ),
+        parameters=[ClosedSummaryQuerySerializer, PRODUCER_PARAMETER],
+        responses={200: ClosedSummarySerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="closed-summary", pagination_class=None)
+    def closed_totals(self, request):
+        query = ClosedSummaryQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        return Response(
+            ClosedSummarySerializer(closed_summary(request.user, query.validated_data)).data
+        )
+
+    @extend_schema(
+        description=(
+            "Registra la evaluación física de un lote Seco: los porcentajes de granos bien "
+            "fermentados, con moho y con otros defectos de la muestra, de 0 a 100 cada uno y "
+            "hasta 100 entre los tres (si no, 400 `quality_sum_exceeds_100` con `total_pct`). El "
+            "lote pasa a Evaluado. Requiere `expected_lot_version`; en otro estado, 409 "
+            "`lot_invalid_status` con `current_status`."
+        ),
+        request=EvaluationCreateSerializer,
+        responses={
+            201: LotQualitySerializer,
+            400: QualitySumErrorSerializer,
+            409: QualityConflictErrorSerializer,
+            **error_responses(401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def evaluation(self, request, pk):
+        serializer = EvaluationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        record_evaluation(request.user, pk, serializer.validated_data)
+        return Response(
+            LotQualitySerializer(get_quality_lot(request.user, pk)).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("quality-detail", args=[pk])},
+        )
+
+    @extend_schema(
+        description=(
+            "Corrige la evaluación de un lote Evaluado y guarda quién corrigió y cuándo. "
+            "Requiere `expected_version` de la evaluación; si cambió, 409 `stale_version` con el "
+            "vigente en `current`. Un lote Clasificado o Descartado responde 409 "
+            "`lot_invalid_status` con `current_status`."
+        ),
+        request=EvaluationUpdateSerializer,
+        responses={
+            200: LotQualitySerializer,
+            400: QualitySumErrorSerializer,
+            409: QualityConflictErrorSerializer,
+            **error_responses(401, 403, 404),
+        },
+    )
+    @evaluation.mapping.patch
+    def correct_evaluation(self, request, pk):
+        serializer = EvaluationUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        expected_version = data.pop("expected_version")
+        correct_evaluation(request.user, pk, expected_version, data)
+        return Response(LotQualitySerializer(get_quality_lot(request.user, pk)).data)
+
+    @extend_schema(
+        description=(
+            "Clasifica un lote Evaluado: reparte su peso seco entre G1, G2 y descarte. La suma "
+            "debe ser exactamente el peso seco; si no, 400 `classification_sum_mismatch` con lo "
+            "que falta o sobra. Con kilos de descarte, `discard_reason` es obligatorio (y con "
+            "`other`, `discard_detail`). El lote pasa a Clasificado. Requiere "
+            "`expected_lot_version`; en otro estado, 409 `lot_invalid_status`."
+        ),
+        request=ClassificationCreateSerializer,
+        responses={
+            201: LotQualitySerializer,
+            400: ClassificationSumErrorSerializer,
+            409: QualityConflictErrorSerializer,
+            **error_responses(401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def classification(self, request, pk):
+        serializer = ClassificationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        classify_lot(request.user, pk, serializer.validated_data)
+        return Response(
+            LotQualitySerializer(get_quality_lot(request.user, pk)).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("quality-detail", args=[pk])},
+        )
+
+    @extend_schema(
+        description=(
+            "Descarta un lote Evaluado completo, con su motivo (y con `other`, su detalle). Es "
+            "irreversible: el lote queda Descartado y no se clasifica, no entra a bodega ni se "
+            "vende. Avisa a las cuentas que trabajan la calidad en la finca del lote, menos a "
+            "quien descarta. La confirmación la pide el cliente. Requiere `expected_lot_version`; "
+            "en otro estado, 409 `lot_invalid_status`."
+        ),
+        request=DiscardCreateSerializer,
+        responses={
+            201: LotQualitySerializer,
+            409: QualityConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def discard(self, request, pk):
+        serializer = DiscardCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        discard_lot(request.user, pk, serializer.validated_data)
+        return Response(
+            LotQualitySerializer(get_quality_lot(request.user, pk)).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("quality-detail", args=[pk])},
+        )
+
+    def handle_exception(self, exc):
+        # El servicio lanza el conflicto con el lote; aquí se arma lo que el formulario necesita
+        # para cargar los valores vigentes sin otra consulta.
+        if isinstance(exc, StaleQualityVersion):
+            current = get_quality_lot(self.request.user, exc.lot_id)
+            exc.extra = {"current": LotQualitySerializer(current).data}
+        return super().handle_exception(exc)

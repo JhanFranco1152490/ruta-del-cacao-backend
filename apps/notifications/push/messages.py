@@ -85,6 +85,7 @@ _LOT_TITLES = {
     NotificationKind.FERMENTATION_TEMPERATURE_HIGH: "Temperatura por encima del rango",
     NotificationKind.FERMENTATION_PH_LOW: "Grano demasiado ácido",
     NotificationKind.FERMENTATION_PH_HIGH: "La fermentación no avanza",
+    NotificationKind.LOT_DISCARDED: "Lote descartado",
 }
 
 
@@ -108,6 +109,9 @@ def _lot_detail(notification) -> str:
         return f"Desde las {_hour(notification.condition_at)}"
     if kind == NotificationKind.DRYING_LOG_DUE:
         return "Falta la bitácora del día"
+    if kind == NotificationKind.LOT_DISCARDED:
+        # El motivo, por la relación del lote: esta app no importa la de calidad.
+        return notification.lot.discard.get_reason_display()
     if kind in DRYING_DEVIATION_KINDS:
         return f"Humedad {_decimal(notification.drying_log.moisture_pct)} %"
     turn = notification.fermentation_turn
@@ -182,6 +186,11 @@ def _summary(notifications) -> str:
             f"{deviations} desvío de poscosecha"
             if deviations == 1
             else f"{deviations} desvíos de poscosecha"
+        )
+    discarded = counts.get(NotificationKind.LOT_DISCARDED, 0)
+    if discarded:
+        parts.append(
+            f"{discarded} lote descartado" if discarded == 1 else f"{discarded} lotes descartados"
         )
     if len(parts) == 1:
         return parts[0]

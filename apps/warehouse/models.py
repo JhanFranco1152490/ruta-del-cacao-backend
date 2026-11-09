@@ -193,6 +193,23 @@ class StockExit(models.Model):
     def __str__(self):
         return f"{self.lot} {self.grade} {self.quantity_kg}"
 
+    # La venta saca y devuelve existencias por estos dos métodos: llega al modelo por la relación
+    # de su línea y no importa esta app. En los dos, quien llama ya bloqueó la finca del lote.
+    @classmethod
+    def remove_for_sale(cls, actor, lot, grade, quantity, *, exit_date):
+        """Saca `quantity` kg del calibre del lote con motivo Venta y devuelve la salida."""
+        from .services.exits import remove_stock
+
+        return remove_stock(
+            actor, lot, grade, quantity, exit_date=exit_date, reason=ExitReason.SALE
+        )
+
+    def void_for_sale(self, actor, reason):
+        """Anula esta salida por venta: los kilos vuelven a la existencia."""
+        from .services.exits import void_sale_exit
+
+        return void_sale_exit(actor, self, reason)
+
 
 class StockMove(models.Model):
     """Un cambio de lugar del cacao de un lote dentro de su finca: de qué bodega y ubicación a

@@ -113,7 +113,23 @@ def void_exit(actor, lot_id, exit_id, reason: str) -> StockExit:
         raise ExitAlreadyVoided()
     if stock_exit.reason == ExitReason.SALE:
         raise ExitNotVoidable()
+    return _give_back(actor, lot, stock_exit, reason)
 
+
+def void_sale_exit(actor, stock_exit, reason: str) -> StockExit:
+    """Anula una salida por venta cuando se anula su venta. Quien llama ya bloqueó la finca del
+    lote; aquí solo se aplica la regla."""
+    if stock_exit.reason != ExitReason.SALE:
+        # Solo la venta llega aquí, y siempre con sus propias salidas.
+        raise ValueError("Only a sale exit is voided with its sale.")
+    stock_exit = StockExit.objects.select_for_update().get(pk=stock_exit.pk)
+    if stock_exit.voided_at is not None:
+        raise ExitAlreadyVoided()
+    return _give_back(actor, stock_exit.lot, stock_exit, reason)
+
+
+def _give_back(actor, lot, stock_exit, reason: str) -> StockExit:
+    """Devuelve los kilos de la salida a su existencia y la deja anulada con quién y por qué."""
     balance = _locked_balance(lot, stock_exit.grade)
     balance.quantity_kg += stock_exit.quantity_kg
     balance.save(update_fields=["quantity_kg", "updated_at"])

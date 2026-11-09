@@ -82,7 +82,8 @@ class StockEntry(models.Model):
         "lots.Lot", on_delete=models.PROTECT, primary_key=True, related_name="stock_entry"
     )
     warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name="entries")
-    location = models.CharField(max_length=LOCATION_MAX_LENGTH)
+    # Opcional: una bodega pequeña no necesita estantes y no siempre se sabe dónde quedó.
+    location = models.CharField(max_length=LOCATION_MAX_LENGTH, blank=True)
     entry_date = models.DateField()
     g1_kg = _kilograms()
     g2_kg = _kilograms()
@@ -110,9 +111,6 @@ class StockEntry(models.Model):
                 name="warehouse_entry_has_kilograms",
             ),
             models.CheckConstraint(
-                condition=~models.Q(location=""), name="warehouse_entry_location_not_empty"
-            ),
-            models.CheckConstraint(
                 condition=models.Q(corrected_by__isnull=True, corrected_at__isnull=True)
                 | models.Q(corrected_by__isnull=False, corrected_at__isnull=False),
                 name="warehouse_entry_correction_complete",
@@ -133,7 +131,7 @@ class StockBalance(models.Model):
     # Copia de los del ingreso: la corrección del ingreso las actualiza en la misma transacción.
     # Así la consulta no cruza tablas, y G1 y G2 podrían separarse sin migrar datos.
     warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name="balances")
-    location = models.CharField(max_length=LOCATION_MAX_LENGTH)
+    location = models.CharField(max_length=LOCATION_MAX_LENGTH, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

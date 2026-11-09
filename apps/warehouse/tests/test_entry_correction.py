@@ -147,11 +147,12 @@ def test_the_new_date_follows_the_same_rules(auth_client, estate, days, message)
     assert response.data["fields"]["entry_date"] == [message]
 
 
-def test_a_blank_location_is_refused(auth_client, estate):
+def test_a_blank_location_takes_the_location_off(auth_client, estate):
     response = correct(auth_client(estate.inspector), estate.stored, location="  ")
 
-    assert response.status_code == 400
-    assert response.data["fields"]["location"] == ["Indique la ubicación física"]
+    assert response.status_code == 200, response.data
+    assert response.data["entry"]["location"] == ""
+    assert not StockBalance.objects.filter(lot=estate.stored).exclude(location="").exists()
 
 
 def test_the_kilograms_cannot_be_corrected(auth_client, estate):

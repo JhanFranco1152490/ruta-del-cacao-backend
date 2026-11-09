@@ -211,6 +211,16 @@ def test_the_locations_leave_out_places_that_ran_out(auth_client, estate):
     assert response.data == {"results": ["Estante 3"]}
 
 
+def test_the_locations_leave_out_what_was_stored_without_one(auth_client, estate):
+    StockBalance.objects.filter(lot=estate.second).update(location="")
+
+    response = auth_client(estate.owner).get(
+        f"{URL}/locations", {"warehouse": str(estate.warehouse_a.pk)}
+    )
+
+    assert response.data == {"results": ["Estante 3"]}
+
+
 def test_the_locations_need_a_warehouse(auth_client, estate):
     assert auth_client(estate.owner).get(f"{URL}/locations").status_code == 400
 

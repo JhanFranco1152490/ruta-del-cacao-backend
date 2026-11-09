@@ -131,10 +131,12 @@ def stock_summary(actor, filters: dict) -> dict:
 
 
 def stock_locations(actor, warehouse_id) -> list[str]:
-    """Las ubicaciones con existencias en una bodega, sin repetir y en orden alfabético."""
+    """Las ubicaciones con existencias en una bodega, sin repetir y en orden alfabético; lo que se
+    ingresó sin ubicación no cuenta."""
     return list(
         visible_balances(actor)
         .filter(warehouse_id=warehouse_id)
+        .exclude(location="")
         .order_by("location")
         .values_list("location", flat=True)
         .distinct()

@@ -523,6 +523,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     clasificación, exactos, y quedan como existencias de G1 y G2 (una fila por calibre con más de
     0 kg). Un lote sin kilos de G1 ni de G2 es `409 lot_nothing_to_store` y no sale en
     `GET …/pending-entry`. La fecha no es futura ni anterior al día de la clasificación.
+    La **ubicación es opcional** (texto libre de hasta 60 caracteres; vacía, el lote queda sin ubicación
+    dentro de la bodega y `…/locations` no la sugiere).
   - **Corregir el ingreso** (`PATCH …/entry`, con `expected_version`): fecha, bodega y ubicación,
     nunca los kilos, y solo mientras ninguna salida en vigor haya descontado kilos
     (`409 entry_has_movements`; `can_correct`). Actualiza las existencias en la misma transacción.

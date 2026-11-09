@@ -31,7 +31,6 @@ class WarehouseDeleteSerializer(serializers.Serializer):
     expected_version = serializers.IntegerField(min_value=1)
 
 
-LOCATION_REQUIRED = "Indique la ubicación física"
 WAREHOUSE_REQUIRED = "Elija la bodega"
 
 
@@ -45,8 +44,9 @@ class EntryCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     expected_lot_version = serializers.IntegerField(min_value=1)
     entry_date = serializers.DateField()
     warehouse_id = serializers.UUIDField(error_messages=_required_message(WAREHOUSE_REQUIRED))
+    # Opcional: sin ella el ingreso queda sin ubicación dentro de la bodega.
     location = serializers.CharField(
-        max_length=LOCATION_MAX_LENGTH, error_messages=_required_message(LOCATION_REQUIRED)
+        max_length=LOCATION_MAX_LENGTH, required=False, allow_blank=True, default=""
     )
 
 
@@ -58,10 +58,9 @@ class EntryUpdateSerializer(
     warehouse_id = serializers.UUIDField(
         required=False, error_messages=_required_message(WAREHOUSE_REQUIRED)
     )
+    # Vacía quita la ubicación.
     location = serializers.CharField(
-        max_length=LOCATION_MAX_LENGTH,
-        required=False,
-        error_messages=_required_message(LOCATION_REQUIRED),
+        max_length=LOCATION_MAX_LENGTH, required=False, allow_blank=True
     )
     # La versión del ingreso que se leyó.
     expected_version = serializers.IntegerField(min_value=1)

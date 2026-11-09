@@ -158,7 +158,6 @@ def test_a_date_before_the_classification_is_refused(auth_client, estate):
     [
         ("entry_date", "Este campo es requerido."),
         ("warehouse_id", "Elija la bodega"),
-        ("location", "Indique la ubicación física"),
         ("expected_lot_version", "Este campo es requerido."),
     ],
 )
@@ -173,13 +172,20 @@ def test_a_missing_field_is_named_and_nothing_is_saved(auth_client, estate, miss
     assert not StockEntry.objects.filter(lot=estate.classified).exists()
 
 
-def test_a_blank_location_is_the_same_as_a_missing_one(auth_client, estate):
-    response = enter(
-        auth_client(estate.inspector), estate.classified, estate.warehouse_a, location="   "
-    )
+@pytest.mark.parametrize("location", ["   ", None])
+def test_the_location_is_optional(auth_client, estate, location):
+    payload = body(estate.classified, estate.warehouse_a)
+    if location is None:
+        del payload["location"]
+    else:
+        payload["location"] = location
 
-    assert response.status_code == 400
-    assert response.data["fields"]["location"] == ["Indique la ubicación física"]
+    response = auth_client(estate.inspector).post(url(estate.classified), payload, format="json")
+
+    assert response.status_code == 201, response.data
+    assert StockEntry.objects.get(lot=estate.classified).location == ""
+    assert response.data["entry"]["location"] == ""
+    assert StockBalance.objects.filter(lot=estate.classified, location="").count() == 2
 
 
 def test_a_location_longer_than_sixty_is_refused(auth_client, estate):

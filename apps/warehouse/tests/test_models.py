@@ -64,7 +64,6 @@ def test_clean_trims_and_normalizes_the_name_and_refuses_a_blank_one():
         {"g1_kg": Decimal("-1.0")},
         {"g2_kg": Decimal("-0.1")},
         {"g1_kg": Decimal("0.0"), "g2_kg": Decimal("0.0")},
-        {"location": ""},
         {"corrected_by": "someone"},
     ],
 )
@@ -73,6 +72,12 @@ def test_an_entry_refuses_what_it_should(overrides):
         overrides = {"corrected_by": UserFactory()}
 
     refused(lambda: StockEntryFactory(**overrides))
+
+
+def test_an_entry_can_have_no_location():
+    entry = StockEntryFactory(location="")
+
+    assert StockEntry.objects.get(pk=entry.pk).location == ""
 
 
 def test_an_entry_can_leave_one_grade_in_zero():

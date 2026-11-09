@@ -288,3 +288,12 @@ def test_only_the_producer_deletes_buyers_and_can_delegate_it():
 def test_the_buyer_permissions_are_delegable_and_the_association_has_none(permission):
     assert is_delegable(permission)
     assert ADMINISTRATOR not in _holders(permission)
+
+
+SALE_PERMISSIONS = ["sales.view_sale", "sales.add_sale", "sales.void_sale"]
+
+
+@pytest.mark.parametrize("permission", SALE_PERMISSIONS)
+def test_the_producer_and_the_sales_manager_sell_and_the_association_does_not(permission):
+    assert _holders(permission) == {PRODUCER, SALES_MANAGER}
+    assert is_delegable(permission)

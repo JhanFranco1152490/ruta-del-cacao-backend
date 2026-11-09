@@ -94,6 +94,9 @@ SYSTEM_ROLES = {
             "buyers.add_buyer",
             "buyers.change_buyer",
             "buyers.delete_buyer",
+            "sales.view_sale",
+            "sales.add_sale",
+            "sales.void_sale",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -169,6 +172,9 @@ SYSTEM_ROLES = {
             "buyers.view_buyer",
             "buyers.add_buyer",
             "buyers.change_buyer",
+            "sales.view_sale",
+            "sales.add_sale",
+            "sales.void_sale",
         ],
     },
 }

@@ -166,3 +166,22 @@ def test_buyer_permissions_are_delegable_but_not_field_permissions():
         assert registry.is_delegable(code)
         assert not registry.is_field_permission(code)
         assert code not in registry.FIELD_PERMISSIONS
+
+
+SALE_VIEW = "sales.view_sale"
+SALE_ACTIONS = ("sales.add_sale", "sales.void_sale")
+STOCK_VIEW = "warehouse.view_stock"
+
+
+def test_seeing_sales_brings_the_stock_and_its_farms():
+    # Una venta muestra lotes de una finca, y registrarla pide ver qué hay en bodega.
+    assert with_dependencies({SALE_VIEW}) == {SALE_VIEW, STOCK_VIEW, "farms.view_farm"}
+    for code in SALE_ACTIONS:
+        assert with_dependencies({code}) == {code, SALE_VIEW, STOCK_VIEW, "farms.view_farm"}
+    assert registry.area_of(SALE_VIEW) == "sales"
+
+
+def test_sale_permissions_are_delegable_field_permissions():
+    for code in (SALE_VIEW, *SALE_ACTIONS):
+        assert registry.is_delegable(code)
+        assert registry.is_field_permission(code)

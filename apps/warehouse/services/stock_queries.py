@@ -8,7 +8,7 @@ from apps.common.ownership import owner_filter
 
 from ..choices import Grade
 from ..exceptions import StockLotNotFound
-from ..models import StockBalance, StockExit
+from ..models import StockBalance, StockExit, StockMove
 from .lots import CLASSIFIED, STOCK_STATUSES, Lot, lot_scope
 
 # Cómo se puede ordenar la consulta de existencias: de la clave de la API a los campos de la base.
@@ -41,6 +41,12 @@ def visible_stock_lots(actor) -> QuerySet:
                 queryset=StockExit.objects.select_related("created_by", "voided_by").order_by(
                     "-created_at", "id"
                 ),
+            ),
+            Prefetch(
+                "stock_moves",
+                queryset=StockMove.objects.select_related(
+                    "from_warehouse", "to_warehouse", "moved_by"
+                ).order_by("-moved_at", "id"),
             ),
         )
     )
@@ -141,3 +147,66 @@ def stock_locations(actor, warehouse_id) -> list[str]:
         .values_list("location", flat=True)
         .distinct()
     )
+
+
+def filter_exits(actor, filters: dict) -> QuerySet:
+    """Las salidas de las fincas que `actor` alcanza, con los filtros de la pestaña Salidas.
+    `warehouse` es la bodega donde está hoy el cacao del lote."""
+    scope = owner_filter(
+        actor, "lot__harvest__plot__farm__producer_id", farm="lot__harvest__plot__farm_id"
+    )
+    exits = StockExit.objects.filter(**scope)
+    if "farm" in filters:
+        exits = exits.filter(lot__harvest__plot__farm_id=filters["farm"])
+    if "warehouse" in filters:
+        exits = exits.filter(lot__stock_entry__warehouse_id=filters["warehouse"])
+    if "grade" in filters:
+        exits = exits.filter(grade=filters["grade"])
+    if "reason" in filters:
+        exits = exits.filter(reason=filters["reason"])
+    if "date_from" in filters:
+        exits = exits.filter(exit_date__gte=filters["date_from"])
+    if "date_to" in filters:
+        exits = exits.filter(exit_date__lte=filters["date_to"])
+    if term := (filters.get("search") or "").strip():
+        exits = exits.filter(lot__code__icontains=term)
+    if actor.is_superuser and "producer" in filters:
+        exits = exits.filter(lot__harvest__plot__farm__producer_id=filters["producer"])
+    return exits
+
+
+def list_exits(actor, filters: dict) -> QuerySet:
+    """Las salidas, la más reciente primero. Con `state` solo las vigentes o solo las anuladas."""
+    exits = filter_exits(actor, filters).select_related(
+        "lot__harvest__plot__farm",
+        "lot__stock_entry__warehouse",
+        "created_by",
+        "voided_by",
+    )
+    if filters.get("state") == "active":
+        exits = exits.filter(voided_at__isnull=True)
+    elif filters.get("state") == "voided":
+        exits = exits.filter(voided_at__isnull=False)
+    return exits.order_by("-exit_date", "-created_at", "id")
+
+
+def exit_summary(actor, filters: dict) -> dict:
+    """Lo que salió, sin contar lo anulado: el total y los kilos y salidas de cada motivo, de los
+    que más kilos sacaron a los que menos."""
+    rows = (
+        filter_exits(actor, filters)
+        .filter(voided_at__isnull=True)
+        .order_by()
+        .values("reason")
+        .annotate(exits=Count("pk"), quantity_kg=Sum("quantity_kg"))
+        .order_by("-quantity_kg", "reason")
+    )
+    by_reason = [
+        {"reason": row["reason"], "exits": row["exits"], "quantity_kg": row["quantity_kg"]}
+        for row in rows
+    ]
+    return {
+        "exits": sum(row["exits"] for row in by_reason),
+        "quantity_kg": sum((row["quantity_kg"] for row in by_reason), Decimal("0.0")),
+        "by_reason": by_reason,
+    }

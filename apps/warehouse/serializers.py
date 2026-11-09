@@ -148,8 +148,18 @@ class StockExitSerializer(serializers.Serializer):
         return stock_exit.voided_at is None and stock_exit.reason != ExitReason.SALE
 
 
+class StockMoveSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    from_warehouse = StockWarehouseRefSerializer()
+    from_location = serializers.CharField()
+    to_warehouse = StockWarehouseRefSerializer()
+    to_location = serializers.CharField()
+    moved_at = serializers.DateTimeField()
+    moved_by = StockPersonSerializer()
+
+
 # Un lote Clasificado o En bodega, con su ingreso, sus existencias por calibre y el historial de
-# sus salidas.
+# sus salidas y de los cambios de lugar.
 class LotStockSerializer(serializers.Serializer):
     lot = StockLotSerializer(source="*")
     farm = StockFarmSerializer(source="harvest.plot.farm")
@@ -157,6 +167,7 @@ class LotStockSerializer(serializers.Serializer):
     entry = StockEntrySerializer(source="stock_entry", allow_null=True)
     balances = StockBalanceSerializer(source="stock_balances", many=True)
     exits = StockExitSerializer(source="stock_exits", many=True)
+    moves = StockMoveSerializer(source="stock_moves", many=True)
 
 
 class PendingEntrySerializer(serializers.Serializer):
@@ -224,3 +235,49 @@ class StockLocationsQuerySerializer(serializers.Serializer):
 
 class StockLocationsSerializer(serializers.Serializer):
     results = serializers.ListField(child=serializers.CharField())
+
+
+STATES = ("active", "voided")
+
+
+class ExitSummaryQuerySerializer(serializers.Serializer):
+    # Los filtros de la pestaña Salidas; `page` y `page_size` los lee la paginación.
+    farm = serializers.UUIDField(required=False)
+    warehouse = serializers.UUIDField(required=False)
+    grade = serializers.ChoiceField(choices=Grade.choices, required=False)
+    reason = serializers.ChoiceField(choices=ExitReason.choices, required=False)
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+    search = serializers.CharField(required=False, allow_blank=True, max_length=40)
+    producer = serializers.UUIDField(required=False)
+
+    def validate(self, attrs):
+        if "date_from" in attrs and "date_to" in attrs and attrs["date_from"] > attrs["date_to"]:
+            raise serializers.ValidationError(
+                {"date_to": ["La fecha final es anterior a la inicial."]}
+            )
+        return attrs
+
+
+class ExitListQuerySerializer(ExitSummaryQuerySerializer):
+    # Sin `state` salen las vigentes y las anuladas, que se ven tachadas.
+    state = serializers.ChoiceField(choices=STATES, required=False)
+
+
+class StockExitRowSerializer(StockExitSerializer):
+    lot = StockLotRefSerializer()
+    farm = StockFarmSerializer(source="lot.harvest.plot.farm")
+    # Donde está hoy el cacao del lote, no donde estaba al salir.
+    warehouse = StockWarehouseRefSerializer(source="lot.stock_entry.warehouse")
+
+
+class ExitReasonTotalSerializer(serializers.Serializer):
+    reason = serializers.ChoiceField(choices=ExitReason.choices)
+    exits = serializers.IntegerField()
+    quantity_kg = serializers.DecimalField(max_digits=12, decimal_places=ONE_DECIMAL)
+
+
+class ExitSummarySerializer(serializers.Serializer):
+    exits = serializers.IntegerField()
+    quantity_kg = serializers.DecimalField(max_digits=12, decimal_places=ONE_DECIMAL)
+    by_reason = ExitReasonTotalSerializer(many=True)

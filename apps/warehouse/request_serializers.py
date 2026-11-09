@@ -66,6 +66,17 @@ class EntryUpdateSerializer(
     expected_version = serializers.IntegerField(min_value=1)
 
 
+class MoveCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # La versión del ingreso que se leyó: si otra persona movió o corrigió el lote, no se mueve a
+    # ciegas.
+    expected_version = serializers.IntegerField(min_value=1)
+    warehouse_id = serializers.UUIDField(error_messages=_required_message(WAREHOUSE_REQUIRED))
+    # Vacía deja el cacao sin ubicación dentro de la bodega.
+    location = serializers.CharField(
+        max_length=LOCATION_MAX_LENGTH, required=False, allow_blank=True, default=""
+    )
+
+
 EXIT_REASON_CHOICES = [(value, ExitReason(value).label) for value in MANUAL_EXIT_REASONS]
 
 

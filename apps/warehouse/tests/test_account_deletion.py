@@ -10,7 +10,9 @@ from apps.accounts.tests.factories import UserFactory
 from apps.accounts.tests.role_helpers import make_delegate
 from apps.warehouse.services.entry import correct_entry
 from apps.warehouse.services.exits import remove_stock, void_exit
+from apps.warehouse.services.moves import move_stock
 
+from .factories import WarehouseFactory
 from .helpers import WarehouseEstate
 
 pytestmark = pytest.mark.django_db
@@ -53,6 +55,16 @@ def test_the_account_that_took_cacao_out_is_not_deleted(auth_client, estate):
     )
 
     response = delete_account(auth_client, estate, taker)
+
+    assert (response.status_code, response.data["code"]) == (409, "account_has_activity")
+
+
+def test_the_account_that_moved_cacao_is_not_deleted(auth_client, estate):
+    mover = other_employee(estate)
+    annex = WarehouseFactory(farm=estate.farm_a, name="Anexo", name_normalized="anexo")
+    move_stock(mover, estate.stored.pk, 1, warehouse_id=annex.pk, location="")
+
+    response = delete_account(auth_client, estate, mover)
 
     assert (response.status_code, response.data["code"]) == (409, "account_has_activity")
 

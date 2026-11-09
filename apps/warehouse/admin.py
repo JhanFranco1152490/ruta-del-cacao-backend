@@ -13,6 +13,7 @@ from .models import (
     StockBalance,
     StockEntry,
     StockExit,
+    StockMove,
     Warehouse,
     WarehouseAuditEvent,
 )
@@ -95,6 +96,13 @@ class StockExitAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
     )
     list_filter = ("reason", "grade")
     list_select_related = ("lot", "created_by")
+    search_fields = ("lot__code",)
+
+
+@admin.register(StockMove)
+class StockMoveAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ("lot", "from_warehouse", "to_warehouse", "moved_by", "moved_at")
+    list_select_related = ("lot", "from_warehouse", "to_warehouse", "moved_by")
     search_fields = ("lot__code",)
 
 

@@ -15,7 +15,7 @@ class ExitReason(models.TextChoices):
     SHRINKAGE = "shrinkage", "Merma"
     SAMPLE = "sample", "Muestra"
     REPROCESSING = "reprocessing", "Reproceso"
-    TRANSFER = "transfer", "Traslado"
+    TRANSFER = "transfer", "Traslado fuera de la finca"
     OTHER = "other", "Otro"
     SALE = "sale", "Venta"
 

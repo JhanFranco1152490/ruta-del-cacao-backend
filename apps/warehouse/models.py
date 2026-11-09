@@ -194,10 +194,36 @@ class StockExit(models.Model):
         return f"{self.lot} {self.grade} {self.quantity_kg}"
 
 
+class StockMove(models.Model):
+    """Un cambio de lugar del cacao de un lote dentro de su finca: de qué bodega y ubicación a
+    cuál. No sale cacao ni cambian los kilos; es el historial de dónde estuvo. Una bodega que
+    aparece aquí ya fue usada, así que no se elimina."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lot = models.ForeignKey("lots.Lot", on_delete=models.PROTECT, related_name="stock_moves")
+    from_warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.PROTECT, related_name="moves_out"
+    )
+    from_location = models.CharField(max_length=LOCATION_MAX_LENGTH, blank=True)
+    to_warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name="moves_in")
+    to_location = models.CharField(max_length=LOCATION_MAX_LENGTH, blank=True)
+    moved_by = models.ForeignKey("accounts.User", on_delete=models.PROTECT, related_name="+")
+    moved_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-moved_at", "id"]
+        default_permissions = ()
+        indexes = [models.Index(fields=["lot", "moved_at"], name="warehouse_move_lot_idx")]
+
+    def __str__(self):
+        return f"{self.lot} {self.from_warehouse} → {self.to_warehouse}"
+
+
 class StockAuditEvent(AuditEventBase):
     class Action(models.TextChoices):
         ENTERED = "entered", "Lote ingresado a bodega"
         ENTRY_CORRECTED = "entry_corrected", "Ingreso corregido"
+        MOVED = "moved", "Cacao movido de lugar"
         EXITED = "exited", "Salida registrada"
         EXIT_VOIDED = "exit_voided", "Salida anulada"
 

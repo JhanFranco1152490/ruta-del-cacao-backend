@@ -15,12 +15,17 @@ from .request_serializers import (
     EntryUpdateSerializer,
     ExitCreateSerializer,
     ExitVoidSerializer,
+    MoveCreateSerializer,
 )
 from .serializers import (
+    ExitListQuerySerializer,
+    ExitSummaryQuerySerializer,
+    ExitSummarySerializer,
     LotStockSerializer,
     PendingEntryQuerySerializer,
     PendingEntrySerializer,
     StockConflictErrorSerializer,
+    StockExitRowSerializer,
     StockInsufficientErrorSerializer,
     StockListQuerySerializer,
     StockLocationsQuerySerializer,
@@ -31,8 +36,11 @@ from .serializers import (
 )
 from .services.entry import correct_entry, register_entry
 from .services.exits import register_exit, void_exit
+from .services.moves import move_stock
 from .services.stock_queries import (
+    exit_summary,
     get_lot_stock,
+    list_exits,
     list_stock,
     pending_entry_lots,
     stock_locations,
@@ -72,10 +80,13 @@ class StockViewSet(GenericViewSet):
         "list": VIEW,
         "summary": VIEW,
         "locations": VIEW,
+        "exit_history": VIEW,
+        "exit_summary": VIEW,
         "retrieve": VIEW,
         "pending_entry": REGISTER_ENTRY,
         "entry": REGISTER_ENTRY,
         "correct_entry": REGISTER_ENTRY,
+        "move": REGISTER_ENTRY,
         "exits": REGISTER_EXIT,
         "void_exit": REGISTER_EXIT,
     }
@@ -121,6 +132,46 @@ class StockViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         locations = stock_locations(request.user, query.validated_data["warehouse"])
         return Response({"results": locations})
+
+    @extend_schema(
+        description=(
+            "Las salidas de cacao de las fincas que la cuenta alcanza, la más reciente primero, "
+            "con las anuladas (`voided`) incluidas salvo que `state` pida solo las vigentes o "
+            "solo las anuladas. `warehouse` es la bodega donde está hoy el cacao del lote; "
+            "`date_from` y `date_to` acotan la fecha de la salida, ambas incluidas."
+        ),
+        parameters=[ExitListQuerySerializer, PRODUCER_PARAMETER],
+        responses={200: StockExitRowSerializer(many=True), **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="exits", url_name="exit-list")
+    def exit_history(self, request):
+        query = ExitListQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        page = self.paginate_queryset(list_exits(request.user, query.validated_data))
+        return self.get_paginated_response(StockExitRowSerializer(page, many=True).data)
+
+    @extend_schema(
+        description=(
+            "Lo que salió con los mismos filtros de la lista de salidas (menos `state`): el total "
+            "de salidas y de kilos vigentes, y los de cada motivo, de los que más kilos sacaron a "
+            "los que menos. Lo anulado no cuenta."
+        ),
+        parameters=[ExitSummaryQuerySerializer, PRODUCER_PARAMETER],
+        responses={200: ExitSummarySerializer, **error_responses(400, 401, 403)},
+    )
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="exits/summary",
+        url_name="exit-summary",
+        pagination_class=None,
+    )
+    def exit_summary(self, request):
+        query = ExitSummaryQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        return Response(
+            ExitSummarySerializer(exit_summary(request.user, query.validated_data)).data
+        )
 
     @extend_schema(
         description=(
@@ -184,6 +235,38 @@ class StockViewSet(GenericViewSet):
         expected_version = data.pop("expected_version")
         correct_entry(request.user, pk, expected_version, data)
         return Response(LotStockSerializer(get_lot_stock(request.user, pk)).data)
+
+    @extend_schema(
+        description=(
+            "Mueve el cacao de un lote En bodega a otra bodega de su finca o a otra ubicación, "
+            "en cualquier momento y con las existencias que tenga. Deja de dónde venía. Requiere "
+            "`expected_version` del ingreso; si cambió, 409 `stale_version`. Sin cacao en "
+            "bodega, 409 `lot_without_stock`; al mismo lugar, 400 `stock_move_unchanged`."
+        ),
+        request=MoveCreateSerializer,
+        responses={
+            201: LotStockSerializer,
+            409: StockConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def move(self, request, pk):
+        serializer = MoveCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        move_stock(
+            request.user,
+            pk,
+            data.pop("expected_version"),
+            warehouse_id=data["warehouse_id"],
+            location=data["location"],
+        )
+        return Response(
+            LotStockSerializer(get_lot_stock(request.user, pk)).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("stock-detail", args=[pk])},
+        )
 
     @extend_schema(
         description=(

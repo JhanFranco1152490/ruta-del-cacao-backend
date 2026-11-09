@@ -156,3 +156,18 @@ class ExitNotVoidable(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Una salida por venta se anula desde la venta."
     default_code = "exit_not_voidable"
+
+
+class NothingToMove(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Ya no queda cacao de este lote en bodega: no hay qué mover."
+    default_code = "lot_without_stock"
+
+
+class MoveUnchanged(ApiError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "El cacao ya está en esa bodega y esa ubicación."
+    default_code = "stock_move_unchanged"
+
+    def __init__(self):
+        super().__init__(fields={"warehouse_id": [self.default_detail]})

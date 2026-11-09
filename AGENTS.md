@@ -119,7 +119,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `warehouse_name_taken`, `warehouse_has_records`, `lot_nothing_to_store`, `entry_has_movements`,
-  `exit_already_voided`, `exit_not_voidable`, `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
+  `exit_already_voided`, `exit_not_voidable`, `lot_without_stock`, `stock_move_unchanged`, `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
   `duplicate_plot_name`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
   `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
@@ -534,6 +534,17 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     es futura ni anterior al ingreso. `remove_stock` es el servicio que usará la venta.
   - **Anular una salida** (`POST …/exits/{exit_id}/void`, con su motivo): marca la salida y devuelve
     los kilos; no se borra. Una salida por venta (`409 exit_not_voidable`) se anula desde la venta.
+  - **Mover el cacao** (`POST …/move`, con `expected_version` del ingreso y el permiso de ingresar):
+    cambia la bodega (activa y de la finca del lote) y la ubicación de un lote En bodega **en
+    cualquier momento**, a diferencia de corregir el ingreso, y deja un `StockMove` con de dónde venía.
+    Las existencias no cambian. Sin cacao en bodega es `409 lot_without_stock`, y al mismo lugar,
+    `400 stock_move_unchanged`. El ingreso y las existencias quedan en el lugar nuevo; el historial
+    (`moves` en el detalle del lote) guarda el anterior, y una bodega que aparece ahí ya cuenta como
+    usada. **Traslado** (`transfer`) pasa a ser solo el cacao que sale de la finca: lo que cambia de
+    bodega dentro de ella es un movimiento, no una salida.
+  - **Salidas de todos los lotes** (`GET /api/stock/exits`, paginada; filtros `farm`, `warehouse` (la
+    de hoy), `grade`, `reason`, `date_from`, `date_to`, `search` y `state`) y `…/exits/summary` (lo
+    vigente por motivo, de más a menos kilos; lo anulado no cuenta): alimentan la pestaña Salidas.
   - **Consultar:** `GET /api/stock` (una fila por lote y calibre con más de 0 kg, ordenable),
     `…/summary` (totales de G1 y G2 con los mismos filtros) y `…/locations` (las ubicaciones con
     existencias de una bodega). `GET …/{lot_id}` trae el ingreso, las existencias y las salidas.

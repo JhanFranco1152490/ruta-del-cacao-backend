@@ -1,8 +1,8 @@
 """Los datos de demostración: cuentas para entrar y unos productores con fincas, parcelas y
 fichas; de La Esperanza, además, lo que se hace en ella (insumos, infraestructura, labores,
-monitoreos, cosechas y lotes), y los compradores del productor. Todo es inventado: correos de
-`example.com` (dominio reservado, nunca entrega correo) y documentos en secuencia que no
-corresponden a nadie.
+monitoreos, cosechas, lotes y ventas), y los compradores del productor. Todo es inventado:
+correos de `example.com` (dominio reservado, nunca entrega correo) y documentos en secuencia que
+no corresponden a nadie.
 
 La contraseña es pública a propósito: la pantalla de inicio de sesión la muestra para que quien
 evalúa la aplicación entre sin pedir una cuenta. Por eso estas cuentas solo se crean con este

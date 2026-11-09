@@ -42,6 +42,7 @@ def test_producer_list_documents_filters_and_pagination(schema):
         "/api/phytosanitary-detections/without-control",
         "/api/fermentation",
         "/api/buyers",
+        "/api/sales/buyer-options",
     ],
 )
 def test_unpaginated_lists_document_an_object_with_results(schema, path):
@@ -267,6 +268,8 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/sales"),
     ("get", "/api/sales/summary"),
     ("get", "/api/sales/{id}"),
+    ("post", "/api/sales"),
+    ("get", "/api/sales/buyer-options"),
 }
 
 

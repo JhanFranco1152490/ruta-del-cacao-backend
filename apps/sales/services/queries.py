@@ -5,13 +5,15 @@ cualquiera."""
 from decimal import Decimal
 
 from django.db.models import CharField, Count, DecimalField, Prefetch, Q, QuerySet, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Cast, Coalesce, Lower
 
 from apps.common.ownership import owner_filter
 
 from ..exceptions import SaleNotFound
 from ..models import Grade, Sale, SaleLine
 
+# El modelo del comprador se toma de la relación: ninguna app importa de otra.
+Buyer = Sale._meta.get_field("buyer").related_model
 ZERO_KG = Value(Decimal("0.0"), output_field=DecimalField(max_digits=9, decimal_places=1))
 
 
@@ -82,3 +84,13 @@ def get_sale(actor, sale_id) -> Sale:
     if sale is None:
         raise SaleNotFound()
     return sale
+
+
+def buyer_options(actor, *, producer=None) -> QuerySet:
+    """Los compradores activos a los que `actor` puede venderles: los de su productor; la cuenta
+    técnica, los del productor que nombra. Solo lo que el formulario muestra, sin su documento ni
+    su contacto: registrar una venta no pide consultar el directorio."""
+    buyers = Buyer.objects.filter(**owner_filter(actor), is_active=True)
+    if producer is not None and actor.is_superuser:
+        buyers = buyers.filter(producer_id=producer)
+    return buyers.order_by(Lower("name"), "id").only("id", "name", "buyer_type")

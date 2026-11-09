@@ -1,4 +1,6 @@
+from django.urls import reverse
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,16 +9,20 @@ from rest_framework.viewsets import GenericViewSet
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
+from .request_serializers import BuyerOptionsQuerySerializer, SaleCreateSerializer
 from .serializers import (
+    BuyerOptionListSerializer,
+    BuyerOptionSerializer,
     SaleListItemSerializer,
     SaleListQuerySerializer,
     SaleSerializer,
     SaleSummaryQuerySerializer,
     SaleSummarySerializer,
 )
-from .services import get_sale, list_sales, sales_summary
+from .services import buyer_options, create_sale, get_sale, list_sales, sales_summary
 
 VIEW = "sales.view_sale"
+ADD = "sales.add_sale"
 PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")
 
 
@@ -35,6 +41,19 @@ PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la
         description="Una venta con sus líneas, su soporte y, si se anuló, quién y por qué.",
         responses={200: SaleSerializer, **error_responses(401, 403, 404)},
     ),
+    create=extend_schema(
+        description=(
+            "Registra la venta de los lotes En bodega de una finca a un comprador activo del "
+            "mismo productor. Cada línea (lote y calibre, sin repetir) saca sus kilos de la "
+            "bodega con motivo Venta, en la misma transacción: si una pide más de lo que hay, "
+            "400 `stock_insufficient` con `line` (desde 0) y `available_kg`, y no queda nada. "
+            "Un lote de otra finca es 404 y uno que no está En bodega, 409 "
+            "`lot_invalid_status`, los dos con `line`. El subtotal de cada línea es kilos por "
+            "precio, redondeado al peso; el número (`V-0012`) lo asigna el servidor."
+        ),
+        request=SaleCreateSerializer,
+        responses={201: SaleSerializer, **error_responses(400, 401, 403, 404, 409, 422)},
+    ),
 )
 class SaleViewSet(GenericViewSet):
     serializer_class = SaleSerializer
@@ -43,6 +62,8 @@ class SaleViewSet(GenericViewSet):
         "list": VIEW,
         "summary": VIEW,
         "retrieve": VIEW,
+        "create": ADD,
+        "buyer_options": ADD,
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -71,3 +92,28 @@ class SaleViewSet(GenericViewSet):
         return Response(
             SaleSummarySerializer(sales_summary(request.user, query.validated_data)).data
         )
+
+    def create(self, request):
+        serializer = SaleCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sale = create_sale(request.user, serializer.validated_data)
+        return Response(
+            SaleSerializer(sale).data,
+            status=status.HTTP_201_CREATED,
+            headers={"Location": reverse("sale-detail", args=[sale.pk])},
+        )
+
+    @extend_schema(
+        description=(
+            "Los compradores activos a los que se les puede vender, para el formulario: "
+            "solo su nombre y su tipo. La cuenta técnica nombra el productor."
+        ),
+        parameters=[PRODUCER_PARAMETER],
+        responses={200: BuyerOptionListSerializer, **error_responses(400, 401, 403)},
+    )
+    @action(detail=False, methods=["get"], url_path="buyer-options", pagination_class=None)
+    def buyer_options(self, request):
+        query = BuyerOptionsQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        buyers = buyer_options(request.user, producer=query.validated_data.get("producer"))
+        return Response({"results": BuyerOptionSerializer(buyers, many=True).data})

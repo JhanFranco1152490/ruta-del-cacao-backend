@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from apps.common.serializers import PeriodQuerySerializer, full_name
@@ -124,3 +124,15 @@ class SaleSummarySerializer(serializers.Serializer):
     g1_kg = _kilos()
     g2_kg = _kilos()
     sales = serializers.IntegerField()
+
+
+class BuyerOptionSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    buyer_type = serializers.CharField()
+
+
+# La lista responde un objeto con todos los compradores en `results`, sin paginar.
+@extend_schema_serializer(many=False)
+class BuyerOptionListSerializer(serializers.Serializer):
+    results = BuyerOptionSerializer(many=True)

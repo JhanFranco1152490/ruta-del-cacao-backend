@@ -1,6 +1,7 @@
 """La bodega de La Esperanza: una bodega por finca del productor de demostración y lotes en
 distintos momentos. El lote Clasificado que deja calidad queda por ingresar en vivo; aquí se suman
-uno En bodega con una salida por muestra y otra anulada, y otro con el G2 agotado.
+uno En bodega con una salida por muestra, otra anulada y un cambio de estante, y otro con el G2
+agotado.
 
 Cada lote nuevo sale de una cosecha fermentada y secada como los de calidad, y se evalúa, clasifica
 e ingresa por los servicios de cada app. Los lotes En bodega se crean una sola vez: si la finca ya
@@ -22,6 +23,7 @@ from apps.quality.services.classification import classify_lot
 from apps.warehouse.models import StockBalance, StockEntry, Warehouse
 from apps.warehouse.services.entry import register_entry
 from apps.warehouse.services.exits import register_exit, void_exit
+from apps.warehouse.services.moves import move_stock
 from apps.warehouse.services.warehouses import create_warehouse
 
 from .catalog import DEMO_QUALITY_EMAIL
@@ -105,6 +107,14 @@ def _stored_lots(owner, foreman, inspector, plot, warehouse) -> list[str]:
         },
     )
     void_exit(inspector, with_exits.pk, mistaken.pk, "Error de digitación: era otro lote")
+    entry = StockEntry.objects.get(lot=with_exits)
+    move_stock(
+        inspector,
+        with_exits.pk,
+        entry.version,
+        warehouse_id=warehouse.pk,
+        location="Estante 2",
+    )
     register_exit(
         inspector,
         depleted.pk,
@@ -117,8 +127,8 @@ def _stored_lots(owner, foreman, inspector, plot, warehouse) -> list[str]:
         },
     )
     return [
-        f"Bodega: {with_exits.code} en bodega con una salida por muestra y una anulada, y "
-        f"{depleted.code} con el G2 agotado"
+        f"Bodega: {with_exits.code} en bodega con una salida por muestra, una anulada y un cambio "
+        f"de estante, y {depleted.code} con el G2 agotado"
     ]
 
 

@@ -13,7 +13,7 @@ from apps.demo_data.seed import seed_demo_data
 from apps.farms.models import Farm
 from apps.lots.choices import LotStatus
 from apps.lots.models import Lot
-from apps.warehouse.models import StockBalance, StockEntry, StockExit, Warehouse
+from apps.warehouse.models import StockBalance, StockEntry, StockExit, StockMove, Warehouse
 
 pytestmark = pytest.mark.django_db
 
@@ -33,6 +33,7 @@ def counts():
         StockEntry.objects.count(),
         StockBalance.objects.count(),
         StockExit.objects.count(),
+        StockMove.objects.count(),
         Lot.objects.count(),
     )
 
@@ -61,6 +62,17 @@ def test_one_stored_lot_has_a_sample_and_a_voided_exit(seeded):
     voided = exits.exclude(voided_at__isnull=True).get()
     assert voided.lot == sample.lot
     assert voided.void_reason
+
+
+def test_the_lot_with_exits_was_moved_to_another_shelf_without_losing_stock(seeded):
+    move = StockMove.objects.get(lot__harvest__plot__farm__name=DEMO_FARM)
+
+    assert (move.from_location, move.to_location) == ("Estante 1", "Estante 2")
+    assert move.from_warehouse == move.to_warehouse
+    entry = StockEntry.objects.get(lot=move.lot)
+    assert entry.location == "Estante 2"
+    assert StockExit.objects.filter(lot=move.lot, voided_at__isnull=True).count() == 1
+    assert StockBalance.objects.get(lot=move.lot, grade="g1").quantity_kg == Decimal("98.0")
 
 
 def test_one_stored_lot_has_a_grade_that_ran_out(seeded):

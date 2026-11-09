@@ -52,3 +52,8 @@ class BuyerOptionsQuerySerializer(serializers.Serializer):
 class SaleVoidRequestSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
     expected_version = serializers.IntegerField(min_value=1)
     reason = serializers.CharField(max_length=VOID_REASON_MAX_LENGTH)
+
+
+class InvoiceUploadSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    # El formato y el tamaño los revisa el servicio, por el contenido y con su código de error.
+    file = serializers.FileField(allow_empty_file=True)

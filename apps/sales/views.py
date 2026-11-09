@@ -1,17 +1,23 @@
+from django.http import FileResponse
 from django.urls import reverse
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from apps.common.files import declared_length
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
-from .exceptions import StaleSaleVersion
+from .exceptions import InvoiceTooLarge, StaleSaleVersion
+from .models import INVOICE_MAX_BYTES
 from .request_serializers import (
     BuyerOptionsQuerySerializer,
+    InvoiceUploadSerializer,
     SaleCreateSerializer,
     SaleVoidRequestSerializer,
 )
@@ -26,11 +32,14 @@ from .serializers import (
     SaleSummarySerializer,
 )
 from .services import (
+    attach_invoice,
     buyer_options,
     create_sale,
     get_sale,
     list_sales,
+    remove_invoice,
     sales_summary,
+    visible_invoice,
     void_sale,
 )
 
@@ -38,6 +47,8 @@ VIEW = "sales.view_sale"
 ADD = "sales.add_sale"
 VOID = "sales.void_sale"
 PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")
+# Lo que puede ocupar el formulario además del archivo.
+FORM_OVERHEAD = 64 * 1024
 
 
 @extend_schema_view(
@@ -79,6 +90,9 @@ class SaleViewSet(GenericViewSet):
         "create": ADD,
         "buyer_options": ADD,
         "void": VOID,
+        "invoice": VIEW,
+        "attach_invoice": ADD,
+        "remove_invoice": ADD,
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -154,6 +168,66 @@ class SaleViewSet(GenericViewSet):
         data = serializer.validated_data
         sale = void_sale(request.user, pk, data["expected_version"], data["reason"])
         return Response(SaleSerializer(sale).data)
+
+    def initial(self, request, *args, **kwargs):
+        # Antes de autenticar: la revisión de CSRF lee el cuerpo, y un cuerpo enorme no debe
+        # llegar a escribirse en el disco del servidor.
+        too_large = declared_length(request) > INVOICE_MAX_BYTES + FORM_OVERHEAD
+        if self.action == "attach_invoice" and too_large:
+            raise InvoiceTooLarge()
+        super().initial(request, *args, **kwargs)
+
+    @extend_schema(
+        description=(
+            "El soporte de la factura, después de revisar que quien lo pide alcance la venta. "
+            "Nunca hay una dirección pública. Sin soporte, 404."
+        ),
+        responses={
+            (200, "application/pdf"): OpenApiTypes.BINARY,
+            (200, "image/jpeg"): OpenApiTypes.BINARY,
+            (200, "image/png"): OpenApiTypes.BINARY,
+            **error_responses(401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["get"], parser_classes=[MultiPartParser])
+    def invoice(self, request, pk):
+        sale = visible_invoice(request.user, pk)
+        response = FileResponse(
+            sale.invoice.open("rb"),
+            content_type=sale.invoice_content_type,
+            filename=sale.invoice_name,
+        )
+        # El navegador no adivina otro tipo que el que se revisó al subirlo.
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    @extend_schema(
+        description=(
+            "Adjunta o reemplaza el soporte de la factura, en `multipart/form-data`: un PDF, "
+            "JPG o PNG (revisado por el contenido) de hasta 5 MB. Errores propios: 409 "
+            "`sale_voided`, 413 `invoice_too_large` y 415 `invoice_format_not_allowed`."
+        ),
+        request={"multipart/form-data": InvoiceUploadSerializer},
+        responses={200: SaleSerializer, **error_responses(400, 401, 403, 404, 409, 413, 415)},
+    )
+    @invoice.mapping.put
+    def attach_invoice(self, request, pk):
+        serializer = InvoiceUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sale = attach_invoice(request.user, pk, serializer.validated_data["file"])
+        return Response(SaleSerializer(sale).data)
+
+    @extend_schema(
+        description=(
+            "Quita el soporte de la factura. Sin soporte, 204 igual. Una venta anulada lo "
+            "conserva: 409 `sale_voided`."
+        ),
+        responses={204: None, **error_responses(401, 403, 404, 409)},
+    )
+    @invoice.mapping.delete
+    def remove_invoice(self, request, pk):
+        remove_invoice(request.user, pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def handle_exception(self, exc):
         if isinstance(exc, StaleSaleVersion):

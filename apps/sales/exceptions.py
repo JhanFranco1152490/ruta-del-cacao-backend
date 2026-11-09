@@ -101,3 +101,27 @@ class SaleStockInsufficient(ApiError):
             fields={"lines": [message]},
             extra={"line": line, "available_kg": f"{available:.1f}"},
         )
+
+
+class InvoiceTooLarge(ApiError):
+    status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    default_detail = "El archivo supera el tamaño máximo de 5 MB."
+    default_code = "invoice_too_large"
+
+    def __init__(self):
+        super().__init__(fields={"file": [self.default_detail]})
+
+
+class InvoiceFormatNotAllowed(ApiError):
+    status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+    default_detail = "Solo se permiten PDF, JPG o PNG."
+    default_code = "invoice_format_not_allowed"
+
+    def __init__(self):
+        super().__init__(fields={"file": [self.default_detail]})
+
+
+class InvoiceNotFound(ApiError):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = "La venta no tiene soporte de la factura."
+    default_code = "not_found"

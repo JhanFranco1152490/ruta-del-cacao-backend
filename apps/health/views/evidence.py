@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.files import declared_length
 from apps.common.permissions import HasPermission
 from apps.common.schema import error_responses
 
@@ -43,7 +44,7 @@ class EvidenceView(APIView):
     def initial(self, request, *args, **kwargs):
         # Antes de autenticar: la revisión de CSRF lee el cuerpo, y un cuerpo enorme no debe
         # llegar a escribirse en el disco del servidor.
-        if request.method == "POST" and _declared_length(request) > MAX_BYTES + FORM_OVERHEAD:
+        if request.method == "POST" and declared_length(request) > MAX_BYTES + FORM_OVERHEAD:
             raise EvidenceTooLarge()
         super().initial(request, *args, **kwargs)
 
@@ -131,10 +132,3 @@ class EvidenceDetailView(APIView):
     def delete(self, request, pk):
         delete_evidence(request.user, pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-def _declared_length(request) -> int:
-    try:
-        return int(request.META.get("CONTENT_LENGTH") or 0)
-    except ValueError:
-        return 0

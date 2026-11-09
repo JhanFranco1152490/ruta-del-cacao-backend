@@ -270,6 +270,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/sales/{id}"),
     ("post", "/api/sales"),
     ("get", "/api/sales/buyer-options"),
+    ("post", "/api/sales/{id}/void"),
 }
 
 

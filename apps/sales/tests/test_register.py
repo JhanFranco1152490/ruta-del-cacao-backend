@@ -10,62 +10,22 @@ from apps.accounts.tests.role_helpers import (
     grant_role,
     make_administrator,
     make_delegate,
-    make_producer_owner,
 )
 from apps.buyers.tests.factories import BuyerFactory
 from apps.common.tests.concurrency import run_in_parallel
 from apps.farms.models import Farm
 from apps.farms.tests.factories import FarmFactory
-from apps.harvests.tests.factories import characterized_plot
 from apps.lots.choices import LotStatus
-from apps.producers.tests.factories import ProducerFactory
 from apps.sales.exceptions import SaleStockInsufficient
 from apps.sales.models import Sale, SaleAuditEvent, SaleCodeSequence
 from apps.sales.services import create_sale
 from apps.warehouse.models import StockBalance, StockExit
-from apps.warehouse.tests.factories import WarehouseFactory
-from apps.warehouse.tests.helpers import classified_lot, stored_lot
+
+from .helpers import Market
 
 pytestmark = pytest.mark.django_db
 
 URL = "/api/sales"
-
-
-class Market:
-    """Un productor con dos fincas. En A: una bodega con dos lotes En bodega (250,0 kg de G1 y 55,2
-    de G2 cada uno) y un lote Clasificado. En B: un lote En bodega. Dos compradores, uno inactivo.
-    """
-
-    def __init__(self):
-        self.producer = ProducerFactory()
-        self.farm = FarmFactory(producer=self.producer, number=1)
-        self.other_farm = FarmFactory(producer=self.producer, number=2)
-        plot = characterized_plot(farm=self.farm)
-        other_plot = characterized_plot(farm=self.other_farm)
-        warehouse = WarehouseFactory(farm=self.farm)
-        self.lot, _ = stored_lot(plot, warehouse)
-        self.second_lot, _ = stored_lot(plot, warehouse)
-        self.classified = classified_lot(plot)
-        self.other_farm_lot, _ = stored_lot(other_plot, WarehouseFactory(farm=self.other_farm))
-        self.buyer = BuyerFactory(producer=self.producer)
-        self.inactive_buyer = BuyerFactory(producer=self.producer, is_active=False)
-        self.owner = make_producer_owner(self.producer)
-
-    def body(self, *lines, **overrides) -> dict:
-        lines = lines or (self.line(self.lot, "g1", "150.0", 18500),)
-        data = {
-            "farm_id": str(self.farm.pk),
-            "buyer_id": str(self.buyer.pk),
-            "sale_date": timezone.localdate().isoformat(),
-            "notes": "",
-            "lines": list(lines),
-        }
-        data.update(overrides)
-        return data
-
-    @staticmethod
-    def line(lot, grade, kilos, price) -> dict:
-        return {"lot_id": str(lot.pk), "grade": grade, "quantity_kg": kilos, "price_per_kg": price}
 
 
 @pytest.fixture

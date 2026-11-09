@@ -11,6 +11,22 @@ class SaleNotFound(ApiError):
     default_code = "not_found"
 
 
+class StaleSaleVersion(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La venta fue modificada. Revisa los cambios antes de seguir."
+    default_code = "stale_version"
+
+    def __init__(self, current_sale):
+        super().__init__()
+        self.current_sale = current_sale
+
+
+class SaleVoided(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "La venta ya está anulada."
+    default_code = "sale_voided"
+
+
 class SaleFarmNotFound(ApiError):
     status_code = status.HTTP_404_NOT_FOUND
     default_detail = "La finca no existe."

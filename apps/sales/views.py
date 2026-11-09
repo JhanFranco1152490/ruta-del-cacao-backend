@@ -9,20 +9,34 @@ from rest_framework.viewsets import GenericViewSet
 from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
-from .request_serializers import BuyerOptionsQuerySerializer, SaleCreateSerializer
+from .exceptions import StaleSaleVersion
+from .request_serializers import (
+    BuyerOptionsQuerySerializer,
+    SaleCreateSerializer,
+    SaleVoidRequestSerializer,
+)
 from .serializers import (
     BuyerOptionListSerializer,
     BuyerOptionSerializer,
+    SaleConflictErrorSerializer,
     SaleListItemSerializer,
     SaleListQuerySerializer,
     SaleSerializer,
     SaleSummaryQuerySerializer,
     SaleSummarySerializer,
 )
-from .services import buyer_options, create_sale, get_sale, list_sales, sales_summary
+from .services import (
+    buyer_options,
+    create_sale,
+    get_sale,
+    list_sales,
+    sales_summary,
+    void_sale,
+)
 
 VIEW = "sales.view_sale"
 ADD = "sales.add_sale"
+VOID = "sales.void_sale"
 PRODUCER_PARAMETER = OpenApiParameter("producer", str, description="Solo para la cuenta técnica.")
 
 
@@ -64,6 +78,7 @@ class SaleViewSet(GenericViewSet):
         "retrieve": VIEW,
         "create": ADD,
         "buyer_options": ADD,
+        "void": VOID,
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -117,3 +132,30 @@ class SaleViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         buyers = buyer_options(request.user, producer=query.validated_data.get("producer"))
         return Response({"results": BuyerOptionSerializer(buyers, many=True).data})
+
+    @extend_schema(
+        description=(
+            "Anula la venta con su motivo: los kilos de cada línea vuelven a la bodega y sus "
+            "salidas quedan anuladas, en la misma transacción. Requiere `expected_version`; si "
+            "la venta cambió, 409 `stale_version` con la vigente en `current`. Una venta "
+            "anulada no se vuelve a anular (409 `sale_voided`) ni se reactiva."
+        ),
+        request=SaleVoidRequestSerializer,
+        responses={
+            200: SaleSerializer,
+            409: SaleConflictErrorSerializer,
+            **error_responses(400, 401, 403, 404),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def void(self, request, pk):
+        serializer = SaleVoidRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        sale = void_sale(request.user, pk, data["expected_version"], data["reason"])
+        return Response(SaleSerializer(sale).data)
+
+    def handle_exception(self, exc):
+        if isinstance(exc, StaleSaleVersion):
+            exc.extra = {"current": SaleSerializer(exc.current_sale).data}
+        return super().handle_exception(exc)

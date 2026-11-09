@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
-from apps.common.serializers import PeriodQuerySerializer, full_name
+from apps.common.serializers import ApiErrorSerializer, PeriodQuerySerializer, full_name
 
 from .models import Grade, Sale
 
@@ -136,3 +136,9 @@ class BuyerOptionSerializer(serializers.Serializer):
 @extend_schema_serializer(many=False)
 class BuyerOptionListSerializer(serializers.Serializer):
     results = BuyerOptionSerializer(many=True)
+
+
+class SaleConflictErrorSerializer(ApiErrorSerializer):
+    # Solo se documenta: el 409 lo arma el manejador global de errores. `current` llega con
+    # `stale_version`.
+    current = SaleSerializer(required=False)

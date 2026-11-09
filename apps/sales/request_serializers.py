@@ -5,7 +5,13 @@ from rest_framework import serializers
 from apps.common.serializers import RejectUnknownFieldsMixin
 from apps.common.validators import validate_not_future
 
-from .models import MAX_LINES, MAX_PRICE_PER_KG, NOTES_MAX_LENGTH, Grade
+from .models import (
+    MAX_LINES,
+    MAX_PRICE_PER_KG,
+    NOTES_MAX_LENGTH,
+    VOID_REASON_MAX_LENGTH,
+    Grade,
+)
 
 DUPLICATE_LINE = "Ese lote y calibre ya está en otra línea."
 
@@ -41,3 +47,8 @@ class SaleCreateSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
 
 class BuyerOptionsQuerySerializer(serializers.Serializer):
     producer = serializers.UUIDField(required=False)
+
+
+class SaleVoidRequestSerializer(RejectUnknownFieldsMixin, serializers.Serializer):
+    expected_version = serializers.IntegerField(min_value=1)
+    reason = serializers.CharField(max_length=VOID_REASON_MAX_LENGTH)

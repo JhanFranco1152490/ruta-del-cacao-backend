@@ -131,7 +131,10 @@ def test_the_detail_has_the_documented_shape(auth_client, owner, sale):
 
 
 def test_each_line_has_its_lot_amounts_and_subtotal(auth_client, owner, sale):
-    lines = auth_client(owner).get(detail(sale)).data["lines"]
+    # Las líneas van por código de lote; aquí cada una es de un lote distinto, con el consecutivo
+    # de la fábrica, así que se comparan por calibre.
+    response = auth_client(owner).get(detail(sale))
+    lines = sorted(response.data["lines"], key=lambda line: line["grade"])
 
     assert [(line["grade"], line["quantity_kg"], line["price_per_kg"]) for line in lines] == [
         ("g1", "150.0", 18500),

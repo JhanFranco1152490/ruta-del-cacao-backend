@@ -33,6 +33,7 @@ from apps.notifications.tests.factories import LotNotificationFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
 from apps.quality.tests.helpers import dried_lot
+from apps.sales.tests.helpers import sale_with_lines
 from apps.warehouse.tests.factories import WarehouseFactory
 from apps.warehouse.tests.helpers import stored_lot
 
@@ -322,6 +323,7 @@ HARVEST_FIELD_PERMISSIONS = [
     "drying.log_drying",
     "quality.evaluate_lot",
     "warehouse.view_stock",
+    "sales.view_sale",
 ]
 
 
@@ -368,6 +370,9 @@ class HarvestWorld:
         self.stored_b, _ = stored_lot(
             self.plot_b, self.warehouse_b, harvest_date=date(2026, 9, 18)
         )
+        # Y una venta por finca, para la lista y la ficha de ventas.
+        self.sale_a = sale_with_lines(self.farm_a, lot=self.stored_a, sale_date=date(2026, 10, 20))
+        self.sale_b = sale_with_lines(self.farm_b, lot=self.stored_b, sale_date=date(2026, 10, 20))
         self.owner = make_producer_owner(self.producer)
         self.employee = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS)
@@ -411,6 +416,7 @@ HARVEST_DETAILS = {
     "drying": ("/api/drying/{}", "drying_a", "drying_b"),
     "quality": ("/api/quality/{}", "dried_a", "dried_b"),
     "stock": ("/api/stock/{}", "stored_a", "stored_b"),
+    "sale": ("/api/sales/{}", "sale_a", "sale_b"),
 }
 
 
@@ -505,6 +511,17 @@ def test_an_employee_lists_only_the_stock_and_the_warehouses_of_its_farm(
     assert warehouses(harvest_world.employee) == own
     assert warehouses(harvest_world.unassigned) == set()
     assert warehouses(harvest_world.owner) == own | {str(harvest_world.warehouse_b.pk)}
+
+
+def test_an_employee_lists_only_the_sales_of_its_farm(auth_client, harvest_world):
+    def sold(user):
+        response = auth_client(user).get("/api/sales", harvest_world.window)
+        assert response.status_code == 200, response.data
+        return {row["id"] for row in response.data["results"]}
+
+    assert sold(harvest_world.employee) == names(harvest_world, {"sale_a"})
+    assert sold(harvest_world.unassigned) == set()
+    assert sold(harvest_world.owner) == names(harvest_world, {"sale_a", "sale_b"})
 
 
 def test_an_employee_sees_only_the_lot_notifications_of_its_farm(auth_client, harvest_world):

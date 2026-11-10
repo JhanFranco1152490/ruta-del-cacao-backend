@@ -7,7 +7,16 @@ from apps.lots.tests.factories import LotFactory
 
 pytestmark = pytest.mark.django_db
 
-CHAIN = ["generated", "fermenting", "fermented", "drying", "dried", "evaluated", "classified"]
+CHAIN = [
+    "generated",
+    "fermenting",
+    "fermented",
+    "drying",
+    "dried",
+    "evaluated",
+    "classified",
+    "in_warehouse",
+]
 
 EXPECTED_TRANSITIONS = {
     "generated": {"fermenting"},
@@ -16,7 +25,8 @@ EXPECTED_TRANSITIONS = {
     "drying": {"dried"},
     "dried": {"evaluated"},
     "evaluated": {"classified", "discarded"},
-    "classified": set(),
+    "classified": {"in_warehouse"},
+    "in_warehouse": set(),
     "discarded": set(),
 }
 
@@ -65,7 +75,7 @@ def test_the_whole_chain_can_be_walked_one_state_at_a_time():
         advance_lot_status(lot, before, after, actor=None)
 
     lot.refresh_from_db()
-    assert (lot.status, lot.version) == ("classified", 7)
+    assert (lot.status, lot.version) == ("in_warehouse", 8)
 
 
 def test_an_evaluated_lot_can_be_discarded_instead_of_classified():
@@ -122,7 +132,7 @@ def test_a_lot_that_is_not_in_the_expected_state_is_refused_with_its_current_one
     assert error.value.extra == {"current_status": "fermenting"}
 
 
-@pytest.mark.parametrize("final", [LotStatus.CLASSIFIED, LotStatus.DISCARDED])
+@pytest.mark.parametrize("final", [LotStatus.IN_WAREHOUSE, LotStatus.DISCARDED])
 def test_the_final_states_have_nowhere_to_go(final):
     lot = LotFactory(status=final)
 

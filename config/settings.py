@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "apps.postharvest_parameters",
     "apps.drying",
     "apps.quality",
+    "apps.warehouse",
     "apps.demo_data",
 ]
 
@@ -254,6 +255,8 @@ SPECTACULAR_SETTINGS = {
         "PostharvestFacilityStatusEnum": "apps.facilities.status.FacilityStatus",
         "DryingWeatherEnum": "apps.drying.models.Weather",
         "QualityDiscardReasonEnum": "apps.quality.choices.DiscardReason",
+        "StockGradeEnum": "apps.warehouse.choices.Grade",
+        "StockExitReasonEnum": "apps.warehouse.choices.ExitReason",
     },
 }
 

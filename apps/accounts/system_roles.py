@@ -86,6 +86,10 @@ SYSTEM_ROLES = {
             "quality.evaluate_lot",
             "quality.classify_lot",
             "quality.discard_lot",
+            "warehouse.view_stock",
+            "warehouse.register_entry",
+            "warehouse.register_exit",
+            "warehouse.manage_warehouse",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -142,13 +146,22 @@ SYSTEM_ROLES = {
             "quality.evaluate_lot",
             "quality.classify_lot",
             "quality.discard_lot",
+            # Es quien recibe el cacao clasificado y lo guarda.
+            "warehouse.view_stock",
+            "warehouse.register_entry",
+            "warehouse.register_exit",
+            "warehouse.manage_warehouse",
         ],
     },
     SALES_MANAGER: {
         "kind": Role.Kind.PREDEFINED,
         "name": "Comercializador",
         "farm_scope": Role.FarmScope.MANY,
-        "permissions": [],
+        "permissions": [
+            # Consulta lo que hay en bodega para preparar ventas; no la mueve.
+            "farms.view_farm",
+            "warehouse.view_stock",
+        ],
     },
 }
 

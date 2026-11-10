@@ -33,6 +33,8 @@ from apps.notifications.tests.factories import LotNotificationFactory
 from apps.plots.tests.factories import PlotFactory
 from apps.producers.tests.factories import ProducerFactory
 from apps.quality.tests.helpers import dried_lot
+from apps.warehouse.tests.factories import WarehouseFactory
+from apps.warehouse.tests.helpers import stored_lot
 
 pytestmark = pytest.mark.django_db
 
@@ -319,6 +321,7 @@ HARVEST_FIELD_PERMISSIONS = [
     "fermentation.log_turns",
     "drying.log_drying",
     "quality.evaluate_lot",
+    "warehouse.view_stock",
 ]
 
 
@@ -356,6 +359,15 @@ class HarvestWorld:
         # Y un lote seco por finca, para la pantalla y la ficha de calidad.
         self.dried_a = dried_lot(self.plot_a, harvest_date=date(2026, 9, 17))
         self.dried_b = dried_lot(self.plot_b, harvest_date=date(2026, 9, 17))
+        # Y una bodega con un lote ingresado por finca, para las existencias.
+        self.warehouse_a = WarehouseFactory(farm=self.farm_a)
+        self.warehouse_b = WarehouseFactory(farm=self.farm_b)
+        self.stored_a, _ = stored_lot(
+            self.plot_a, self.warehouse_a, harvest_date=date(2026, 9, 18)
+        )
+        self.stored_b, _ = stored_lot(
+            self.plot_b, self.warehouse_b, harvest_date=date(2026, 9, 18)
+        )
         self.owner = make_producer_owner(self.producer)
         self.employee = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, HARVEST_FIELD_PERMISSIONS)
@@ -387,8 +399,8 @@ HARVEST_LISTS = {
     ),
     "lots": (
         lambda w: ("/api/lots", {}),
-        {"lot_a", "fermentation_a", "drying_a", "dried_a"},
-        {"lot_b", "fermentation_b", "drying_b", "dried_b"},
+        {"lot_a", "fermentation_a", "drying_a", "dried_a", "stored_a"},
+        {"lot_b", "fermentation_b", "drying_b", "dried_b", "stored_b"},
     ),
 }
 
@@ -398,6 +410,7 @@ HARVEST_DETAILS = {
     "fermentation": ("/api/fermentation/{}", "fermentation_a", "fermentation_b"),
     "drying": ("/api/drying/{}", "drying_a", "drying_b"),
     "quality": ("/api/quality/{}", "dried_a", "dried_b"),
+    "stock": ("/api/stock/{}", "stored_a", "stored_b"),
 }
 
 
@@ -470,6 +483,28 @@ def test_an_employee_lists_only_the_quality_lots_of_its_farm(auth_client, harves
     assert listed(harvest_world.employee) == names(harvest_world, {"dried_a"})
     assert listed(harvest_world.unassigned) == set()
     assert listed(harvest_world.owner) == names(harvest_world, {"dried_a", "dried_b"})
+
+
+def test_an_employee_lists_only_the_stock_and_the_warehouses_of_its_farm(
+    auth_client, harvest_world
+):
+    def stocked(user):
+        response = auth_client(user).get("/api/stock")
+        assert response.status_code == 200, response.data
+        return {row["lot"]["id"] for row in response.data["results"]}
+
+    def warehouses(user):
+        response = auth_client(user).get("/api/warehouses")
+        assert response.status_code == 200, response.data
+        return {row["id"] for row in response.data["results"]}
+
+    assert stocked(harvest_world.employee) == names(harvest_world, {"stored_a"})
+    assert stocked(harvest_world.unassigned) == set()
+    assert stocked(harvest_world.owner) == names(harvest_world, {"stored_a", "stored_b"})
+    own = {str(harvest_world.warehouse_a.pk)}
+    assert warehouses(harvest_world.employee) == own
+    assert warehouses(harvest_world.unassigned) == set()
+    assert warehouses(harvest_world.owner) == own | {str(harvest_world.warehouse_b.pk)}
 
 
 def test_an_employee_sees_only_the_lot_notifications_of_its_farm(auth_client, harvest_world):

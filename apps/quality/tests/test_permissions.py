@@ -49,10 +49,14 @@ def test_the_producer_and_the_quality_manager_hold_the_quality_permissions(permi
     assert holders(permission) == {PRODUCER, QUALITY_MANAGER}
 
 
-def test_the_quality_manager_sees_the_lots_and_works_their_quality_only():
+def test_the_quality_manager_sees_the_lots_and_works_their_quality_and_the_warehouse_only():
     assert set(SYSTEM_ROLES[QUALITY_MANAGER]["permissions"]) == {
         *QUALITY_PERMISSIONS,
         *TO_SEE_THE_LOT,
+        "warehouse.view_stock",
+        "warehouse.register_entry",
+        "warehouse.register_exit",
+        "warehouse.manage_warehouse",
     }
 
 

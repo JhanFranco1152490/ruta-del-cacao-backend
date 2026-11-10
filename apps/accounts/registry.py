@@ -89,6 +89,10 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "quality.classify_lot": PermissionInfo(area="quality", delegable=True),
     # Aparte de clasificar porque no se deshace: el productor puede darlo a menos personas.
     "quality.discard_lot": PermissionInfo(area="quality", delegable=True),
+    "warehouse.view_stock": PermissionInfo(area="warehouse", delegable=True),
+    "warehouse.register_entry": PermissionInfo(area="warehouse", delegable=True),
+    "warehouse.register_exit": PermissionInfo(area="warehouse", delegable=True),
+    "warehouse.manage_warehouse": PermissionInfo(area="warehouse", delegable=True),
 }
 
 
@@ -107,6 +111,7 @@ FIELD_AREAS = frozenset(
         "fermentation",
         "drying",
         "quality",
+        "warehouse",
     }
 )
 
@@ -201,6 +206,13 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "quality.evaluate_lot": "lots.view_lot",
     "quality.classify_lot": "quality.evaluate_lot",
     "quality.discard_lot": "quality.evaluate_lot",
+    # Las existencias llevan el lote y su finca. Quien las consulta puede no ver la cosecha ni la
+    # parcela de origen (el Comercializador): por eso no piden ver el lote. Registrar y gestionar
+    # se hacen desde la pantalla de bodega, que pide consultar.
+    "warehouse.view_stock": "farms.view_farm",
+    "warehouse.register_entry": "warehouse.view_stock",
+    "warehouse.register_exit": "warehouse.view_stock",
+    "warehouse.manage_warehouse": "warehouse.view_stock",
 }
 
 

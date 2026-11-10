@@ -407,3 +407,51 @@ def test_the_quality_list_does_not_query_once_per_lot(auth_client, estate):
     discarded(dried_lot(estate.plot_a, status=LotStatus.DISCARDED), estate.owner)
 
     assert queries() == before
+
+
+# --- Un lote que bodega ya guardó sigue cerrado ---
+
+
+@pytest.fixture
+def stored(estate):
+    """El lote clasificado de la finca, ya guardado en una bodega."""
+    type(estate.classified).objects.filter(pk=estate.classified.pk).update(
+        status=LotStatus.IN_WAREHOUSE
+    )
+    return estate.classified
+
+
+def test_a_stored_lot_stays_in_the_closed_view(auth_client, estate, stored):
+    client = auth_client(estate.owner)
+
+    closed = codes(client.get(URL, {"view": "closed"}))
+    classified = codes(client.get(URL, {"view": "closed", "result": "classified"}))
+    discarded = codes(client.get(URL, {"view": "closed", "result": "discarded"}))
+
+    assert closed == [estate.discarded.code, stored.code]
+    assert classified == [stored.code]
+    assert discarded == [estate.discarded.code]
+
+
+def test_a_stored_lot_is_not_listed_to_evaluate_or_evaluated(auth_client, estate, stored):
+    client = auth_client(estate.owner)
+
+    assert stored.code not in codes(client.get(URL, {"view": "to_evaluate"}))
+    assert stored.code not in codes(client.get(URL, {"view": "evaluated"}))
+
+
+def test_the_closed_totals_keep_counting_a_stored_lot(auth_client, estate, stored):
+    response = auth_client(estate.owner).get(f"{URL}/closed-summary")
+
+    assert response.data["classified"] == 1
+    assert response.data["g1_kg"] == "250.0"
+    assert response.data["g2_kg"] == "55.2"
+    assert response.data["discarded_kg"] == "321.2"
+
+
+def test_a_stored_lot_keeps_its_quality_detail(auth_client, estate, stored):
+    response = auth_client(estate.owner).get(f"{URL}/{stored.pk}")
+
+    assert response.status_code == 200
+    assert response.data["lot"]["status"] == "in_warehouse"
+    assert response.data["classification"]["g1_kg"] == "250.0"

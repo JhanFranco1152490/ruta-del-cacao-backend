@@ -112,13 +112,14 @@ def test_each_crops_permission_belongs_to_a_single_system_role(permission, holde
     assert granted == {holder}
 
 
-def test_the_producer_the_association_the_foreman_and_quality_read_farms():
+def test_every_role_reads_farms():
+    # El Comercializador las consulta porque las existencias de bodega llevan la finca del lote.
     readers = {
         code
         for code, definition in SYSTEM_ROLES.items()
         if "farms.view_farm" in definition["permissions"]
     }
-    assert readers == {PRODUCER, ADMINISTRATOR, FOREMAN, QUALITY_MANAGER}
+    assert readers == {PRODUCER, ADMINISTRATOR, FOREMAN, QUALITY_MANAGER, SALES_MANAGER}
 
 
 def test_only_the_association_can_delete_producers():

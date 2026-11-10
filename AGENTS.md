@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`) y lo demás que comparten dos apps |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`) y lo demás que comparten dos apps |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -63,6 +63,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/quality/` | Control de calidad del lote: la evaluación física de un lote Seco (granos bien fermentados, con moho y con otros defectos, hasta 100 % entre los tres) y su corrección mientras siga Evaluado, la clasificación de su peso seco entre G1, G2 y descarte, y el descarte del lote completo con su motivo, que avisa a quienes trabajan la calidad en la finca. El lote pasa de Seco a Evaluado y de ahí a Clasificado o a Descartado. Suma el campo `quality` al lote por `lot_details`. Solo en línea |
 | `apps/warehouse/` | Bodega y existencias de cacao seco: las bodegas de cada finca (alta, edición, activación y eliminación de la nunca usada, solo en línea), el ingreso único y exacto de un lote Clasificado (con los kilos de G1 y G2 de su clasificación) y su corrección mientras nada haya salido, las existencias por lote y calibre con totales y filtros, y las salidas con motivo y su anulación. El lote pasa de Clasificado a En bodega. Suma el campo `warehouse` al lote por `lot_details`. Solo en línea |
 | `apps/buyers/` | Directorio de compradores de cada productor (no de una finca): nombre, documento (tipo y número, único en el directorio), tipo de cliente y contacto (persona, teléfono y correo, con al menos teléfono o correo). Alta (solo en línea), consulta, edición (también del documento), activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial sin valores, que sobrevive al borrado. Se eliminan con un productor creado por error |
+| `apps/sales/` | Ventas de los lotes En bodega de una finca a un comprador activo: cada línea es un lote y un calibre con sus kilos y su precio por kilo en pesos enteros, y su subtotal redondeado al peso. Registrar saca las existencias con `StockExit.remove_for_sale` y anular las devuelve con `void_for_sale`, en la misma transacción; el número `V-0012` es consecutivo por productor. El soporte de la factura (PDF, JPG o PNG, en PostgreSQL), la lista por periodo y su resumen. No se edita ni se elimina: se anula |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha, los desvíos y el descarte), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
@@ -126,17 +127,17 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
   `lot_id_conflict`, `lot_invalid_status`, `duplicate_pest_disease_name`, `evidence_requires_done`,
   `evidence_limit_reached`, `fermentation_has_turns`, `fermentation_not_in_progress`,
-  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time`, `buyer_has_records` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time`, `buyer_has_records`, `sale_voided` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
-  `payload_too_large`, `evidence_too_large` (413); `unsupported_media_type`,
-  `evidence_format_not_allowed` (415); `invalid_coordinates`,
+  `payload_too_large`, `evidence_too_large`, `invoice_too_large` (413);
+  `unsupported_media_type`, `evidence_format_not_allowed`, `invoice_format_not_allowed` (415); `invalid_coordinates`,
   `location_outside_operating_area`, `municipality_department_mismatch`, `farm_inactive`,
   `farm_area_below_plots`, `invalid_boundary`, `area_mismatch`, `plot_area_exceeds_farm`,
   `plot_overlap`, `plot_too_far_from_farm`, `plot_inactive`, `variety_inactive`,
   `density_too_high`, `input_unit_locked`, `producer_inactive`, `input_inactive`,
   `plot_not_characterized`, `variety_not_in_plot`, `collector_not_available`,
   `pest_disease_inactive`, `not_a_monitoring`, `evidence_not_allowed`,
-  `responsible_not_available`, `lot_exceeds_capacity` (422);
+  `responsible_not_available`, `lot_exceeds_capacity`, `buyer_inactive` (422);
   `throttled` (429); `internal_error` (500). El frontend decide qué hacer según `code`,
   no según `detail`.
 - **Registros creados sin conexión** (fincas, parcelas y cosechas): el `POST` acepta un `id` UUID generado en
@@ -569,6 +570,35 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   (`BuyerAuditEvent`) guarda solo los nombres de los campos que cambiaron, y el evento `deleted`
   solo el `id` y el tipo de cliente; el motivo que da al bloquear el borrado de un productor
   tampoco lo nombra. No hay bloqueo de finca: la edición bloquea la fila del comprador.
+- **Ventas** (`/api/sales`): una venta es de **una finca** y de un comprador **activo** del
+  mismo productor, con 1 a 20 líneas (un lote En bodega de esa finca y un calibre, sin repetir).
+  Permisos `sales.view_sale`, `add_sale` (registrar y el soporte) y `void_sale`, delegables y **de
+  campo**; `view_sale` depende de `warehouse.view_stock`. El Productor y el Comercializador tienen
+  los tres. Los compradores del formulario salen de `GET /api/sales/buyer-options` (con
+  `add_sale`; solo id, nombre y tipo): registrar no pide consultar el directorio.
+  - **Registrar** (`POST`): bloquea la finca, saca cada línea con `StockExit.remove_for_sale`
+    (motivo `sale`), toma el número bloqueando el productor y guarda las líneas con su salida
+    (`stock_exit`, uno a uno). Todo o nada: una línea con más de lo disponible es `400
+    stock_insufficient` con `line` (desde 0) y `available_kg`, y no queda ni salida ni número. Un
+    lote de otra finca es `404` y uno que no está En bodega, `409 lot_invalid_status`, los dos con
+    `line`. Los errores de forma de las líneas van en `fields.lines`, sin índice. La fecha no es
+    futura ni anterior al ingreso de ningún lote.
+  - **El subtotal** es kilos por precio, redondeado al peso con la mitad hacia arriba
+    (`rules.line_subtotal`); el total se suma al responder. El lote **sigue En bodega**: vendido se
+    deriva de las existencias.
+  - **Anular** (`POST …/{id}/void`, con `expected_version` y el motivo): anula cada salida con
+    `void_for_sale` y los kilos vuelven a la bodega. `409 sale_voided` se revisa antes que la
+    versión. El número no se recicla.
+  - **Soporte** (`PUT`, `DELETE` y `GET …/{id}/invoice`): PDF, JPG o PNG de hasta 5 MB, revisado
+    por el contenido con `apps/common/files.py` (`413 invoice_too_large`, `415
+    invoice_format_not_allowed`); el anterior se borra al confirmar. El archivo se guarda **antes** de
+    tomar el bloqueo de la finca y una transacción corta lo registra (si falla, por ejemplo porque la
+    venta se anuló entretanto, se borra): hasta 5 MB no se escriben con la finca bloqueada. Una venta
+    anulada lo conserva y no lo cambia.
+  - **Consultar:** la lista (paginada, por periodo de hasta 366 días) trae los kilos y el total de
+    cada venta en la misma consulta, y `…/summary` suma solo las registradas.
+  - `Sale` protege su finca, su comprador, sus lotes, sus salidas y sus cuentas: un comprador con
+    ventas, también anuladas, responde `buyer_has_records`.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden

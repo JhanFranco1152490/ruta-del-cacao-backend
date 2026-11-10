@@ -2,6 +2,7 @@
 
 from django.db import transaction
 
+from apps.common.files import JPEG, PNG, clean_file_name, detect_format
 from apps.common.locks import lock_aggregate_root
 from apps.common.ownership import owner_filter
 from apps.common.roles import is_employee
@@ -31,28 +32,13 @@ MAX_PER_RECORD = 5
 NAME_MAX = 100
 MONITORING = "phytosanitary_monitoring"
 CONTROL = "phytosanitary_control"
-# Los primeros bytes de cada formato admitido, con su tipo y la extensión con que se guarda.
-SIGNATURES = (
-    (b"\xff\xd8\xff", "image/jpeg", "jpg"),
-    (b"\x89PNG\r\n\x1a\n", "image/png", "png"),
-)
+# Solo fotos: el teléfono las toma o las elige de la galería.
+FORMATS = (JPEG, PNG)
 # Cómo se llega desde cada tabla de evidencia a la finca, para el alcance.
 EVIDENCE_TABLES = (
     (PhytosanitaryMonitoringEvidence, "monitoring__activity__plot__farm"),
     (PhytosanitaryTreatmentEvidence, "treatment__activity__plot__farm"),
 )
-
-
-def detect_format(uploaded) -> tuple[str, str]:
-    """El tipo y la extensión que dicen los primeros bytes. El nombre y el tipo que envía el
-    cliente no se creen: un PDF renombrado a `.jpg` no pasa."""
-    uploaded.seek(0)
-    head = uploaded.read(8)
-    uploaded.seek(0)
-    for signature, content_type, extension in SIGNATURES:
-        if head.startswith(signature):
-            return content_type, extension
-    raise EvidenceFormatNotAllowed()
 
 
 @transaction.atomic
@@ -68,7 +54,9 @@ def attach_evidence(actor, activity_id, data: dict):
     uploaded = data["file"]
     if uploaded.size > MAX_BYTES:
         raise EvidenceTooLarge()
-    content_type, extension = detect_format(uploaded)
+    file_format = detect_format(uploaded, FORMATS)
+    if file_format is None:
+        raise EvidenceFormatNotAllowed()
 
     activity = _locked_activity(actor, activity_id)
     parent, model, parent_field = _parent(activity)
@@ -84,15 +72,15 @@ def attach_evidence(actor, activity_id, data: dict):
 
     evidence = model(
         id=data["id"],
-        file_name=_clean_name(uploaded.name),
-        content_type=content_type,
+        file_name=clean_file_name(uploaded.name, max_length=NAME_MAX, fallback="foto"),
+        content_type=file_format.content_type,
         size=uploaded.size,
         uploaded_by=actor,
         captured_at=data.get("captured_at"),
         **{parent_field: parent},
     )
     # El nombre en el almacenamiento es del servidor: nunca el que mandó el cliente.
-    evidence.file.save(f"evidence/{evidence.pk}.{extension}", uploaded, save=False)
+    evidence.file.save(f"evidence/{evidence.pk}.{file_format.extension}", uploaded, save=False)
     evidence.save(force_insert=True)
     HealthEvidenceAuditEvent.objects.create(
         evidence_ref=evidence.pk,
@@ -213,9 +201,3 @@ def _parent(activity):
         # hay nada que respaldar.
         raise EvidenceNotAllowed()
     return parent, model, field
-
-
-def _clean_name(name: str | None) -> str:
-    # Algunos navegadores envían la ruta del dispositivo, con barras invertidas.
-    base = (name or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
-    return base[:NAME_MAX] or "foto"

@@ -55,7 +55,10 @@ def test_the_seed_leaves_lots_to_enter_and_lots_in_the_warehouse(seeded):
 
 
 def test_one_stored_lot_has_a_sample_and_a_voided_exit(seeded):
-    exits = StockExit.objects.filter(lot__harvest__plot__farm__name=DEMO_FARM)
+    # Las manuales: la venta anulada de la semilla deja también salidas por venta anuladas.
+    exits = StockExit.objects.filter(lot__harvest__plot__farm__name=DEMO_FARM).exclude(
+        reason="sale"
+    )
 
     sample = exits.get(reason="sample")
     assert (sample.grade, sample.quantity_kg, sample.voided_at) == ("g1", Decimal("2.0"), None)
@@ -71,8 +74,16 @@ def test_the_lot_with_exits_was_moved_to_another_shelf_without_losing_stock(seed
     assert move.from_warehouse == move.to_warehouse
     entry = StockEntry.objects.get(lot=move.lot)
     assert entry.location == "Estante 2"
-    assert StockExit.objects.filter(lot=move.lot, voided_at__isnull=True).count() == 1
-    assert StockBalance.objects.get(lot=move.lot, grade="g1").quantity_kg == Decimal("98.0")
+    # La venta de la semilla también sale de este lote: lo manual y lo vendido se cuentan aparte.
+    active = StockExit.objects.filter(lot=move.lot, voided_at__isnull=True)
+    assert active.exclude(reason="sale").count() == 1
+    sold_g1 = sum(
+        (sale_exit.quantity_kg for sale_exit in active.filter(reason="sale", grade="g1")),
+        Decimal("0.0"),
+    )
+    assert (
+        StockBalance.objects.get(lot=move.lot, grade="g1").quantity_kg == Decimal("98.0") - sold_g1
+    )
 
 
 def test_one_stored_lot_has_a_grade_that_ran_out(seeded):

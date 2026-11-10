@@ -31,25 +31,34 @@ def manager():
     return User.objects.get(email=DEMO_SALES_MANAGER_EMAIL)
 
 
-def test_the_seed_leaves_a_registered_sale_with_its_invoice_and_a_voided_one(seeded):
-    registered = demo_sales().get(voided_at__isnull=True)
+def test_the_seed_leaves_two_registered_sales_and_a_voided_one(seeded):
+    registered = demo_sales().get(number=1)
+    without_invoice = demo_sales().get(number=2)
     voided = demo_sales().get(voided_at__isnull=False)
 
     assert registered.buyer.name == "Chocolates del Oriente S.A.S."
     assert sorted(registered.lines.values_list("grade", flat=True)) == ["g1", "g2"]
     assert registered.invoice_content_type == "application/pdf"
     assert registered.invoice.read().startswith(b"%PDF-")
+    assert without_invoice.voided_at is None
+    assert without_invoice.buyer.name == "Exportadora Andina de Cacao"
+    assert not without_invoice.invoice
+    # Otro lote que el de la primera: cada venta cuenta su propia historia.
+    assert not set(without_invoice.lines.values_list("lot_id", flat=True)) & set(
+        registered.lines.values_list("lot_id", flat=True)
+    )
     assert voided.void_reason
     assert not voided.invoice
-    assert [sale.created_by for sale in (registered, voided)] == [manager(), manager()]
+    assert {sale.created_by for sale in (registered, without_invoice, voided)} == {manager()}
 
 
 def test_the_sales_went_through_the_warehouse(seeded):
-    registered = demo_sales().get(voided_at__isnull=True)
+    registered = demo_sales().filter(voided_at__isnull=True)
     voided = demo_sales().get(voided_at__isnull=False)
 
-    assert all(line.stock_exit.reason == "sale" for line in registered.lines.all())
-    assert all(line.stock_exit.voided_at is None for line in registered.lines.all())
+    lines = [line for sale in registered for line in sale.lines.all()]
+    assert all(line.stock_exit.reason == "sale" for line in lines)
+    assert all(line.stock_exit.voided_at is None for line in lines)
     assert all(line.stock_exit.voided_at is not None for line in voided.lines.all())
 
 

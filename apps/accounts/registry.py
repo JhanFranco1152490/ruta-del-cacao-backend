@@ -98,6 +98,9 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "buyers.add_buyer": PermissionInfo(area="buyers", delegable=True),
     "buyers.change_buyer": PermissionInfo(area="buyers", delegable=True),
     "buyers.delete_buyer": PermissionInfo(area="buyers", delegable=True),
+    "sales.view_sale": PermissionInfo(area="sales", delegable=True),
+    "sales.add_sale": PermissionInfo(area="sales", delegable=True),
+    "sales.void_sale": PermissionInfo(area="sales", delegable=True),
 }
 
 
@@ -117,6 +120,7 @@ FIELD_AREAS = frozenset(
         "drying",
         "quality",
         "warehouse",
+        "sales",
     }
 )
 
@@ -221,6 +225,12 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "buyers.add_buyer": "buyers.view_buyer",
     "buyers.change_buyer": "buyers.view_buyer",
     "buyers.delete_buyer": "buyers.view_buyer",
+    # Una venta muestra lotes de una finca y registrarla pide ver qué hay en bodega. Los
+    # compradores que se ofrecen al vender salen de la propia app de ventas: así no hace falta
+    # consultar el directorio, con sus documentos y contactos.
+    "sales.view_sale": "warehouse.view_stock",
+    "sales.add_sale": "sales.view_sale",
+    "sales.void_sale": "sales.view_sale",
 }
 
 

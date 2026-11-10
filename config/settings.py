@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "apps.quality",
     "apps.warehouse",
     "apps.buyers",
+    "apps.sales",
     "apps.demo_data",
 ]
 
@@ -258,6 +259,7 @@ SPECTACULAR_SETTINGS = {
         "QualityDiscardReasonEnum": "apps.quality.choices.DiscardReason",
         "StockGradeEnum": "apps.warehouse.choices.Grade",
         "StockExitReasonEnum": "apps.warehouse.choices.ExitReason",
+        "SaleStatusEnum": "apps.sales.models.Sale.Status",
     },
 }
 

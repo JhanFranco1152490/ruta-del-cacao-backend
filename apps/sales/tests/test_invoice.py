@@ -195,3 +195,53 @@ def test_downloading_needs_to_reach_the_sale(auth_client, market, sale):
 
     assert auth_client(viewer).get(invoice_url(sale)).status_code == 200
     assert auth_client(elsewhere).get(invoice_url(sale)).status_code == 404
+
+
+def stored_invoices() -> set[str]:
+    try:
+        return set(default_storage.listdir("sales")[1])
+    except FileNotFoundError:
+        return set()
+
+
+def test_a_voided_sale_leaves_no_file_behind(auth_client, market, sale):
+    client = auth_client(market.owner)
+    client.post(
+        f"{URL}/{sale.pk}/void",
+        {"expected_version": sale.version, "reason": "Error de digitación"},
+        format="json",
+    )
+    before = stored_invoices()
+
+    response = attach(client, sale)
+
+    assert response.status_code == 409
+    assert stored_invoices() == before
+
+
+def test_a_sale_that_is_not_reached_leaves_no_file_behind(auth_client, market, sale):
+    other = Market()
+    before = stored_invoices()
+
+    response = attach(auth_client(other.owner), sale)
+
+    assert response.status_code == 404
+    assert stored_invoices() == before
+
+
+def test_a_failed_registration_deletes_the_file_it_already_stored(
+    auth_client, market, sale, monkeypatch
+):
+    from apps.sales.exceptions import SaleVoided
+    from apps.sales.services import invoice
+
+    def fail(*args, **kwargs):
+        raise SaleVoided()
+
+    monkeypatch.setattr(invoice, "_register_invoice", fail)
+    before = stored_invoices()
+
+    response = attach(auth_client(market.owner), sale)
+
+    assert response.status_code == 409
+    assert stored_invoices() == before

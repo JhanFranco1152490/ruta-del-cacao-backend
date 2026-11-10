@@ -28,22 +28,37 @@ INVOICE_FIELDS = (
 )
 
 
-@transaction.atomic
 def attach_invoice(actor, sale_id, uploaded) -> Sale:
-    """Adjunta el soporte, o reemplaza el que había. El archivo ya llegó completo antes de esta
-    función, así que el bloqueo de la finca no dura lo que tarda la subida por la red."""
+    """Adjunta el soporte, o reemplaza el que había. Primero se guarda el archivo, fuera de todo
+    bloqueo, y después una transacción corta lo registra en la venta: escribir hasta 5 MB con la
+    finca bloqueada dejaría esperando a todo lo demás de esa finca. Si el registro falla (la venta
+    se anuló entretanto), el archivo ya guardado se borra."""
     if uploaded.size > INVOICE_MAX_BYTES:
         raise InvoiceTooLarge()
     file_format = detect_format(uploaded, FORMATS)
     if file_format is None:
         raise InvoiceFormatNotAllowed()
+    # Una venta que no se alcanza es 404 sin escribir nada.
+    if not Sale.objects.filter(pk=sale_id, **sale_scope(actor)).exists():
+        raise SaleNotFound()
 
-    sale = _locked_open_sale(actor, sale_id)
-    previous = sale.invoice.name if sale.invoice else None
+    storage = Sale._meta.get_field("invoice").storage
     # El nombre en el almacenamiento es del servidor: nunca el que mandó el cliente. La hora lo
     # hace distinto del anterior, que se borra solo cuando la transacción se confirma.
     stamp = timezone.now().strftime("%Y%m%d%H%M%S%f")
-    sale.invoice.save(f"sales/{sale.pk}-{stamp}.{file_format.extension}", uploaded, save=False)
+    stored = storage.save(f"sales/{sale_id}-{stamp}.{file_format.extension}", uploaded)
+    try:
+        return _register_invoice(actor, sale_id, stored, uploaded, file_format)
+    except Exception:
+        storage.delete(stored)
+        raise
+
+
+@transaction.atomic
+def _register_invoice(actor, sale_id, stored, uploaded, file_format) -> Sale:
+    sale = _locked_open_sale(actor, sale_id)
+    previous = sale.invoice.name if sale.invoice else None
+    sale.invoice = stored
     sale.invoice_name = clean_file_name(uploaded.name, max_length=NAME_MAX, fallback="factura")
     sale.invoice_content_type = file_format.content_type
     sale.invoice_size = uploaded.size

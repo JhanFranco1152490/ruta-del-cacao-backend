@@ -591,8 +591,10 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     versión. El número no se recicla.
   - **Soporte** (`PUT`, `DELETE` y `GET …/{id}/invoice`): PDF, JPG o PNG de hasta 5 MB, revisado
     por el contenido con `apps/common/files.py` (`413 invoice_too_large`, `415
-    invoice_format_not_allowed`); el anterior se borra al confirmar. Una venta anulada lo conserva
-    y no lo cambia.
+    invoice_format_not_allowed`); el anterior se borra al confirmar. El archivo se guarda **antes** de
+    tomar el bloqueo de la finca y una transacción corta lo registra (si falla, por ejemplo porque la
+    venta se anuló entretanto, se borra): hasta 5 MB no se escriben con la finca bloqueada. Una venta
+    anulada lo conserva y no lo cambia.
   - **Consultar:** la lista (paginada, por periodo de hasta 366 días) trae los kilos y el total de
     cada venta en la misma consulta, y `…/summary` suma solo las registradas.
   - `Sale` protege su finca, su comprador, sus lotes, sus salidas y sus cuentas: un comprador con

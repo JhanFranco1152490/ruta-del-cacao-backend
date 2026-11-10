@@ -93,6 +93,11 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "warehouse.register_entry": PermissionInfo(area="warehouse", delegable=True),
     "warehouse.register_exit": PermissionInfo(area="warehouse", delegable=True),
     "warehouse.manage_warehouse": PermissionInfo(area="warehouse", delegable=True),
+    # Fuera de las áreas de campo: los compradores son de todo el productor, no de una finca.
+    "buyers.view_buyer": PermissionInfo(area="buyers", delegable=True),
+    "buyers.add_buyer": PermissionInfo(area="buyers", delegable=True),
+    "buyers.change_buyer": PermissionInfo(area="buyers", delegable=True),
+    "buyers.delete_buyer": PermissionInfo(area="buyers", delegable=True),
 }
 
 
@@ -213,6 +218,9 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "warehouse.register_entry": "warehouse.view_stock",
     "warehouse.register_exit": "warehouse.view_stock",
     "warehouse.manage_warehouse": "warehouse.view_stock",
+    "buyers.add_buyer": "buyers.view_buyer",
+    "buyers.change_buyer": "buyers.view_buyer",
+    "buyers.delete_buyer": "buyers.view_buyer",
 }
 
 

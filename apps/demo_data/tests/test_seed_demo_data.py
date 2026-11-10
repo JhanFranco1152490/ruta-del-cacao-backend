@@ -16,6 +16,7 @@ from apps.demo_data.catalog import (
     DEMO_PASSWORD,
     DEMO_PRODUCER_EMAIL,
     DEMO_QUALITY_EMAIL,
+    DEMO_SALES_MANAGER_EMAIL,
     PRODUCERS,
 )
 from apps.farms.models import Farm
@@ -87,6 +88,7 @@ def test_the_other_producer_accounts_stay_pending_activation():
             DEMO_FOREMAN_EMAIL,
             DEMO_OPERATOR_EMAIL,
             DEMO_QUALITY_EMAIL,
+            DEMO_SALES_MANAGER_EMAIL,
         ]
     )
     assert others.exists()

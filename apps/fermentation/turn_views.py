@@ -10,12 +10,14 @@ from apps.common.serializers import DeviationSerializer
 
 from .alerts import turn_deviations
 from .exceptions import StaleTurnVersion
-from .serializers import (
+from .request_serializers import (
     FermentationTurnCreateSerializer,
     FermentationTurnDeleteSerializer,
+    FermentationTurnUpdateSerializer,
+)
+from .serializers import (
     FermentationTurnSavedSerializer,
     FermentationTurnSerializer,
-    FermentationTurnUpdateSerializer,
     TurnConflictErrorSerializer,
     turn_row,
 )

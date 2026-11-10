@@ -1,7 +1,9 @@
-"""Las ventas de La Esperanza: una registrada a Chocolates del Oriente S.A.S. con su soporte y otra
-anulada, hechas por el Comercializador con los servicios de ventas, sobre los lotes que deja la
-bodega. Se crean una sola vez: si la finca ya tiene ventas, no se tocan. Lo que venden deja
-existencias para registrar otra en vivo.
+"""Las ventas de La Esperanza: una registrada a Chocolates del Oriente S.A.S. con su soporte, otra
+registrada a Exportadora Andina de Cacao sin soporte (para que la lista y la franja de cifras
+tengan más de una fila y se vea una venta que aún lo espera) y una anulada, hechas por el
+Comercializador con los servicios de ventas, sobre los lotes que deja la bodega. Se crean una sola
+vez: si la finca ya tiene ventas, no se tocan. Lo que venden deja existencias para registrar otra
+en vivo.
 """
 
 from decimal import Decimal
@@ -33,10 +35,12 @@ def seed_sales(owner: User) -> list[str]:
     if manager is None or farm is None or Sale.objects.filter(farm=farm).exists():
         return []
     registered = _registered_sale(manager, owner, farm)
+    without_invoice = _sale_without_invoice(manager, owner, farm, registered)
     voided = _voided_sale(manager, owner, farm)
+    labels = {id(registered): " con su soporte", id(without_invoice): " sin soporte"}
     return [
-        f"Ventas: {sale.code}" + (" anulada" if sale.voided_at else " con su soporte")
-        for sale in (registered, voided)
+        f"Ventas: {sale.code}" + (" anulada" if sale.voided_at else labels[id(sale)])
+        for sale in (registered, without_invoice, voided)
         if sale is not None
     ]
 
@@ -62,6 +66,21 @@ def _registered_sale(manager, owner, farm):
     return attach_invoice(manager, sale.pk, ContentFile(DEMO_INVOICE, name="factura-0001.pdf"))
 
 
+def _sale_without_invoice(manager, owner, farm, first):
+    """Otro lote que el de la primera venta, para que cada venta cuente su propia historia."""
+    taken = first.lines.values_list("lot_id", flat=True) if first else []
+    stock = _richest(farm, "g1", minimum=Decimal("20.0"), exclude_lots=taken)
+    buyer = _buyer(owner, "900000002")
+    if stock is None or buyer is None:
+        return None
+    return create_sale(
+        manager,
+        _sale_data(
+            farm, buyer, [_line(stock.lot, "g1", "20.0", 17500)], notes="Entrega en bodega."
+        ),
+    )
+
+
 def _voided_sale(manager, owner, farm):
     stock = _richest(farm, "g1", minimum=Decimal("10.0"))
     buyer = _buyer(owner, "900000003")
@@ -71,12 +90,13 @@ def _voided_sale(manager, owner, farm):
     return void_sale(manager, sale.pk, sale.version, "El comprador no recogió el cacao.")
 
 
-def _richest(farm, grade, *, minimum):
+def _richest(farm, grade, *, minimum, exclude_lots=()):
     """La existencia con más kilos del calibre en la finca, si llega a `minimum`."""
     return (
         StockBalance.objects.filter(
             lot__harvest__plot__farm=farm, grade=grade, quantity_kg__gte=minimum
         )
+        .exclude(lot_id__in=exclude_lots)
         .select_related("lot")
         .order_by("-quantity_kg", "lot__code")
         .first()

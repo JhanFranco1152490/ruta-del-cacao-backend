@@ -896,8 +896,9 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
 - **`seed_demo_data`** (management command) carga productores, fincas, parcelas y fichas
   inventados y deja cuentas con contraseña pública, la misma que muestra la pantalla de inicio de
   sesión del frontend: `administrador@example.com`, `productor@example.com`, `capataz@example.com`
-  (Capataz/Operario de La Esperanza), `operario@example.com` (de El Mirador) y
-  `calidad@example.com` (Encargado de calidad, en todas las fincas). Además llena **La
+  (Capataz/Operario de La Esperanza), `operario@example.com` (de El Mirador),
+  `calidad@example.com` (Encargado de calidad, en todas las fincas) y `comercializador@example.com`
+  (Comercializador, en todas las fincas). Además llena **La
   Esperanza** con lo que se hace en ella (`apps/demo_data/operations.py`): insumos con existencias,
   cajones y marquesina, labores (programadas, una retrasada, una vencida y realizadas con insumos
   descontados), monitoreos del pasado (con detecciones, un control hecho y otro pendiente), tres
@@ -909,7 +910,10 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   uno Descartado; si en una demostración se usaron, vuelve a dejar uno Seco y uno Evaluado), la
   bodega (`warehouse.py`: una «Bodega principal» por finca, el Clasificado de calidad por ingresar,
   un lote En bodega con una salida por muestra y otra anulada, y otro con el G2 agotado; repone un
-  Clasificado por ingresar y un lote con existencias) y los
+  Clasificado por ingresar y un lote con existencias), el directorio de compradores
+  (`buyers.py`: uno de cada tipo y uno inactivo) y las ventas (`sales.py`, hechas por el
+  Comercializador: una registrada con su soporte en PDF, otra registrada sin soporte a otro
+  comprador y otra anulada, que dejan existencias para registrar una venta más en vivo) y los
   avisos de la campana (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
   M-02, para registrar en vivo la del sobresecado. Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su

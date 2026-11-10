@@ -7,7 +7,7 @@ diseño están en [`AGENTS.md`](AGENTS.md); este archivo es la entrada rápida.
 
 ## Qué hace hoy
 
-### Sprint 3 (26/10 – 15/11/2026)
+### Sprint 3 (26/10 – 10/11/2026)
 
 | App | Qué cubre |
 | --- | --- |

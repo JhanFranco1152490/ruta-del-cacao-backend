@@ -7,6 +7,21 @@ diseño están en [`AGENTS.md`](AGENTS.md); este archivo es la entrada rápida.
 
 ## Qué hace hoy
 
+### Sprint 3 (26/10 – 15/11/2026)
+
+| App | Qué cubre |
+| --- | --- |
+| `fermentation` | Fermentación del lote en un cajón: iniciarla, volteos con temperatura y pH (también desde la cola sin conexión) y finalizarla |
+| `postharvest_parameters` | Los 21 parámetros de poscosecha de cada productor (secado y fermentación), con su línea base y su historial |
+| `drying` | Secado solar: marquesina, bitácora diaria (también sin conexión) y rendimiento al finalizar |
+| `quality` | Control de calidad de un lote seco: evaluación física, clasificación por calibre y descarte |
+| `warehouse` | Bodegas de cada finca, ingreso del lote clasificado, existencias por lote y calibre, salidas con motivo y su anulación, y mover el cacao |
+| `buyers` | Directorio de compradores de cada productor, con su documento y contacto |
+| `sales` | Ventas de lotes En bodega a un comprador activo, con el soporte de la factura; se anulan y devuelven los kilos |
+
+Además: **alertas de poscosecha** (registros pendientes y desvíos al guardar) en `notifications`,
+y la semilla de demostración con los lotes en todos los estados de la cadena.
+
 ### Sprint 2 (05/10 – 22/10/2026)
 
 | App | Qué cubre |
@@ -57,7 +72,7 @@ variables de entorno están descritas en `AGENTS.md` y listadas en `.env.example
 ## Datos de demostración
 
 `python manage.py seed_demo_data` carga cinco productores inventados (uno inactivo) con fincas,
-parcelas dibujadas y fichas productivas, deja cuatro cuentas para entrar y llena **La Esperanza**, la
+parcelas dibujadas y fichas productivas, deja seis cuentas para entrar y llena **La Esperanza**, la
 finca del productor de demostración:
 
 | Cuenta | Correo | Contraseña |
@@ -66,11 +81,15 @@ finca del productor de demostración:
 | Productor (Carlos Andrés Rincón Peña) | `productor@example.com` | `CacaoDemo2026` |
 | Capataz de La Esperanza | `capataz@example.com` | `CacaoDemo2026` |
 | Operario de El Mirador | `operario@example.com` | `CacaoDemo2026` |
+| Encargado de calidad (todas las fincas) | `calidad@example.com` | `CacaoDemo2026` |
+| Comercializador (todas las fincas) | `comercializador@example.com` | `CacaoDemo2026` |
 
 En La Esperanza deja insumos con existencias, cajones y una marquesina, labores en todos sus
 estados (programadas, una retrasada, una vencida y realizadas con insumos descontados), monitoreos
 del pasado (con una monilia atendida y una mazorca negra esperando control, y uno sin presencia),
-tres cosechas, dos lotes y los avisos de la campana; y deja listo lo que piden las demostraciones en
+tres cosechas, lotes en cada estado de la cadena (fermentación, secado, calidad, bodega), un
+directorio de compradores, tres ventas (dos registradas y una anulada) y los avisos de la campana; y
+deja listo lo que piden las demostraciones en
 vivo (dos monitoreos programados para hoy, una variedad sembrada y el nombre `CF-01` libre).
 
 - Pasa por los mismos servicios que la API, así que respeta sus reglas y deja historial. Lo que los

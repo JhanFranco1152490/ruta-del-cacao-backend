@@ -90,6 +90,10 @@ SYSTEM_ROLES = {
             "warehouse.register_entry",
             "warehouse.register_exit",
             "warehouse.manage_warehouse",
+            "buyers.view_buyer",
+            "buyers.add_buyer",
+            "buyers.change_buyer",
+            "buyers.delete_buyer",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en
@@ -157,10 +161,14 @@ SYSTEM_ROLES = {
         "kind": Role.Kind.PREDEFINED,
         "name": "Comercializador",
         "farm_scope": Role.FarmScope.MANY,
+        # Eliminar un comprador queda en el Productor, que puede delegarlo.
         "permissions": [
             # Consulta lo que hay en bodega para preparar ventas; no la mueve.
             "farms.view_farm",
             "warehouse.view_stock",
+            "buyers.view_buyer",
+            "buyers.add_buyer",
+            "buyers.change_buyer",
         ],
     },
 }

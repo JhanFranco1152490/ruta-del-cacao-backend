@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     "apps.drying",
     "apps.quality",
     "apps.warehouse",
+    "apps.buyers",
     "apps.demo_data",
 ]
 

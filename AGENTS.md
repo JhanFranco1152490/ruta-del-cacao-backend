@@ -62,6 +62,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details`, con su marquesina. En `alerts.py`, el evaluador de la bitácora pendiente y los desvíos de humedad de cada bitácora |
 | `apps/quality/` | Control de calidad del lote: la evaluación física de un lote Seco (granos bien fermentados, con moho y con otros defectos, hasta 100 % entre los tres) y su corrección mientras siga Evaluado, la clasificación de su peso seco entre G1, G2 y descarte, y el descarte del lote completo con su motivo, que avisa a quienes trabajan la calidad en la finca. El lote pasa de Seco a Evaluado y de ahí a Clasificado o a Descartado. Suma el campo `quality` al lote por `lot_details`. Solo en línea |
 | `apps/warehouse/` | Bodega y existencias de cacao seco: las bodegas de cada finca (alta, edición, activación y eliminación de la nunca usada, solo en línea), el ingreso único y exacto de un lote Clasificado (con los kilos de G1 y G2 de su clasificación) y su corrección mientras nada haya salido, las existencias por lote y calibre con totales y filtros, y las salidas con motivo y su anulación. El lote pasa de Clasificado a En bodega. Suma el campo `warehouse` al lote por `lot_details`. Solo en línea |
+| `apps/buyers/` | Directorio de compradores de cada productor (no de una finca): nombre, documento (tipo y número, único en el directorio), tipo de cliente y contacto (persona, teléfono y correo, con al menos teléfono o correo). Alta (solo en línea), consulta, edición (también del documento), activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial sin valores, que sobrevive al borrado. Se eliminan con un productor creado por error |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha, los desvíos y el descarte), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
@@ -125,7 +126,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
   `lot_id_conflict`, `lot_invalid_status`, `duplicate_pest_disease_name`, `evidence_requires_done`,
   `evidence_limit_reached`, `fermentation_has_turns`, `fermentation_not_in_progress`,
-  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time`, `buyer_has_records` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
   `payload_too_large`, `evidence_too_large` (413); `unsupported_media_type`,
   `evidence_format_not_allowed` (415); `invalid_coordinates`,
@@ -552,6 +553,22 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     kilos ingresados y disponibles de cada calibre.
   - Invariante: la existencia de un calibre es lo ingresado menos las salidas en vigor, y no baja
     de 0 (`CHECK`). `StockAuditEvent` apunta al lote con `PROTECT`: un lote En bodega no se elimina.
+- **Compradores** (`/api/buyers`): el directorio es de **todo el productor**, no de una finca: un
+  empleado con el permiso lo ve completo, trabaje en las fincas que trabaje, y la cuenta técnica
+  filtra con `producer`. Permisos `buyers.{view,add,change,delete}_buyer`, delegables y **no de
+  campo**; el Productor los tiene todos y el Comercializador todos menos eliminar; la asociación,
+  ninguno. El listado se entrega completo, sin paginar, con activos e inactivos: la búsqueda y los
+  filtros corren en el dispositivo. **Lo identifica el documento:** tipo y número no se repiten en el
+  directorio, tampoco entre inactivos (`409 duplicate_document` con el existente en `existing`, sin
+  repetir el número en el mensaje); el nombre sí se puede repetir. El documento sigue la regla del
+  productor (6 a 15 dígitos) y se puede editar: lo que apunta a un comprador lo hace por su `id`.
+  Hace falta un teléfono o un correo, sobre el resultado de una edición (los dos campos en
+  `fields`). Eliminar solo lo que ningún registro usa (`409 buyer_has_records`, que sugiere
+  desactivar); las ventas contarán solas por las relaciones del modelo (`usage.py`). **Datos
+  personales:** un comprador puede ser una persona natural, así que su historial
+  (`BuyerAuditEvent`) guarda solo los nombres de los campos que cambiaron, y el evento `deleted`
+  solo el `id` y el tipo de cliente; el motivo que da al bloquear el borrado de un productor
+  tampoco lo nombra. No hay bloqueo de finca: la edición bloquea la fila del comprador.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden

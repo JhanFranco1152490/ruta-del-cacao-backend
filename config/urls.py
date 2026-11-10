@@ -43,6 +43,7 @@ urlpatterns = [
     path("api/", include("apps.drying.urls")),
     path("api/", include("apps.quality.urls")),
     path("api/", include("apps.warehouse.urls")),
+    path("api/", include("apps.buyers.urls")),
     path("api/", include("apps.common.urls")),
 ]
 

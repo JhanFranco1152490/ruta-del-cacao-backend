@@ -51,6 +51,7 @@ def test_counts_the_lots_and_kilos_of_every_status_in_order(auth_client, estate)
         "dried",
         "evaluated",
         "classified",
+        "in_warehouse",
         "discarded",
     ]
     assert totals(response) == {
@@ -61,6 +62,7 @@ def test_counts_the_lots_and_kilos_of_every_status_in_order(auth_client, estate)
         "dried": (0, "0.0"),
         "evaluated": (0, "0.0"),
         "classified": (0, "0.0"),
+        "in_warehouse": (0, "0.0"),
         "discarded": (0, "0.0"),
     }
 

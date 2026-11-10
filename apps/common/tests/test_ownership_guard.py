@@ -17,6 +17,7 @@ RESOURCE_SERVICES = (
     "postharvest_parameters/services",
     "drying/services",
     "quality/services",
+    "warehouse/services",
     "buyers/services",
 )
 # Buscar algo que ya existe filtrando por el productor del actor deja a la cuenta técnica sin

@@ -61,6 +61,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/postharvest_parameters/` | Parámetros de poscosecha de cada productor (secado: humedad de entrada y meta, días estimados y umbrales de las alertas de desvío; fermentación: cuándo toca cada volteo y la temperatura y el pH de referencia): consultar con la línea base al lado, guardar los veintiún valores juntos y restablecer la línea base, con su historial. Las demás apps los leen con `drying_parameters(producer_id)` y `fermentation_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py` |
 | `apps/drying/` | Secado solar del lote: iniciarlo en una marquesina de la finca (con aviso si la humedad de entrada sale del rango del productor), corregir el inicio mientras no haya bitácora, la bitácora diaria (una por fecha, también desde la cola sin conexión) y finalizarlo con su rendimiento. El lote pasa de Fermentado a En secado y a Seco, y la marquesina se ocupa y se libera, en la misma transacción. Suma el campo `drying` al lote por `lot_details`, con su marquesina. En `alerts.py`, el evaluador de la bitácora pendiente y los desvíos de humedad de cada bitácora |
 | `apps/quality/` | Control de calidad del lote: la evaluación física de un lote Seco (granos bien fermentados, con moho y con otros defectos, hasta 100 % entre los tres) y su corrección mientras siga Evaluado, la clasificación de su peso seco entre G1, G2 y descarte, y el descarte del lote completo con su motivo, que avisa a quienes trabajan la calidad en la finca. El lote pasa de Seco a Evaluado y de ahí a Clasificado o a Descartado. Suma el campo `quality` al lote por `lot_details`. Solo en línea |
+| `apps/warehouse/` | Bodega y existencias de cacao seco: las bodegas de cada finca (alta, edición, activación y eliminación de la nunca usada, solo en línea), el ingreso único y exacto de un lote Clasificado (con los kilos de G1 y G2 de su clasificación) y su corrección mientras nada haya salido, las existencias por lote y calibre con totales y filtros, y las salidas con motivo y su anulación. El lote pasa de Clasificado a En bodega. Suma el campo `warehouse` al lote por `lot_details`. Solo en línea |
 | `apps/buyers/` | Directorio de compradores de cada productor (no de una finca): nombre, documento (tipo y número, único en el directorio), tipo de cliente y contacto (persona, teléfono y correo, con al menos teléfono o correo). Alta (solo en línea), consulta, edición (también del documento), activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial sin valores, que sobrevive al borrado. Se eliminan con un productor creado por error |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha, los desvíos y el descarte), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
@@ -114,10 +115,12 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   bajo `/api/` (404) y un fallo no controlado (500, sin datos técnicos) responden con la misma
   forma (con `DEBUG=True`, Django muestra en su lugar su página técnica de depuración).
 - **Códigos:** `validation_error`, `invalid_reset_token`, `parse_error`, `location_required`,
-  `quality_sum_exceeds_100`, `classification_sum_mismatch` (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
+  `quality_sum_exceeds_100`, `classification_sum_mismatch`, `stock_insufficient` (con `available_kg`),
+  `warehouse_farm_mismatch`, `warehouse_inactive` (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
-  `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
+  `warehouse_name_taken`, `warehouse_has_records`, `lot_nothing_to_store`, `entry_has_movements`,
+  `exit_already_voided`, `exit_not_voidable`, `lot_without_stock`, `stock_move_unchanged`, `duplicate_farm_name`, `farm_id_conflict`, `farm_has_records`, `producer_has_records`,
   `duplicate_plot_name`, `plot_id_conflict`, `plot_has_records`, `duplicate_variety_name`, `account_has_activity`,
   `duplicate_input`, `input_has_records`, `movement_id_conflict`, `farm_has_accounts`, `account_has_pending_work`,
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
@@ -484,6 +487,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     y periodo: lotes clasificados y descartados, kilos de G1 y G2, y `discarded_kg`, los kilos que
     quedaron fuera (el descarte de las clasificaciones y el peso seco de los lotes descartados
     completos).
+    Un lote clasificado que bodega ya guardó (`in_warehouse`) sigue en Cerrados, en `result=classified`
+    y en esos totales: lo cerrado se decide por tener clasificación o descarte, no por el estado.
   - **Evaluar** (`POST …/{lot_id}/evaluation`, con `expected_lot_version`): solo un lote Seco; los
     tres porcentajes de 0 a 100 con un decimal y hasta 100 entre los tres (`400
     quality_sum_exceeds_100` con `total_pct`). **Corregir** (`PATCH` del mismo recurso, con
@@ -502,6 +507,52 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     cerrar, los kilos de G1 y G2 (que bodega toma como máximos) o el motivo y la hora del descarte.
   - Las cuentas que evalúan, corrigen, clasifican o descartan son `PROTECT`, y el historial
     (`QualityAuditEvent`) apunta al lote con `PROTECT`: un lote Seco o posterior no se elimina.
+- **Bodega** (`/api/warehouses` y `/api/stock`, se busca por el lote). Todo es **solo en línea**,
+  sin cola.
+  - **Permisos:** `warehouse.view_stock` (depende de `farms.view_farm`: las existencias llevan el
+    lote y su finca, no su cosecha ni su parcela), y `register_entry`, `register_exit` y
+    `manage_warehouse` (dependen de `view_stock`). Delegables y de campo. Los cuatro, para el
+    Productor y el Encargado de calidad; el Comercializador solo consulta (`view_stock` y
+    `farms.view_farm`).
+  - **Bodegas** (`/api/warehouses`, paginada): de una finca, con nombre único en ella sin importar
+    mayúsculas, tildes ni espacios. Se editan, se activan y desactivan, y se elimina la que nunca
+    recibió un ingreso (`409 warehouse_has_records`; `in_use` lo dice). Una finca creada por error se
+    elimina con sus bodegas nunca usadas (`warehouses_dependent`). Una desactivada no recibe
+    ingresos pero lo que tiene sigue consultándose.
+  - **Ingresar** (`POST /api/stock/{lot_id}/entry`, con `expected_lot_version`): solo un lote
+    Clasificado, a una bodega **activa de su finca**. Los kilos no viajan: son los de la
+    clasificación, exactos, y quedan como existencias de G1 y G2 (una fila por calibre con más de
+    0 kg). Un lote sin kilos de G1 ni de G2 es `409 lot_nothing_to_store` y no sale en
+    `GET …/pending-entry`. La fecha no es futura ni anterior al día de la clasificación.
+    La **ubicación es opcional** (texto libre de hasta 60 caracteres; vacía, el lote queda sin ubicación
+    dentro de la bodega y `…/locations` no la sugiere).
+  - **Corregir el ingreso** (`PATCH …/entry`, con `expected_version`): fecha, bodega y ubicación,
+    nunca los kilos, y solo mientras ninguna salida en vigor haya descontado kilos
+    (`409 entry_has_movements`; `can_correct`). Actualiza las existencias en la misma transacción.
+  - **Salidas** (`POST …/exits`): de un calibre, con motivo de la lista `ExitReason` (sin `sale`, que
+    reserva la venta) y, con `other`, su detalle. Dentro del bloqueo de la finca, la existencia se
+    lee con `select_for_update` y la cantidad nunca la supera (`400 stock_insufficient`). La fecha no
+    es futura ni anterior al ingreso. `remove_stock` es el servicio que usará la venta.
+  - **Anular una salida** (`POST …/exits/{exit_id}/void`, con su motivo): marca la salida y devuelve
+    los kilos; no se borra. Una salida por venta (`409 exit_not_voidable`) se anula desde la venta.
+  - **Mover el cacao** (`POST …/move`, con `expected_version` del ingreso y el permiso de ingresar):
+    cambia la bodega (activa y de la finca del lote) y la ubicación de un lote En bodega **en
+    cualquier momento**, a diferencia de corregir el ingreso, y deja un `StockMove` con de dónde venía.
+    Las existencias no cambian. Sin cacao en bodega es `409 lot_without_stock`, y al mismo lugar,
+    `400 stock_move_unchanged`. El ingreso y las existencias quedan en el lugar nuevo; el historial
+    (`moves` en el detalle del lote) guarda el anterior, y una bodega que aparece ahí ya cuenta como
+    usada. **Traslado** (`transfer`) pasa a ser solo el cacao que sale de la finca: lo que cambia de
+    bodega dentro de ella es un movimiento, no una salida.
+  - **Salidas de todos los lotes** (`GET /api/stock/exits`, paginada; filtros `farm`, `warehouse` (la
+    de hoy), `grade`, `reason`, `date_from`, `date_to`, `search` y `state`) y `…/exits/summary` (lo
+    vigente por motivo, de más a menos kilos; lo anulado no cuenta): alimentan la pestaña Salidas.
+  - **Consultar:** `GET /api/stock` (una fila por lote y calibre con más de 0 kg, ordenable),
+    `…/summary` (totales de G1 y G2 con los mismos filtros) y `…/locations` (las ubicaciones con
+    existencias de una bodega). `GET …/{lot_id}` trae el ingreso, las existencias y las salidas.
+  - El campo `warehouse` del lote (`lot_details`) es nulo hasta el ingreso; trae dónde quedó y los
+    kilos ingresados y disponibles de cada calibre.
+  - Invariante: la existencia de un calibre es lo ingresado menos las salidas en vigor, y no baja
+    de 0 (`CHECK`). `StockAuditEvent` apunta al lote con `PROTECT`: un lote En bodega no se elimina.
 - **Compradores** (`/api/buyers`): el directorio es de **todo el productor**, no de una finca: un
   empleado con el permiso lo ve completo, trabaje en las fincas que trabaje, y la cuenta técnica
   filtra con `producer`. Permisos `buyers.{view,add,change,delete}_buyer`, delegables y **no de
@@ -825,7 +876,10 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   muestran cada aviso de poscosecha (`postharvest_alerts.py`, en C-03, C-04 y M-03: primer volteo
   próximo, temperatura y pH del grano fuera de rango, próximo a meta), la calidad (`quality.py`: el
   lote Seco del secado para evaluar en vivo, uno Evaluado, uno Clasificado con descarte por moho y
-  uno Descartado; si en una demostración se usaron, vuelve a dejar uno Seco y uno Evaluado) y los
+  uno Descartado; si en una demostración se usaron, vuelve a dejar uno Seco y uno Evaluado), la
+  bodega (`warehouse.py`: una «Bodega principal» por finca, el Clasificado de calidad por ingresar,
+  un lote En bodega con una salida por muestra y otra anulada, y otro con el G2 agotado; repone un
+  Clasificado por ingresar y un lote con existencias) y los
   avisos de la campana (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
   M-02, para registrar en vivo la del sobresecado. Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
@@ -858,7 +912,10 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   para superusuarios, porque iniciar, voltear y finalizar ocupan y liberan el cajón y cambian el
   estado del lote. **Evaluaciones, clasificaciones, descartes** y su historial
   (`apps/quality/admin.py`): de solo lectura y solo para superusuarios, por la misma razón (y el
-  descarte avisa al equipo de la finca). `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
+  descarte avisa al equipo de la finca). **Bodegas** (`apps/warehouse/admin.py`): editar y eliminar
+  por los servicios, sin alta (la finca la elige quien registra); **ingresos, existencias,
+  salidas** y sus historiales, de solo lectura y solo para superusuarios, porque mueven el saldo y
+  el estado del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
   solo guarda bytes.
 
 ## Variables de entorno

@@ -25,18 +25,23 @@ DRIED = "dried"
 EVALUATED = "evaluated"
 CLASSIFIED = "classified"
 DISCARDED = "discarded"
-QUALITY_STATUSES = (DRIED, EVALUATED, CLASSIFIED, DISCARDED)
+IN_WAREHOUSE = "in_warehouse"
+# Un lote clasificado que bodega ya guardó sigue siendo un lote cerrado de calidad: el estado
+# En bodega lo agrega bodega, pero la clasificación (y sus kilos de G1 y G2) es de esta app.
+CLASSIFIED_STATUSES = (CLASSIFIED, IN_WAREHOUSE)
+CLOSED_STATUSES = (*CLASSIFIED_STATUSES, DISCARDED)
+QUALITY_STATUSES = (DRIED, EVALUATED, *CLOSED_STATUSES)
 
 TO_EVALUATE = "to_evaluate"
 VIEWS = {
     TO_EVALUATE: (DRIED,),
     "evaluated": (EVALUATED,),
-    "closed": (CLASSIFIED, DISCARDED),
+    "closed": CLOSED_STATUSES,
 }
 
 # Quién cerró primero el lote: la clasificación o el descarte, según cuál tenga.
 CLOSED_AT = Coalesce("classification__classified_at", "discard__discarded_at")
-CLOSED_RESULTS = {"classified": CLASSIFIED, "discarded": DISCARDED}
+CLOSED_RESULTS = {"classified": CLASSIFIED_STATUSES, "discarded": (DISCARDED,)}
 
 LOT_SCOPE = {"field": "harvest__plot__farm__producer_id", "farm": "harvest__plot__farm_id"}
 
@@ -75,10 +80,11 @@ def _day_start(day):
 
 
 def closed_in_period(lots: QuerySet, filters: dict) -> QuerySet:
-    """Los lotes cerrados (Clasificado o Descartado) con su fecha de cierre en `closed_at`, y solo
-    los que cerraron entre `closed_from` y `closed_to`, ambos días incluidos, en la hora de Bogotá.
+    """Los lotes cerrados (Clasificado, ya En bodega o Descartado) con su fecha de cierre en
+    `closed_at`, y solo los que cerraron entre `closed_from` y `closed_to`, ambos días incluidos,
+    en la hora de Bogotá.
     """
-    lots = lots.filter(status__in=(CLASSIFIED, DISCARDED)).annotate(closed_at=CLOSED_AT)
+    lots = lots.filter(status__in=CLOSED_STATUSES).annotate(closed_at=CLOSED_AT)
     if start := filters.get("closed_from"):
         lots = lots.filter(closed_at__gte=_day_start(start))
     if end := filters.get("closed_to"):
@@ -95,7 +101,7 @@ def list_quality_lots(actor, filters: dict) -> QuerySet:
     if view == "closed":
         lots = closed_in_period(lots, filters)
         if "result" in filters:
-            lots = lots.filter(status=CLOSED_RESULTS[filters["result"]])
+            lots = lots.filter(status__in=CLOSED_RESULTS[filters["result"]])
         return lots.order_by("-closed_at", "code")
     lots = lots.filter(status__in=VIEWS[view])
     if view == TO_EVALUATE:
@@ -132,7 +138,7 @@ def closed_summary(actor, filters: dict) -> dict:
         closed_in_period(filter_lots(actor, filters), filters)
         .order_by()
         .aggregate(
-            classified=Count("pk", filter=Q(status=CLASSIFIED)),
+            classified=Count("pk", filter=Q(status__in=CLASSIFIED_STATUSES)),
             discarded=Count("pk", filter=Q(status=DISCARDED)),
             g1_kg=Sum("classification__g1_kg"),
             g2_kg=Sum("classification__g2_kg"),

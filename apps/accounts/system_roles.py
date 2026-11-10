@@ -86,6 +86,10 @@ SYSTEM_ROLES = {
             "quality.evaluate_lot",
             "quality.classify_lot",
             "quality.discard_lot",
+            "warehouse.view_stock",
+            "warehouse.register_entry",
+            "warehouse.register_exit",
+            "warehouse.manage_warehouse",
             "buyers.view_buyer",
             "buyers.add_buyer",
             "buyers.change_buyer",
@@ -146,6 +150,11 @@ SYSTEM_ROLES = {
             "quality.evaluate_lot",
             "quality.classify_lot",
             "quality.discard_lot",
+            # Es quien recibe el cacao clasificado y lo guarda.
+            "warehouse.view_stock",
+            "warehouse.register_entry",
+            "warehouse.register_exit",
+            "warehouse.manage_warehouse",
         ],
     },
     SALES_MANAGER: {
@@ -154,6 +163,9 @@ SYSTEM_ROLES = {
         "farm_scope": Role.FarmScope.MANY,
         # Eliminar un comprador queda en el Productor, que puede delegarlo.
         "permissions": [
+            # Consulta lo que hay en bodega para preparar ventas; no la mueve.
+            "farms.view_farm",
+            "warehouse.view_stock",
             "buyers.view_buyer",
             "buyers.add_buyer",
             "buyers.change_buyer",

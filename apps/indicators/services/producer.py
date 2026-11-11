@@ -10,7 +10,7 @@ from apps.common.contracts.indicators import IndicatorPeriod, indicator_source
 
 from ..exceptions import IndicatorFarmNotFound
 from ..rules import ZERO, code_order, month_series, one_decimal, per_hectare
-from .totals import sales_totals, sold_by_month, sum_by, total_quality
+from .totals import production_by_month, sales_totals, sold_by_month, sum_by, total_quality
 
 
 def producer_indicators(actor, period: IndicatorPeriod, *, farm_id=None, producer_id=None):
@@ -49,11 +49,7 @@ def _production(farm_ids, period: IndicatorPeriod, farms: dict) -> dict:
     green_kg = sum(green_by_plot.values(), ZERO)
     dry_kg = sum(dry_by_plot.values(), ZERO)
     area = sum((plot.area_hectares for plot in plots), ZERO)
-    months = defaultdict(dict)
-    for month, kg in sum_by(harvested, "month", "kg").items():
-        months[month]["green_kg"] = kg
-    for month, kg in sum_by(dried, "month", "dry_kg").items():
-        months[month]["dry_kg"] = kg
+    months = production_by_month(harvested, dried)
     return {
         "green_kg": one_decimal(green_kg),
         "dry_kg": one_decimal(dry_kg),

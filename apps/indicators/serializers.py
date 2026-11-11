@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.common.serializers import PeriodQuerySerializer
+from apps.common.serializers import FarmProducerSerializer, PeriodQuerySerializer
 
 # Los kg y los kg por hectárea con un decimal, y el área con dos, como en la parcela. Sin
 # docstrings en las clases: drf-spectacular los publicaría como descripción del componente.
@@ -116,3 +116,40 @@ class ProducerIndicatorsSerializer(serializers.Serializer):
     quality = ProducerQualitySerializer()
     inventory = ProducerInventorySerializer()
     sales = ProducerSalesSerializer()
+
+
+class AssociationIndicatorsQuerySerializer(PeriodQuerySerializer):
+    max_days = 366
+
+
+class AssociationTotalsSerializer(QualitySplitSerializer):
+    producers = serializers.IntegerField()
+    farms = serializers.IntegerField()
+    green_kg = _kg()
+    dry_kg = _kg()
+    sold_kg = _kg()
+
+
+class AssociationMonthSerializer(serializers.Serializer):
+    month = serializers.CharField()
+    green_kg = _kg()
+    dry_kg = _kg()
+    sold_kg = _kg()
+
+
+class AssociationFarmSerializer(QualitySplitSerializer):
+    farm_id = serializers.UUIDField()
+    farm_code = serializers.CharField()
+    farm_name = serializers.CharField()
+    municipality_code = serializers.CharField()
+    producer = FarmProducerSerializer()
+    green_kg = _kg()
+    dry_kg = _kg()
+    sold_kg = _kg()
+
+
+class AssociationIndicatorsSerializer(serializers.Serializer):
+    period = IndicatorPeriodSerializer()
+    totals = AssociationTotalsSerializer()
+    months = AssociationMonthSerializer(many=True)
+    farms = AssociationFarmSerializer(many=True)

@@ -7,8 +7,13 @@ from apps.common.contracts.indicators import IndicatorPeriod
 from apps.common.permissions import HasPermission
 from apps.common.schema import error_responses
 
-from .serializers import ProducerIndicatorsQuerySerializer, ProducerIndicatorsSerializer
-from .services import producer_indicators
+from .serializers import (
+    AssociationIndicatorsQuerySerializer,
+    AssociationIndicatorsSerializer,
+    ProducerIndicatorsQuerySerializer,
+    ProducerIndicatorsSerializer,
+)
+from .services import association_indicators, producer_indicators
 
 
 def _period(data) -> IndicatorPeriod:
@@ -42,3 +47,25 @@ class ProducerIndicatorsView(APIView):
             producer_id=query.validated_data.get("producer"),
         )
         return Response(ProducerIndicatorsSerializer(indicators).data)
+
+
+class AssociationIndicatorsView(APIView):
+    permission_classes = [IsAuthenticated, HasPermission]
+    required_permission = "indicators.view_association_indicators"
+
+    @extend_schema(
+        description=(
+            "El panel de la asociación en el periodo, `from` y `to` incluidos, de hasta 366 "
+            "días: por finca, los kg en baba y seco, G1, G2 y descarte de lo clasificado o "
+            "descartado, y los kg vendidos sin las ventas anuladas, con sus totales y los meses. "
+            "Solo las fincas con alguna cifra en el periodo, de la que más produjo a la que "
+            "menos. Nada por parcela, por lote ni de existencias."
+        ),
+        parameters=[AssociationIndicatorsQuerySerializer],
+        responses={200: AssociationIndicatorsSerializer, **error_responses(400, 401, 403)},
+    )
+    def get(self, request):
+        query = AssociationIndicatorsQuerySerializer(data=request.query_params.dict())
+        query.is_valid(raise_exception=True)
+        indicators = association_indicators(request.user, _period(query.validated_data))
+        return Response(AssociationIndicatorsSerializer(indicators).data)

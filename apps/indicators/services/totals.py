@@ -28,6 +28,16 @@ def sales_totals(rows) -> dict:
     }
 
 
+def production_by_month(harvested, dried) -> dict[str, dict]:
+    """Los kg en baba y secos de cada mes con datos; `month_series` completa los demás."""
+    months = defaultdict(dict)
+    for month, kg in sum_by(harvested, "month", "kg").items():
+        months[month]["green_kg"] = kg
+    for month, kg in sum_by(dried, "month", "dry_kg").items():
+        months[month]["dry_kg"] = kg
+    return dict(months)
+
+
 def sold_by_month(rows) -> dict[str, dict]:
     months = defaultdict(lambda: {"sold_kg": ZERO})
     for row in rows:

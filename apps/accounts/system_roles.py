@@ -34,6 +34,7 @@ SYSTEM_ROLES = {
             "farms.view_farm",
             "crops.manage_cacaovariety",
             "health.manage_pestdisease",
+            "indicators.view_association_indicators",
         ],
     },
     PRODUCER: {
@@ -97,6 +98,7 @@ SYSTEM_ROLES = {
             "sales.view_sale",
             "sales.add_sale",
             "sales.void_sale",
+            "indicators.view_producer_indicators",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en

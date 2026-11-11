@@ -168,6 +168,23 @@ DEMO_INPUTS = [
     },
 ]
 
+# El segundo productor con cifras, para que el panel de la asociación compare más de una finca y se
+# vea que el productor de demostración solo ve lo suyo. Es Villa Rosa, de Rosa Elena Quintero (ver
+# PRODUCERS): una cosecha que llegó a bodega y se vendió, y otra reciente que aún no se seca.
+SECOND_FARM = "Villa Rosa"
+SECOND_PLOT = "VR-1"
+SECOND_FACILITIES = [
+    {"facility_type": "fermentation_box", "name": "C-01", "capacity_kg": Decimal("500")},
+    {"facility_type": "solar_dryer", "name": "M-01", "capacity_kg": Decimal("600")},
+]
+SECOND_BUYER = {
+    "name": "Cacaos Finos del Zulia",
+    "document_type": "NIT",
+    "identity_document": "900000011",
+    "buyer_type": "exporter",
+    "phone": "3001000011",
+}
+
 # Cajones de fermentación y marquesinas de secado de La Esperanza (`CF-01` se deja libre).
 DEMO_FACILITIES = [
     {"facility_type": "fermentation_box", "name": "C-01", "capacity_kg": Decimal("600")},

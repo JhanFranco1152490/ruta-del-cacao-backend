@@ -11,3 +11,10 @@ class PlotsConfig(AppConfig):
         from .farm_dependent import plots_dependent
 
         register_dependent(plots_dependent)
+
+        # El área declarada de cada parcela, para los kg por hectárea de los paneles.
+        from apps.common.contracts.indicators import register_indicator_source
+
+        from .indicators import plot_areas
+
+        register_indicator_source("plots", plot_areas)

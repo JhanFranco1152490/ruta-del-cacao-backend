@@ -78,13 +78,25 @@ class PlotArea:
 
 @dataclass(frozen=True)
 class PlotMonthKg:
-    """Kg de una parcela en un mes: en baba por la cosecha y seco por el secado, los dos en el mes
-    de la cosecha."""
+    """Kg en baba que se cosecharon en una parcela en un mes."""
 
     plot_id: Any
     farm_id: Any
     month: str
     kg: Decimal
+
+
+@dataclass(frozen=True)
+class PlotMonthDried:
+    """Lo que dieron los secados terminados de las cosechas de una parcela en un mes (el de la
+    cosecha, no el del fin del secado): su peso seco y lo que esas cosechas pesaban en baba, para
+    saber cuánto de lo cosechado falta por secar."""
+
+    plot_id: Any
+    farm_id: Any
+    month: str
+    dry_kg: Decimal
+    green_kg: Decimal
 
 
 @dataclass(frozen=True)

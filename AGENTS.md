@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`) y lo demás que comparten dos apps |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`), las fuentes de cifras de los paneles de indicadores (`indicators.py`: cada app registra la suya y devuelve filas ya agregadas) y lo demás que comparten dos apps |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -66,6 +66,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/sales/` | Ventas de los lotes En bodega de una finca a un comprador activo: cada línea es un lote y un calibre con sus kilos y su precio por kilo en pesos enteros, y su subtotal redondeado al peso. Registrar saca las existencias con `StockExit.remove_for_sale` y anular las devuelve con `void_for_sale`, en la misma transacción; el número `V-0012` es consecutivo por productor. El soporte de la factura (PDF, JPG o PNG, en PostgreSQL), la lista por periodo y su resumen. No se edita ni se elimina: se anula |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha, los desvíos y el descarte), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
+| `apps/indicators/` | Paneles de indicadores, de solo lectura y sin tablas: el del productor (kg en baba y seco por parcela, por hectárea y por mes; G1, G2 y descarte; existencias de hoy; kg vendidos) y el de la asociación (lo mismo por finca, sin parcelas, lotes ni existencias). Combina las fuentes que `farms`, `plots`, `harvests`, `drying`, `quality`, `warehouse` y `sales` registran en `apps/common/contracts/indicators.py` (un `indicators.py` en cada una) y calcula con reglas puras (`rules.py`). Sus dos permisos se declaran en `IndicatorAccess`, un modelo sin tabla |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -599,6 +600,31 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     cada venta en la misma consulta, y `…/summary` suma solo las registradas.
   - `Sale` protege su finca, su comprador, sus lotes, sus salidas y sus cuentas: un comprador con
     ventas, también anuladas, responde `buyer_has_records`.
+- **Paneles de indicadores** (`/api/indicators`): dos `GET` de solo lectura, sin paginar, con `from`
+  y `to` obligatorios (`PeriodQuerySerializer`, hasta 366 días). Se calculan al consultar: no hay
+  tablas de resumen, así que una cosecha, una clasificación, un ingreso o una venta se ven en la
+  siguiente consulta. Cada panel cuesta un número fijo de consultas, sin importar cuántas fincas
+  haya (una por fuente).
+  - **Del productor** (`…/producer`, `indicators.view_producer_indicators`, delegable y de campo, sin
+    dependencias; lo tiene el Productor): las fincas que alcanza quien consulta (un empleado, las que
+    trabaja), `farm` para una (fuera del alcance, `404 not_found`) y `producer` solo para la cuenta
+    técnica. Kg en baba por fecha de cosecha; kg seco de los secados finalizados, **en el mes de la
+    cosecha**; kg por hectárea con el área **declarada**, contando las parcelas activas y las
+    inactivas que cosecharon en el periodo; G1, G2 y descarte por la fecha de cierre (clasificación
+    o descarte, en la hora de Bogotá), con el peso seco de los lotes descartados completos, igual que
+    `closed-summary` de calidad (las dos usan `closed_totals()`); existencias de hoy, sin periodo; y
+    kg vendidos sin las ventas anuladas. Sin divisor, los porcentajes y los kg por hectárea son
+    `null`. Los meses van todos, también en 0.
+  - **De la asociación** (`…/association`, `indicators.view_association_indicators`, no delegable;
+    lo tiene el Administrador): una fila por finca con alguna cifra en el periodo (también de un
+    productor inactivo), de la que más kg en baba tiene a la que menos, con su productor
+    (`FarmProducerSerializer`). Nunca pide las fuentes de parcelas ni de bodega: no hay nada por
+    parcela, por lote ni de existencias en la respuesta.
+  - Una app con un dato nuevo para los paneles agrega su fuente en
+    `apps/common/contracts/indicators.py` (nombre fijo en `INDICATOR_SOURCES`, filas como
+    dataclasses) y la registra en su `ready()`; `indicators` nunca lee sus modelos. Las fincas se
+    pasan como subconsulta de ids. Los códigos de finca y parcela se ordenan con
+    `rules.code_order` (`F99` antes que `F100`).
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
@@ -914,7 +940,9 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   (`buyers.py`: uno de cada tipo y uno inactivo) y las ventas (`sales.py`, hechas por el
   Comercializador: una registrada con su soporte en PDF, otra registrada sin soporte a otro
   comprador y otra anulada, que dejan existencias para registrar una venta más en vivo) y los
-  avisos de la campana (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
+  avisos de la campana (corre `evaluate_alerts`). **Villa Rosa**, de otro productor
+  (`second_producer.py`), recibe una vez un lote que llega a bodega y se vende en parte y una cosecha
+  por fermentar, para que el panel de la asociación compare más de una finca. Cada vez que corre deja sin la bitácora de hoy el lote que seca en
   M-02, para registrar en vivo la del sobresecado. Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
   fecha. Deja listo lo que piden las demostraciones en vivo: dos monitoreos programados para hoy
@@ -950,7 +978,8 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   por los servicios, sin alta (la finca la elige quien registra); **ingresos, existencias,
   salidas** y sus historiales, de solo lectura y solo para superusuarios, porque mueven el saldo y
   el estado del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
-  solo guarda bytes.
+  solo guarda bytes. Tampoco `IndicatorAccess`, que no tiene tabla: solo declara los permisos de los
+  paneles.
 
 ## Variables de entorno
 

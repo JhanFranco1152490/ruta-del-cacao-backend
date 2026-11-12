@@ -18,7 +18,7 @@ from apps.common.serializers import full_name
 from apps.common.territorial import get_municipality
 
 from ..exceptions import ReportFilterNotFound
-from ..report import COUNT, KG, PCT, TEXT, Column, Report, ReportFilter, Total
+from ..report import ASSOCIATION, COUNT, KG, PCT, TEXT, Column, Report, ReportFilter, Total
 from ..rules import labeled, period_text, producer_text
 from ..types import PRODUCTION, QUALITY, SALES, TITLES
 
@@ -123,6 +123,7 @@ def association_report(actor, query: dict) -> Report:
         columns=FARM_COLUMNS + tuple(Column(m.key, m.label, m.kind) for m in measures),
         rows=[_row(farm, figures.get(farm.farm_id, FarmFigures()), measures) for farm in shown],
         totals=_totals(report_type, shown, figures, measures),
+        audience=ASSOCIATION,
     )
 
 

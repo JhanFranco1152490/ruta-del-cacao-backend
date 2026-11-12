@@ -18,6 +18,8 @@ PRODUCER_TYPES = (PRODUCTION, QUALITY, INVENTORY, SALES, TRACEABILITY)
 # La asociación ve cifras por finca: nada de existencias ni de lotes uno por uno.
 ASSOCIATION_TYPES = (PRODUCTION, QUALITY, SALES)
 
+FILE_FORMATS = ("pdf", "xlsx", "csv")
+
 # Las existencias son las de hoy, como en bodega: no hay periodo que filtrar.
 WITHOUT_PERIOD = frozenset({INVENTORY})
 

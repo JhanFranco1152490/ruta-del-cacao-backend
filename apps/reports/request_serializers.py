@@ -4,7 +4,7 @@ from rest_framework import serializers
 from apps.common.municipalities import validate_municipality_code
 from apps.common.serializers import PeriodQuerySerializer
 
-from .types import ASSOCIATION_TYPES, PRODUCER_TYPES, WITHOUT_PERIOD
+from .types import ASSOCIATION_TYPES, FILE_FORMATS, PRODUCER_TYPES, WITHOUT_PERIOD
 
 
 class ReportQuerySerializer(PeriodQuerySerializer):
@@ -56,6 +56,23 @@ class AssociationReportQuerySerializer(ReportQuerySerializer):
             "producer": serializers.UUIDField(required=False),
             "farm": serializers.UUIDField(required=False),
         }
+
+
+class ExportFileMixin:
+    """La misma consulta del reporte, más el formato del archivo."""
+
+    def get_fields(self):
+        fields = super().get_fields()
+        fields["file"] = serializers.ChoiceField(choices=FILE_FORMATS)
+        return fields
+
+
+class ProducerReportExportQuerySerializer(ExportFileMixin, ProducerReportQuerySerializer):
+    pass
+
+
+class AssociationReportExportQuerySerializer(ExportFileMixin, AssociationReportQuerySerializer):
+    pass
 
 
 def _municipality_in_catalog(value):

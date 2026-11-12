@@ -31,3 +31,9 @@ class ReportTooLarge(ApiError):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = "El reporte tiene demasiadas filas. Acota el periodo, la finca o la parcela."
     default_code = "report_too_large"
+
+
+class ReportEmpty(ApiError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "El reporte no tiene resultados para exportar."
+    default_code = "report_empty"

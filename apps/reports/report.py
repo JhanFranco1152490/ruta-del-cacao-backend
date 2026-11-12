@@ -18,6 +18,9 @@ MONEY = "money"
 COUNT = "count"
 KINDS = (TEXT, DATE, KG, PCT, MONEY, COUNT)
 
+PRODUCER = "producer"
+ASSOCIATION = "association"
+
 
 @dataclass(frozen=True)
 class Column:
@@ -64,6 +67,8 @@ class Report:
     columns: tuple[Column, ...]
     rows: list[dict] = field(default_factory=list)
     totals: tuple[Total, ...] = ()
+    # De quién es la vista: la asociación lo dice en el título y en el nombre del archivo.
+    audience: str = PRODUCER
 
     @property
     def is_empty(self) -> bool:

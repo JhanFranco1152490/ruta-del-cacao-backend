@@ -55,6 +55,7 @@ def _row(lot) -> QualityRow:
         place=PlotPlace.of(lot.harvest.plot),
         closed_on=localdate(closed_at),
         result=result,
+        whole_discard=result == DISCARDED,
         dry_kg=dry_kg,
         g1_kg=g1_kg,
         g2_kg=g2_kg,

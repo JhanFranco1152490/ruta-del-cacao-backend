@@ -76,6 +76,7 @@ def test_a_classified_lot_comes_with_its_split_and_reason(django_assert_num_quer
             place=PlotPlace.of(plot),
             closed_on=date(2026, 2, 3),
             result="Clasificado",
+            whole_discard=False,
             dry_kg=Decimal("100.0"),
             g1_kg=Decimal("80.0"),
             g2_kg=Decimal("15.0"),
@@ -101,8 +102,9 @@ def test_a_whole_discard_puts_all_its_dry_weight_in_the_discard():
 
     (row,) = quality_rows(plot.farm)
 
-    assert (row.result, row.g1_kg, row.g2_kg, row.discard_kg) == (
+    assert (row.result, row.whole_discard, row.g1_kg, row.g2_kg, row.discard_kg) == (
         "Descartado",
+        True,
         Decimal("0"),
         Decimal("0"),
         Decimal("60.0"),

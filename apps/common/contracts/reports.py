@@ -138,6 +138,7 @@ class QualityRow:
     place: PlotPlace
     closed_on: date
     result: str
+    whole_discard: bool
     dry_kg: Decimal
     g1_kg: Decimal
     g2_kg: Decimal

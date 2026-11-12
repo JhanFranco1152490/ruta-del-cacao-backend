@@ -262,6 +262,7 @@ SPECTACULAR_SETTINGS = {
         "StockGradeEnum": "apps.warehouse.choices.Grade",
         "StockExitReasonEnum": "apps.warehouse.choices.ExitReason",
         "SaleStatusEnum": "apps.sales.models.Sale.Status",
+        "ReportCellKindEnum": "apps.reports.report.KINDS",
     },
 }
 

@@ -119,6 +119,8 @@ def responses_of(schema, path, method):
         ("/api/producers/{id}/status", "patch", {"200", "400", "401", "403", "404", "409"}),
         ("/api/indicators/producer", "get", {"200", "400", "401", "403", "404"}),
         ("/api/indicators/association", "get", {"200", "400", "401", "403"}),
+        ("/api/reports/producer", "get", {"200", "400", "401", "403", "404"}),
+        ("/api/reports/association", "get", {"200", "400", "401", "403", "404"}),
     ],
 )
 def test_each_endpoint_documents_the_responses_it_returns(schema, path, method, codes):
@@ -278,6 +280,8 @@ DOCUMENTED_OPERATIONS = {
     ("delete", "/api/sales/{id}/invoice"),
     ("get", "/api/indicators/producer"),
     ("get", "/api/indicators/association"),
+    ("get", "/api/reports/producer"),
+    ("get", "/api/reports/association"),
 }
 
 

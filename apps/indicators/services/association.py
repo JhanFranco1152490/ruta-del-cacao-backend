@@ -8,9 +8,11 @@ ni de bodega, y lo que pide ya viene agregado por finca.
 from collections import defaultdict
 
 from apps.common.contracts.indicators import IndicatorPeriod, indicator_source
+from apps.common.farm_figures import FarmFigures, figures_by_farm
+from apps.common.figures import ZERO, one_decimal, quality_split
 
-from ..rules import ZERO, month_series, one_decimal, quality_split
-from .totals import production_by_month, sales_totals, sold_by_month, sum_by, total_quality
+from ..rules import month_series
+from .totals import production_by_month, sales_totals, sold_by_month, total_quality
 
 
 def association_indicators(actor, period: IndicatorPeriod) -> dict:
@@ -19,24 +21,18 @@ def association_indicators(actor, period: IndicatorPeriod) -> dict:
     dried = indicator_source("drying")(farm_ids, period)
     quality = indicator_source("quality")(farm_ids, period)
     sales = indicator_source("sales")(farm_ids, period)
-    green = sum_by(harvested, "farm_id", "kg")
-    dry = sum_by(dried, "farm_id", "dry_kg")
-    quality_by_farm = {row.farm_id: row for row in quality}
-    sold = defaultdict(lambda: ZERO)
-    for row in sales:
-        sold[row.farm_id] += row.g1_kg + row.g2_kg
+    figures = figures_by_farm(harvested=harvested, dried=dried, quality=quality, sales=sales)
     # Solo las fincas con alguna cifra: una fila en cero por cada finca taparía las que produjeron.
-    with_figures = set(green) | set(dry) | set(quality_by_farm) | set(sold)
-    farms = indicator_source("farms")(list(with_figures)) if with_figures else []
-    rows = [_farm_row(farm, green, dry, quality_by_farm.get(farm.farm_id), sold) for farm in farms]
+    farms = indicator_source("farms")(list(figures)) if figures else []
+    rows = [_farm_row(farm, figures[farm.farm_id]) for farm in farms]
     rows.sort(key=lambda row: (-row["green_kg"], row["farm_name"]))
     return {
         "period": {"from": period.date_from, "to": period.date_to},
         "totals": {
             "producers": len({farm.producer_id for farm in farms}),
             "farms": len(farms),
-            "green_kg": one_decimal(sum(green.values(), ZERO)),
-            "dry_kg": one_decimal(sum(dry.values(), ZERO)),
+            "green_kg": one_decimal(sum((farm.green_kg for farm in figures.values()), ZERO)),
+            "dry_kg": one_decimal(sum((farm.dry_kg for farm in figures.values()), ZERO)),
             **_without_lots(total_quality(quality)),
             "sold_kg": sales_totals(sales)["sold_kg"],
         },
@@ -49,12 +45,8 @@ def association_indicators(actor, period: IndicatorPeriod) -> dict:
     }
 
 
-def _farm_row(farm, green: dict, dry: dict, quality, sold: dict) -> dict:
-    split = quality_split(
-        quality.g1_kg if quality else ZERO,
-        quality.g2_kg if quality else ZERO,
-        quality.discard_kg if quality else ZERO,
-    )
+def _farm_row(farm, figures: FarmFigures) -> dict:
+    split = quality_split(figures.g1_kg, figures.g2_kg, figures.discard_kg)
     return {
         "farm_id": farm.farm_id,
         "farm_code": farm.code,
@@ -66,10 +58,10 @@ def _farm_row(farm, green: dict, dry: dict, quality, sold: dict) -> dict:
             "first_name": farm.producer_first_name,
             "last_name": farm.producer_last_name,
         },
-        "green_kg": one_decimal(green.get(farm.farm_id, ZERO)),
-        "dry_kg": one_decimal(dry.get(farm.farm_id, ZERO)),
+        "green_kg": one_decimal(figures.green_kg),
+        "dry_kg": one_decimal(figures.dry_kg),
         **split,
-        "sold_kg": one_decimal(sold.get(farm.farm_id, ZERO)),
+        "sold_kg": one_decimal(figures.sold_kg),
     }
 
 

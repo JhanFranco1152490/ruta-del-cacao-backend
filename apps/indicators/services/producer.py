@@ -7,10 +7,11 @@ por hectárea, los porcentajes y los meses.
 from collections import defaultdict
 
 from apps.common.contracts.indicators import IndicatorPeriod, indicator_source
+from apps.common.figures import ZERO, code_order, one_decimal, sum_by
 
 from ..exceptions import IndicatorFarmNotFound
-from ..rules import ZERO, code_order, month_series, one_decimal, per_hectare
-from .totals import production_by_month, sales_totals, sold_by_month, sum_by, total_quality
+from ..rules import month_series, per_hectare
+from .totals import production_by_month, sales_totals, sold_by_month, total_quality
 
 
 def producer_indicators(actor, period: IndicatorPeriod, *, farm_id=None, producer_id=None):

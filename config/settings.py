@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "apps.buyers",
     "apps.sales",
     "apps.indicators",
+    "apps.reports",
     "apps.demo_data",
 ]
 

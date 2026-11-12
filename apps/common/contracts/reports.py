@@ -27,6 +27,12 @@ REPORT_SOURCES = frozenset(
         "lot_rows",
         "fermentation_dates",
         "drying_results",
+        "quality_rows",
+        "quality_by_lot",
+        "stock_rows",
+        "stock_by_lot",
+        "sale_rows",
+        "sales_by_lot",
     }
 )
 
@@ -119,6 +125,78 @@ class DryingResult:
     ended_on: date
     dry_kg: Decimal
     yield_pct: Decimal
+
+
+@dataclass(frozen=True)
+class QualityRow:
+    """Un lote cerrado en calidad: clasificado (también si ya está en bodega) o descartado
+    completo. En un descarte completo, el descarte es todo su peso seco. El resultado y el motivo
+    vienen como se muestran; sin descarte, el motivo y el detalle van vacíos."""
+
+    lot_id: Any
+    lot_code: str
+    place: PlotPlace
+    closed_on: date
+    result: str
+    dry_kg: Decimal
+    g1_kg: Decimal
+    g2_kg: Decimal
+    discard_kg: Decimal
+    discard_reason: str
+    discard_detail: str
+
+
+@dataclass(frozen=True)
+class StockRow:
+    """Lo que hay hoy de un calibre de un lote en un lugar de una bodega. El calibre viene como se
+    muestra."""
+
+    lot_id: Any
+    lot_code: str
+    place: PlotPlace
+    warehouse: str
+    location: str
+    grade: str
+    kg: Decimal
+    entry_date: date
+
+
+@dataclass(frozen=True)
+class LotStock:
+    """La bodega de un lote: cuándo entró y cuánto le queda hoy."""
+
+    lot_id: Any
+    entry_date: date
+    available_kg: Decimal
+
+
+@dataclass(frozen=True)
+class SaleRow:
+    """Una línea de una venta registrada (nunca de una anulada). El calibre viene como se
+    muestra."""
+
+    sale_id: Any
+    sale_number: int
+    sale_date: date
+    buyer: str
+    farm_id: Any
+    farm_code: str
+    farm_name: str
+    lot_id: Any
+    lot_code: str
+    grade: str
+    kg: Decimal
+    price_per_kg: int
+    subtotal: int
+
+
+@dataclass(frozen=True)
+class LotSales:
+    """Lo vendido de un lote en ventas registradas, con sus compradores sin repetir y en orden."""
+
+    lot_id: Any
+    sold_kg: Decimal
+    buyers: tuple[str, ...]
 
 
 def register_report_source(name: str, source: Callable[..., Any]) -> None:

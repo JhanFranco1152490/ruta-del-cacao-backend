@@ -25,7 +25,7 @@ def sale_rows(farm_ids, period: IndicatorPeriod, *, plot_id=None, lot_id=None) -
     return [
         SaleRow(
             sale_id=line.sale_id,
-            sale_number=line.sale.number,
+            sale_number=str(line.sale),
             sale_date=line.sale.sale_date,
             buyer=line.sale.buyer.name,
             farm_id=line.sale.farm_id,

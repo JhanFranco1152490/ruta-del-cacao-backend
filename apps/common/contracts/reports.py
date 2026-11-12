@@ -173,11 +173,11 @@ class LotStock:
 
 @dataclass(frozen=True)
 class SaleRow:
-    """Una línea de una venta registrada (nunca de una anulada). El calibre viene como se
-    muestra."""
+    """Una línea de una venta registrada (nunca de una anulada). El número de la venta (`V-0012`) y
+    el calibre vienen como se muestran."""
 
     sale_id: Any
-    sale_number: int
+    sale_number: str
     sale_date: date
     buyer: str
     farm_id: Any

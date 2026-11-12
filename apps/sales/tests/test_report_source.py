@@ -40,7 +40,7 @@ def test_each_line_of_a_registered_sale_is_a_row(django_assert_num_queries):
     def row(line, grade, kg, price, subtotal):
         return SaleRow(
             sale_id=sale.pk,
-            sale_number=sale.number,
+            sale_number=f"V-{sale.number:04d}",
             sale_date=date(2026, 2, 3),
             buyer="Cacaos del Norte",
             farm_id=farm.pk,

@@ -136,3 +136,21 @@ def test_choosing_another_producer_among_everyone_does_not_widen_a_producer(two_
     mine, _, _, other = two_producers
 
     assert scope(make_producer_owner(mine), everyone=True, producer_id=other.producer_id) == set()
+
+
+def test_the_farms_say_whether_they_and_their_producer_are_active():
+    active = FarmFactory()
+    inactive = FarmFactory(is_active=False)
+    retired = ProducerFactory()
+    retired.status = retired.Status.INACTIVE
+    retired.save()
+    of_retired = FarmFactory(producer=retired)
+
+    rows = {
+        row.farm_id: row
+        for row in indicator_source("farms")([active.pk, inactive.pk, of_retired.pk])
+    }
+
+    assert (rows[active.pk].is_active, rows[active.pk].producer_is_active) == (True, True)
+    assert rows[inactive.pk].is_active is False
+    assert rows[of_retired.pk].producer_is_active is False

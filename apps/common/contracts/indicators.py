@@ -64,6 +64,10 @@ class ScopedFarm:
     producer_member_code: str
     producer_first_name: str
     producer_last_name: str
+    # Los reportes de la asociación muestran en 0 las fincas activas de productores activos; las
+    # demás, solo si tienen cifras.
+    is_active: bool = True
+    producer_is_active: bool = True
 
 
 @dataclass(frozen=True)

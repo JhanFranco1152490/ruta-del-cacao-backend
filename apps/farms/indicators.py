@@ -47,6 +47,8 @@ def scoped_farms(farm_ids) -> list[ScopedFarm]:
             producer_member_code=farm.producer.member_code,
             producer_first_name=farm.producer.first_name,
             producer_last_name=farm.producer.last_name,
+            is_active=farm.is_active,
+            producer_is_active=farm.producer.status == farm.producer.Status.ACTIVE,
         )
         for farm in farms
     ]

@@ -29,3 +29,10 @@ class DryingConfig(AppConfig):
         from .indicators import dried
 
         register_indicator_source("drying", dried)
+
+        # Lo que dio el secado de cada lote, para los reportes del productor.
+        from apps.common.contracts.reports import register_report_source
+
+        from .reports import drying_results
+
+        register_report_source("drying_results", drying_results)

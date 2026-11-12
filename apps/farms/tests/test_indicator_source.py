@@ -105,3 +105,34 @@ def test_the_farms_come_with_their_code_municipality_and_producer(
             producer_last_name=mine.last_name,
         )
     ]
+
+
+def test_the_municipality_narrows_the_farms_of_everyone():
+    in_cucuta = FarmFactory(municipality_code="54001")
+    FarmFactory(municipality_code="54498")
+
+    assert scope(make_administrator(), everyone=True, municipality_code="54001") == {in_cucuta.pk}
+
+
+def test_the_municipality_also_narrows_a_producer(two_producers):
+    mine, farm_a, _, _ = two_producers
+    elsewhere = FarmFactory(producer=mine, municipality_code="54498")
+    owner = make_producer_owner(mine)
+
+    assert elsewhere.pk in scope(owner)
+    assert scope(owner, municipality_code="54498") == {elsewhere.pk}
+
+
+def test_the_association_narrows_everyone_to_one_producer(two_producers):
+    mine, farm_a, farm_b, _ = two_producers
+
+    assert scope(make_administrator(), everyone=True, producer_id=mine.pk) == {
+        farm_a.pk,
+        farm_b.pk,
+    }
+
+
+def test_choosing_another_producer_among_everyone_does_not_widen_a_producer(two_producers):
+    mine, _, _, other = two_producers
+
+    assert scope(make_producer_owner(mine), everyone=True, producer_id=other.producer_id) == set()

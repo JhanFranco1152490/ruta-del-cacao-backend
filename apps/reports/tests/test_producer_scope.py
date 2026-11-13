@@ -174,3 +174,18 @@ def test_the_technical_account_and_a_producer_without_farms(estate):
         generate(technical, type="production", **PERIOD, producer=str(uuid.uuid4()))
 
     assert not_found_field(error) == {"producer"}
+
+
+def test_the_technical_account_with_a_farm_of_another_producer_misses_the_farm(estate):
+    technical = UserFactory(is_superuser=True)
+
+    with pytest.raises(ReportFilterNotFound) as error:
+        generate(
+            technical,
+            type="production",
+            **PERIOD,
+            producer=str(estate.producer.pk),
+            farm=str(estate.other_farm.pk),
+        )
+
+    assert not_found_field(error) == {"farm"}

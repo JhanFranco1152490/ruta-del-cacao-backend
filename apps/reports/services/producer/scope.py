@@ -39,7 +39,7 @@ def resolve_scope(actor, query: dict) -> ProducerScope:
         period = IndicatorPeriod(query["from"], query["to"])
         filters.append(ReportFilter("period", "Periodo", period_text(period)))
     if producer_id is not None:
-        filters.append(_producer_filter(farm_ids, producer_id))
+        filters.append(_producer_filter(actor, producer_id))
     if farm_id is not None:
         filters.append(_farm_filter(farm_ids, farm_id))
     plot_id = query.get("plot")
@@ -51,9 +51,12 @@ def resolve_scope(actor, query: dict) -> ProducerScope:
     return ProducerScope(farm_ids, period, plot_id, lot_id, tuple(filters))
 
 
-def _producer_filter(farm_ids, producer_id) -> ReportFilter:
-    # El productor se nombra por sus fincas: uno sin ninguna no tiene nada que reportar.
-    farms = indicator_source("farms")(farm_ids)
+def _producer_filter(actor, producer_id) -> ReportFilter:
+    # El productor se nombra por sus fincas: uno sin ninguna no tiene nada que reportar. Se buscan
+    # sin la finca elegida, para que una finca de otro productor responda en `farm` y no aquí.
+    farms = indicator_source("farms")(
+        indicator_source("farm_scope")(actor, producer_id=producer_id)
+    )
     if not farms:
         raise ReportFilterNotFound("producer")
     farm = farms[0]

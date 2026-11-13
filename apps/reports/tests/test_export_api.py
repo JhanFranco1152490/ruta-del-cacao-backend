@@ -4,6 +4,7 @@ from datetime import date
 
 import openpyxl
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 from pypdf import PdfReader
 
@@ -137,3 +138,18 @@ def test_a_name_that_looks_like_a_formula_is_escaped_in_the_csv(auth_client, est
     assert ",'=CMD()," in response.content.decode("utf-8-sig")
     rows = generate(estate.owner, type="production", **PERIOD).rows
     assert "=CMD()" in [row["collector"] for row in rows]
+
+
+def test_the_browser_can_read_the_file_name_from_another_origin(auth_client, estate):
+    # El frontend vive en otro origen: sin exponer el encabezado, el navegador lo oculta y la
+    # descarga no sabe cómo se llama el archivo.
+    with override_settings(CORS_ALLOWED_ORIGINS=["http://localhost:3000"]):
+        response = auth_client(estate.owner).get(
+            PRODUCER_URL,
+            {"type": "production", "file": "csv", **PERIOD},
+            HTTP_ORIGIN="http://localhost:3000",
+        )
+
+    assert response.status_code == 200
+    exposed = response["Access-Control-Expose-Headers"].lower().split(", ")
+    assert "content-disposition" in exposed

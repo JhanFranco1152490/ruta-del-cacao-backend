@@ -296,6 +296,9 @@ CSRF_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
 
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
+# El navegador oculta los encabezados de una respuesta de otro origen salvo los que se exponen: sin
+# este, la descarga de un archivo no puede leer el nombre que le pone el servidor.
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
 
 
 # Internationalization

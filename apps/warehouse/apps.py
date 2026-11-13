@@ -27,3 +27,18 @@ class WarehouseConfig(AppConfig):
             },
             prefetch=["stock_entry__warehouse", "stock_balances"],
         )
+
+        # Las existencias de hoy, para el panel del productor.
+        from apps.common.contracts.indicators import register_indicator_source
+
+        from .indicators import stock_by_farm
+
+        register_indicator_source("warehouse", stock_by_farm)
+
+        # Las existencias de hoy una por una, para los reportes del productor.
+        from apps.common.contracts.reports import register_report_source
+
+        from .reports import stock_by_lot, stock_rows
+
+        register_report_source("stock_by_lot", stock_by_lot)
+        register_report_source("stock_rows", stock_rows)

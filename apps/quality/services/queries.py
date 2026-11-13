@@ -130,30 +130,43 @@ def quality_summary(actor, filters: dict) -> dict:
     return totals
 
 
-def closed_summary(actor, filters: dict) -> dict:
-    """Lo que dejó el periodo de cierre: cuántos lotes se clasificaron o se descartaron, los kilos
-    de G1 y G2, y los que quedaron fuera (el descarte de las clasificaciones y el peso seco de los
-    lotes descartados completos). Con los filtros de finca y búsqueda de la lista."""
-    totals = (
-        closed_in_period(filter_lots(actor, filters), filters)
-        .order_by()
-        .aggregate(
-            classified=Count("pk", filter=Q(status__in=CLASSIFIED_STATUSES)),
-            discarded=Count("pk", filter=Q(status=DISCARDED)),
-            g1_kg=Sum("classification__g1_kg"),
-            g2_kg=Sum("classification__g2_kg"),
-            partial_discard_kg=Sum("classification__discard_kg"),
-            whole_discard_kg=Sum("drying__dry_weight_kg", filter=Q(status=DISCARDED)),
-        )
-    )
+def closed_totals() -> dict:
+    """Las sumas de los lotes cerrados, para `aggregate` o, agrupadas, para `annotate`: la pestaña
+    de cerrados y los paneles de indicadores cuentan igual."""
+    return {
+        "classified": Count("pk", filter=Q(status__in=CLASSIFIED_STATUSES)),
+        "discarded": Count("pk", filter=Q(status=DISCARDED)),
+        "g1_kg": Sum("classification__g1_kg"),
+        "g2_kg": Sum("classification__g2_kg"),
+        "partial_discard_kg": Sum("classification__discard_kg"),
+        "whole_discard_kg": Sum("drying__dry_weight_kg", filter=Q(status=DISCARDED)),
+    }
+
+
+def closed_kg(totals: dict) -> dict:
+    """Los kilos de unas sumas de `closed_totals`. Lo que quedó fuera es el descarte de las
+    clasificaciones más el peso seco de los lotes descartados completos."""
     zero = Decimal("0")
     return {
-        "classified": totals["classified"],
-        "discarded": totals["discarded"],
         "g1_kg": totals["g1_kg"] or zero,
         "g2_kg": totals["g2_kg"] or zero,
         "discarded_kg": (totals["partial_discard_kg"] or zero)
         + (totals["whole_discard_kg"] or zero),
+    }
+
+
+def closed_summary(actor, filters: dict) -> dict:
+    """Lo que dejó el periodo de cierre: cuántos lotes se clasificaron o se descartaron, los kilos
+    de G1 y G2, y los que quedaron fuera. Con los filtros de finca y búsqueda de la lista."""
+    totals = (
+        closed_in_period(filter_lots(actor, filters), filters)
+        .order_by()
+        .aggregate(**closed_totals())
+    )
+    return {
+        "classified": totals["classified"],
+        "discarded": totals["discarded"],
+        **closed_kg(totals),
     }
 
 

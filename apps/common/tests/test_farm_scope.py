@@ -54,6 +54,7 @@ FIELD_PERMISSIONS = [
     "facilities.view_postharvestfacility",
     "facilities.add_postharvestfacility",
     "facilities.change_postharvestfacility",
+    "indicators.view_producer_indicators",
 ]
 
 
@@ -739,3 +740,37 @@ def test_an_employee_records_monitorings_and_controls_only_in_its_farm(auth_clie
     assert (
         client.post(controls.format(detection_b.pk), control(), format="json").status_code == 404
     )
+
+
+def test_the_indicators_of_an_employee_cover_only_its_farm(auth_client, world):
+    window = {"from": world.window["from"], "to": world.window["from"]}
+
+    response = auth_client(world.employee).get("/api/indicators/producer", window)
+    unassigned = auth_client(world.unassigned).get("/api/indicators/producer", window)
+
+    assert response.status_code == 200
+    assert [row["plot_id"] for row in response.json()["production"]["plots"]] == [
+        str(world.plot_a.pk)
+    ]
+    assert unassigned.json()["production"]["plots"] == []
+
+
+def test_the_reports_of_an_employee_cover_only_its_farm(auth_client, world):
+    permissions = ["reports.view_producer_reports", "warehouse.view_stock"]
+    employee = make_delegate(world.producer, permissions, farm=world.farm_a)
+    unassigned = make_delegate(world.producer, permissions)
+    mine, _ = stored_lot(
+        characterized_plot(farm=world.farm_a), WarehouseFactory(farm=world.farm_a)
+    )
+    stored_lot(characterized_plot(farm=world.farm_b), WarehouseFactory(farm=world.farm_b))
+
+    response = auth_client(employee).get("/api/reports/producer", {"type": "inventory"})
+    nothing = auth_client(unassigned).get("/api/reports/producer", {"type": "inventory"})
+    foreign = auth_client(employee).get(
+        "/api/reports/producer", {"type": "inventory", "farm": str(world.farm_b.pk)}
+    )
+
+    assert response.status_code == 200
+    assert {row["lot_code"] for row in response.json()["rows"]} == {mine.code}
+    assert nothing.json()["rows"] == []
+    assert foreign.status_code == 404

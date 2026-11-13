@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`) y lo demás que comparten dos apps |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`), las fuentes de cifras de los paneles de indicadores (`indicators.py`: cada app registra la suya y devuelve filas ya agregadas), las fuentes de filas de los reportes del productor (`reports.py`), el registro de fuentes con nombre fijo que usan (`sources.py`) y lo demás que comparten dos apps. Fuera de `contracts/`, las cuentas puras de las cifras sumadas (`figures.py`: redondeo, porcentajes, orden de códigos) y las cifras por finca que comparten el panel y los reportes de la asociación (`farm_figures.py`) |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -66,6 +66,8 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/sales/` | Ventas de los lotes En bodega de una finca a un comprador activo: cada línea es un lote y un calibre con sus kilos y su precio por kilo en pesos enteros, y su subtotal redondeado al peso. Registrar saca las existencias con `StockExit.remove_for_sale` y anular las devuelve con `void_for_sale`, en la misma transacción; el número `V-0012` es consecutivo por productor. El soporte de la factura (PDF, JPG o PNG, en PostgreSQL), la lista por periodo y su resumen. No se edita ni se elimina: se anula |
 | `apps/health/`     | Sanidad de las parcelas: el catálogo de plagas y enfermedades (lo administra la asociación; viene cargado por una migración de datos), el resultado de un monitoreo (detecciones con su incidencia, o sin presencia), los controles fitosanitarios unidos a una detección, el historial fitosanitario de una parcela, las detecciones que esperan un control y las fotos de evidencia. El monitoreo y el control son actividades de `activities`: esta app guarda lo suyo y cambia la actividad por métodos del modelo |
 | `apps/notifications/` | Alertas y notificaciones: los avisos de cada persona (actividad próxima, retrasada y vencida; control pendiente; de un lote, los registros pendientes de poscosecha, los desvíos y el descarte), la bandeja (leer, marcar, eliminar y deshacer), el comando `evaluate_alerts` que corre cada hora y las notificaciones push (suscripciones por dispositivo y envío con `pywebpush`). Las condiciones las calcula cada app con su evaluador (`activities/alerts.py`, `health/alerts.py`, `fermentation/alerts.py`, `drying/alerts.py`); esta app es la única que escribe avisos |
+| `apps/indicators/` | Paneles de indicadores, de solo lectura y sin tablas: el del productor (kg en baba y seco por parcela, por hectárea y por mes; G1, G2 y descarte; existencias de hoy; kg vendidos) y el de la asociación (lo mismo por finca, sin parcelas, lotes ni existencias). Combina las fuentes que `farms`, `plots`, `harvests`, `drying`, `quality`, `warehouse` y `sales` registran en `apps/common/contracts/indicators.py` (un `indicators.py` en cada una) y calcula con reglas puras (`rules.py`). Sus dos permisos se declaran en `IndicatorAccess`, un modelo sin tabla |
+| `apps/reports/` | Reportes del productor (una fila por registro: producción, calidad, inventario, comercialización y trazabilidad) y de la asociación (una fila por finca: producción, calidad y kg vendidos), y su exportación a PDF, Excel y CSV. Sin tablas: cada reporte se arma al pedirlo como un `Report` (columnas, filas, totales y filtros con nombre) y los escritores de `exporters/` lo convierten en archivo sin conocer el tipo. Sus dos permisos se declaran en `ReportAccess`, un modelo sin tabla; es la última app con modelos, así que los roles del sistema se sincronizan en su `post_migrate` |
 | `apps/demo_data/` | Comando `seed_demo_data`: datos y cuentas de demostración, creados por los servicios de las demás apps |
 
 ### Capas
@@ -117,7 +119,7 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   forma (con `DEBUG=True`, Django muestra en su lugar su página técnica de depuración).
 - **Códigos:** `validation_error`, `invalid_reset_token`, `parse_error`, `location_required`,
   `quality_sum_exceeds_100`, `classification_sum_mismatch`, `stock_insufficient` (con `available_kg`),
-  `warehouse_farm_mismatch`, `warehouse_inactive` (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
+  `warehouse_farm_mismatch`, `warehouse_inactive`, `report_empty`, `report_too_large` (400); `not_authenticated`, `authentication_failed`, `invalid_credentials` (401);
   `permission_denied`, `account_inactive`, `account_locked` (403); `not_found` (404);
   `method_not_allowed` (405); `not_acceptable` (406); `duplicate_document`, `stale_version`,
   `warehouse_name_taken`, `warehouse_has_records`, `lot_nothing_to_store`, `entry_has_movements`,
@@ -599,6 +601,70 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     cada venta en la misma consulta, y `…/summary` suma solo las registradas.
   - `Sale` protege su finca, su comprador, sus lotes, sus salidas y sus cuentas: un comprador con
     ventas, también anuladas, responde `buyer_has_records`.
+- **Paneles de indicadores** (`/api/indicators`): dos `GET` de solo lectura, sin paginar, con `from`
+  y `to` obligatorios (`PeriodQuerySerializer`, hasta 366 días). Se calculan al consultar: no hay
+  tablas de resumen, así que una cosecha, una clasificación, un ingreso o una venta se ven en la
+  siguiente consulta. Cada panel cuesta un número fijo de consultas, sin importar cuántas fincas
+  haya (una por fuente).
+  - **Del productor** (`…/producer`, `indicators.view_producer_indicators`, delegable y de campo, sin
+    dependencias; lo tiene el Productor): las fincas que alcanza quien consulta (un empleado, las que
+    trabaja), `farm` para una (fuera del alcance, `404 not_found`) y `producer` solo para la cuenta
+    técnica. Kg en baba por fecha de cosecha; kg seco de los secados finalizados, **en el mes de la
+    cosecha**; kg por hectárea con el área **declarada**, contando las parcelas activas y las
+    inactivas que cosecharon en el periodo; G1, G2 y descarte por la fecha de cierre (clasificación
+    o descarte, en la hora de Bogotá), con el peso seco de los lotes descartados completos, igual que
+    `closed-summary` de calidad (las dos usan `closed_totals()`); existencias de hoy, sin periodo; y
+    kg vendidos sin las ventas anuladas. Sin divisor, los porcentajes y los kg por hectárea son
+    `null`. Los meses van todos, también en 0.
+  - **De la asociación** (`…/association`, `indicators.view_association_indicators`, no delegable;
+    lo tiene el Administrador): una fila por finca con alguna cifra en el periodo (también de un
+    productor inactivo), de la que más kg en baba tiene a la que menos, con su productor
+    (`FarmProducerSerializer`). Nunca pide las fuentes de parcelas ni de bodega: no hay nada por
+    parcela, por lote ni de existencias en la respuesta.
+  - Una app con un dato nuevo para los paneles agrega su fuente en
+    `apps/common/contracts/indicators.py` (nombre fijo en `INDICATOR_SOURCES`, filas como
+    dataclasses) y la registra en su `ready()`; `indicators` nunca lee sus modelos. Las fincas se
+    pasan como subconsulta de ids. Los códigos de finca y parcela se ordenan con
+    `code_order` de `apps/common/figures.py` (`F99` antes que `F100`). Las cifras por finca de la
+    asociación salen de `figures_by_farm` (`apps/common/farm_figures.py`), la misma función que usan
+    los reportes de la asociación: los dos dan lo mismo para el mismo periodo.
+- **Reportes** (`/api/reports`): cuatro `GET` de solo lectura, sin paginar. El JSON y el archivo
+  salen del mismo `Report`, así que lo que se descarga es lo que se ve.
+  - **Del productor** (`…/producer`, `reports.view_producer_reports`, delegable y de campo, sin
+    dependencias en el registro; lo tiene el Productor): `type` obligatorio (`production`,
+    `quality`, `inventory`, `sales` o `traceability`) y **cada tipo pide además el permiso de
+    consulta de su módulo** (`MODULE_PERMISSIONS` en `types.py`: cosechas, lotes, bodega, ventas y
+    lotes), porque el reporte trae detalle y precios; sin él, `403 permission_denied`. `from` y `to`
+    obligatorios salvo en `inventory` (existencias de hoy, que los descarta). `farm`, `plot` y `lot`
+    acotan y deben encajar entre sí (`404 not_found` en su campo si no existen, no están en el
+    alcance o no coinciden); `producer`, solo para la cuenta técnica. Una fila por cosecha, por lote
+    cerrado en calidad (fecha de cierre local, como **Cerrados**), por lote, calibre y lugar de
+    bodega, por línea de venta registrada (con precio y subtotal) o por lote de las cosechas del
+    periodo (trazabilidad: cada etapa vacía si aún no ocurrió). Más de 5.000 filas:
+    `400 report_too_large`.
+  - **De la asociación** (`…/association`, `reports.view_association_reports`, no delegable; lo
+    tiene el Administrador): `production`, `quality` o `sales`, una fila por finca con su municipio
+    y su productor, filtrable por `municipality` (código de Norte de Santander; otro es `400`),
+    `producer` y `farm`. Salen todas las fincas de los filtros, también en 0 (es para el
+    seguimiento), salvo las inactivas o de productores inactivos sin cifras; sin ninguna cifra, sin
+    filas. Cada tipo pide solo sus fuentes de indicadores: nada por parcela, por lote, de existencias
+    ni en pesos.
+  - **Celdas:** `columns` describe la tabla (`key`, `label` y `kind`: `text`, `date`, `kg`, `pct`,
+    `money` o `count`); kg y porcentajes van como texto con un decimal, fechas en ISO, pesos y
+    conteos como enteros y `null` donde no hay dato. `filters` es una lista de `{key, label, text,
+    id}` con los nombres ya armados («F02 · La Esperanza»).
+  - **Exportar** (`…/producer/export`, `…/association/export`): la misma consulta más `file`
+    (`pdf`, `xlsx` o `csv`), con `Content-Disposition` (`reporte-produccion-2026-11-12.pdf`,
+    `reporte-asociacion-…` para la asociación) y `nosniff`; los errores siguen en JSON. Sin filas,
+    `400 report_empty`. El PDF admite hasta 2.000 filas (`report_too_large`, que sugiere Excel o
+    CSV). Los tres llevan el tipo, los filtros, la fecha y quién lo generó (su nombre, no su
+    correo), y un bloque de totales. El CSV va en UTF-8 con BOM, con números sin formato; el Excel,
+    con números como número; el PDF, con formato colombiano (`1.250,5`, `$ 2.775.000`), horizontal
+    con más de 7 columnas. En CSV y Excel, un texto que empieza con `=`, `+`, `-`, `@`, tabulador o
+    retorno lleva un apóstrofo delante para que la hoja de cálculo no lo ejecute.
+  - Una app con un dato nuevo para los reportes del productor agrega su fuente de filas en
+    `apps/common/contracts/reports.py` (nombre fijo en `REPORT_SOURCES`) y la registra en su
+    `ready()`; `reports` nunca lee sus modelos.
 - **Sanidad** (`apps/health`):
   - **Catálogo de plagas y enfermedades** (`/api/pests-diseases`): como el de variedades, solo pide
     sesión para consultarlo y no se pagina; registrar, editar, activar y desactivar piden
@@ -914,7 +980,11 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   (`buyers.py`: uno de cada tipo y uno inactivo) y las ventas (`sales.py`, hechas por el
   Comercializador: una registrada con su soporte en PDF, otra registrada sin soporte a otro
   comprador y otra anulada, que dejan existencias para registrar una venta más en vivo) y los
-  avisos de la campana (corre `evaluate_alerts`). Cada vez que corre deja sin la bitácora de hoy el lote que seca en
+  avisos de la campana (corre `evaluate_alerts`). **Villa Rosa**, de otro productor
+  (`second_producer.py`), recibe una vez un lote que llega a bodega y se vende en parte y una cosecha
+  por fermentar, para que el panel de la asociación compare más de una finca. El capataz de La Esperanza
+  tiene además el rol propio «Reportes de campo» (`reports.py`), que solo da el permiso de reportes:
+  genera Producción, Calidad y Trazabilidad, y Comercialización le responde `403`. Cada vez que corre deja sin la bitácora de hoy el lote que seca en
   M-02, para registrar en vivo la del sobresecado. Todo pasa por los
   servicios de cada app; lo que ellos no dejan crear en el pasado se crea hoy y se corre a su
   fecha. Deja listo lo que piden las demostraciones en vivo: dos monitoreos programados para hoy
@@ -950,7 +1020,8 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   por los servicios, sin alta (la finca la elige quien registra); **ingresos, existencias,
   salidas** y sus historiales, de solo lectura y solo para superusuarios, porque mueven el saldo y
   el estado del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
-  solo guarda bytes.
+  solo guarda bytes. Tampoco `IndicatorAccess`, que no tiene tabla: solo declara los permisos de los
+  paneles.
 
 ## Variables de entorno
 

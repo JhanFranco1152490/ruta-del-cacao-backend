@@ -25,3 +25,10 @@ class FermentationConfig(AppConfig):
         from .alerts import evaluate
 
         register_evaluator("fermentation", evaluate)
+
+        # Las fechas de la fermentación de cada lote, para el reporte de trazabilidad.
+        from apps.common.contracts.reports import register_report_source
+
+        from .reports import fermentation_dates
+
+        register_report_source("fermentation_dates", fermentation_dates)

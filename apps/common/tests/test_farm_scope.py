@@ -54,6 +54,7 @@ FIELD_PERMISSIONS = [
     "facilities.view_postharvestfacility",
     "facilities.add_postharvestfacility",
     "facilities.change_postharvestfacility",
+    "indicators.view_producer_indicators",
 ]
 
 
@@ -739,3 +740,16 @@ def test_an_employee_records_monitorings_and_controls_only_in_its_farm(auth_clie
     assert (
         client.post(controls.format(detection_b.pk), control(), format="json").status_code == 404
     )
+
+
+def test_the_indicators_of_an_employee_cover_only_its_farm(auth_client, world):
+    window = {"from": world.window["from"], "to": world.window["from"]}
+
+    response = auth_client(world.employee).get("/api/indicators/producer", window)
+    unassigned = auth_client(world.unassigned).get("/api/indicators/producer", window)
+
+    assert response.status_code == 200
+    assert [row["plot_id"] for row in response.json()["production"]["plots"]] == [
+        str(world.plot_a.pk)
+    ]
+    assert unassigned.json()["production"]["plots"] == []

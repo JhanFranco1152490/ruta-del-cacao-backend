@@ -35,6 +35,7 @@ from .catalog import (
 from .operations import seed_operations
 from .parameters import seed_drying_parameters
 from .sales import seed_sales
+from .second_producer import seed_second_producer
 
 METRES_PER_DEGREE_OF_LATITUDE = 110_600
 
@@ -78,6 +79,7 @@ def seed_demo_data() -> SeedReport:
         report.operations += seed_drying_parameters(owner)
         report.operations += seed_buyers(owner, _restore_account)
         report.operations += seed_sales(owner)
+        report.operations += seed_second_producer()
     _notify_alerts()
     return report
 

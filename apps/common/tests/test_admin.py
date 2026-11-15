@@ -14,6 +14,9 @@ WITHOUT_ADMIN: dict[str, str] = {
         "Solo guarda los bytes de los archivos subidos; se ven desde el registro al que "
         "pertenecen, que revisa el alcance."
     ),
+    "indicators.IndicatorAccess": (
+        "No tiene tabla ni filas: solo declara los permisos de los paneles de indicadores."
+    ),
 }
 
 

@@ -18,7 +18,10 @@ class SaleFactory(DjangoModelFactory):
     farm = factory.SubFactory(FarmFactory)
     producer = factory.SelfAttribute("farm.producer")
     buyer = factory.SubFactory(BuyerFactory, producer=factory.SelfAttribute("..producer"))
-    number = factory.Sequence(lambda n: n + 1)
+    # Las pruebas fijan números bajos a mano (`number=12`) y la secuencia es de todo el proceso:
+    # si empezara en 1, la venta de una prueba podía caer en el número fijo de otra del mismo
+    # productor y chocar con la restricción única, según cuántas ventas se crearon antes.
+    number = factory.Sequence(lambda n: n + 1001)
     sale_date = factory.LazyFunction(timezone.localdate)
     created_by = factory.SubFactory(UserFactory, producer=factory.SelfAttribute("..producer"))
     created_at = factory.LazyFunction(timezone.now)

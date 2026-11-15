@@ -101,6 +101,11 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "sales.view_sale": PermissionInfo(area="sales", delegable=True),
     "sales.add_sale": PermissionInfo(area="sales", delegable=True),
     "sales.void_sale": PermissionInfo(area="sales", delegable=True),
+    # Las cifras de las fincas que alcanza quien lo tiene; no depende de los demás permisos de
+    # esas áreas: quien lo delega decide que ese empleado vea los totales sin entrar a cada módulo.
+    "indicators.view_producer_indicators": PermissionInfo(area="indicators", delegable=True),
+    # No delegable: consolida las fincas de todos los productores de la asociación.
+    "indicators.view_association_indicators": PermissionInfo(area="indicators", delegable=False),
 }
 
 
@@ -121,6 +126,7 @@ FIELD_AREAS = frozenset(
         "quality",
         "warehouse",
         "sales",
+        "indicators",
     }
 )
 

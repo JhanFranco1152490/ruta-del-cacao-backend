@@ -158,12 +158,20 @@ class TestOverlaps:
     def test_an_overlap_under_one_square_metre_counts_as_a_shared_side(self):
         # Una franja de 0,0000001° (1 cm) de ancho a lo largo de un lado de 11 m: 0,1 m².
         own = polygon(
-            [vertex(LON, LAT), vertex("-72.4999", LAT), vertex("-72.4999", "7.8001"),
-             vertex(LON, "7.8001")]  # fmt: skip
+            [
+                vertex(LON, LAT),
+                vertex("-72.4999", LAT),
+                vertex("-72.4999", "7.8001"),
+                vertex(LON, "7.8001"),
+            ]  # fmt: skip
         )
         neighbour = polygon(
-            [vertex("-72.4999001", LAT), vertex("-72.4998", LAT), vertex("-72.4998", "7.8001"),
-             vertex("-72.4999001", "7.8001")]  # fmt: skip
+            [
+                vertex("-72.4999001", LAT),
+                vertex("-72.4998", LAT),
+                vertex("-72.4998", "7.8001"),
+                vertex("-72.4999001", "7.8001"),
+            ]  # fmt: skip
         )
 
         assert find_overlaps(own, {"P2": neighbour}) == []
@@ -242,8 +250,12 @@ class TestSuggestBoundary:
         # La vecina deja fuera una franja de 1 cm por 5 m: no es una parcela que sugerir.
         own = validate_boundary(rect(0, 0, 2, "0.05"))
         neighbour = polygon(
-            [vertex("-72.4999999", LAT), vertex("-72.498", LAT), vertex("-72.498", "7.801"),
-             vertex("-72.4999999", "7.801")]  # fmt: skip
+            [
+                vertex("-72.4999999", LAT),
+                vertex("-72.498", LAT),
+                vertex("-72.498", "7.801"),
+                vertex("-72.4999999", "7.801"),
+            ]  # fmt: skip
         )
 
         assert suggest_boundary(own, [neighbour]) is None

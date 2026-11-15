@@ -28,7 +28,8 @@ class ProducerIndicatorsView(APIView):
         description=(
             "El panel de la unidad productiva en el periodo, `from` y `to` incluidos, de hasta "
             "366 días: kg en baba y seco por parcela, por hectárea (con el área declarada) y por "
-            "mes; G1, G2 y descarte de lo clasificado o descartado en el periodo; las existencias "
+            "mes; G1, G2 y descarte de lo clasificado o descartado en el periodo, también por "
+            "variedad de cacao; las existencias "
             "de hoy, sin periodo; y los kg vendidos, sin las ventas anuladas. Un empleado ve solo "
             "las fincas que trabaja. `farm` acota a una finca (404 si no la alcanza) y `producer` "
             "solo lo usa la cuenta técnica. Sin divisor, los porcentajes y los kg por hectárea "
@@ -59,7 +60,8 @@ class AssociationIndicatorsView(APIView):
             "días: por finca, los kg en baba y seco, G1, G2 y descarte de lo clasificado o "
             "descartado, y los kg vendidos sin las ventas anuladas, con sus totales y los meses. "
             "Solo las fincas con alguna cifra en el periodo, de la que más produjo a la que "
-            "menos. Nada por parcela, por lote ni de existencias."
+            "menos, y por variedad de cacao. `producer` acota a un productor. Nada por parcela, "
+            "por lote ni de existencias."
         ),
         parameters=[AssociationIndicatorsQuerySerializer],
         responses={200: AssociationIndicatorsSerializer, **error_responses(400, 401, 403)},
@@ -67,5 +69,9 @@ class AssociationIndicatorsView(APIView):
     def get(self, request):
         query = AssociationIndicatorsQuerySerializer(data=request.query_params.dict())
         query.is_valid(raise_exception=True)
-        indicators = association_indicators(request.user, _period(query.validated_data))
+        indicators = association_indicators(
+            request.user,
+            _period(query.validated_data),
+            producer_id=query.validated_data.get("producer"),
+        )
         return Response(AssociationIndicatorsSerializer(indicators).data)

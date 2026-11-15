@@ -3,7 +3,7 @@
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 
-from apps.common.contracts.indicators import IndicatorPeriod, PlotMonthDried
+from apps.common.contracts.indicators import IndicatorPeriod, PlotMonthDried, VarietyKg
 
 from .models import DryingProcess
 
@@ -33,6 +33,30 @@ def dried(farm_ids, period: IndicatorPeriod) -> list[PlotMonthDried]:
             month=IndicatorPeriod.month_key(row["month"]),
             dry_kg=row["dry_kg"],
             green_kg=row["green_kg"],
+        )
+        for row in rows
+    ]
+
+
+def dried_by_variety(farm_ids, period: IndicatorPeriod) -> list[VarietyKg]:
+    """Los kg secos por variedad, con los mismos secados que `dried`."""
+    rows = (
+        DryingProcess.objects.filter(
+            ended_at__isnull=False,
+            **{
+                f"{HARVEST}__plot__farm_id__in": farm_ids,
+                f"{HARVEST}__harvest_date__range": (period.date_from, period.date_to),
+            },
+        )
+        .values(f"{HARVEST}__variety_id", f"{HARVEST}__variety__name")
+        .annotate(kg=Sum("dry_weight_kg"))
+        .order_by()
+    )
+    return [
+        VarietyKg(
+            variety_id=row[f"{HARVEST}__variety_id"],
+            name=row[f"{HARVEST}__variety__name"],
+            kg=row["kg"],
         )
         for row in rows
     ]

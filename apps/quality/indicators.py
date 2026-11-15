@@ -1,7 +1,7 @@
 """La calidad de los paneles de indicadores: lo clasificado y lo descartado por finca, con la fecha
 de cierre en el periodo, como la pestaña de lotes cerrados."""
 
-from apps.common.contracts.indicators import FarmQuality, IndicatorPeriod
+from apps.common.contracts.indicators import FarmQuality, IndicatorPeriod, VarietyQuality
 
 from .services.queries import Lot, closed_in_period, closed_kg, closed_totals
 
@@ -27,3 +27,30 @@ def _row(row: dict) -> FarmQuality:
         lots_classified=row["classified"],
         lots_discarded=row["discarded"],
     )
+
+
+def quality_by_variety(farm_ids, period: IndicatorPeriod) -> list[VarietyQuality]:
+    lots = closed_in_period(
+        Lot.objects.filter(**{f"{FARM}__in": farm_ids}),
+        {"closed_from": period.date_from, "closed_to": period.date_to},
+    )
+    rows = (
+        lots.values("harvest__variety_id", "harvest__variety__name")
+        .annotate(**closed_totals())
+        .order_by()
+    )
+    result = []
+    for row in rows:
+        kg = closed_kg(row)
+        result.append(
+            VarietyQuality(
+                variety_id=row["harvest__variety_id"],
+                name=row["harvest__variety__name"],
+                g1_kg=kg["g1_kg"],
+                g2_kg=kg["g2_kg"],
+                discard_kg=kg["discarded_kg"],
+                lots_classified=row["classified"],
+                lots_discarded=row["discarded"],
+            )
+        )
+    return result

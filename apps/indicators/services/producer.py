@@ -11,6 +11,7 @@ from apps.common.contracts.indicators import IndicatorPeriod, indicator_source
 from ..exceptions import IndicatorFarmNotFound
 from ..rules import ZERO, code_order, month_series, one_decimal, per_hectare
 from .totals import production_by_month, sales_totals, sold_by_month, sum_by, total_quality
+from .varieties import variety_rows
 
 
 def producer_indicators(actor, period: IndicatorPeriod, *, farm_id=None, producer_id=None):
@@ -23,6 +24,7 @@ def producer_indicators(actor, period: IndicatorPeriod, *, farm_id=None, produce
         "period": {"from": period.date_from, "to": period.date_to},
         "production": _production(farm_ids, period, farms),
         "quality": total_quality(indicator_source("quality")(farm_ids, period)),
+        "varieties": variety_rows(farm_ids, period),
         "inventory": _inventory(indicator_source("warehouse")(farm_ids), farms),
         "sales": {
             **sales_totals(sales),

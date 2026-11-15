@@ -5,7 +5,13 @@ from zoneinfo import ZoneInfo
 import pytest
 from django.utils import timezone
 
-from apps.common.contracts.indicators import FarmQuality, IndicatorPeriod, indicator_source
+from apps.common.contracts.indicators import (
+    FarmQuality,
+    IndicatorPeriod,
+    VarietyQuality,
+    indicator_source,
+)
+from apps.crops.tests.factories import CacaoVarietyFactory
 from apps.drying.tests.factories import DryingProcessFactory
 from apps.farms.models import Farm
 from apps.farms.tests.factories import FarmFactory
@@ -104,3 +110,51 @@ def test_lots_of_other_farms_or_still_open_do_not_count():
     lot_of(farm, LotStatus.EVALUATED)
 
     assert indicator_source("quality")(farm_ids(farm), PERIOD) == []
+
+
+def test_the_classifications_and_whole_discards_add_up_by_variety(django_assert_num_queries):
+    farm = FarmFactory()
+    variety = CacaoVarietyFactory()
+    plot = characterized_plot(farm=farm, variety=variety)
+    classified_lot = LotFactory(harvest__plot=plot, status=LotStatus.CLASSIFIED)
+    DryingProcessFactory(
+        lot=classified_lot,
+        ended_at=timezone.now(),
+        final_moisture_pct=Decimal("7.0"),
+        dry_weight_kg=Decimal("100.0"),
+        yield_pct=Decimal("35.0"),
+        total_sun_hours=Decimal("40.0"),
+    )
+    LotClassificationFactory(
+        lot=classified_lot,
+        g1_kg=Decimal("80.0"),
+        g2_kg=Decimal("15.0"),
+        discard_kg=Decimal("5.0"),
+        discard_reason="mold",
+        classified_at=at(2026, 1, 10, 9),
+    )
+    discarded = LotFactory(harvest__plot=plot, status=LotStatus.DISCARDED)
+    DryingProcessFactory(
+        lot=discarded,
+        ended_at=timezone.now(),
+        final_moisture_pct=Decimal("7.0"),
+        dry_weight_kg=Decimal("30.0"),
+        yield_pct=Decimal("35.0"),
+        total_sun_hours=Decimal("40.0"),
+    )
+    LotDiscardFactory(lot=discarded, discarded_at=at(2026, 3, 1, 9))
+
+    with django_assert_num_queries(1):
+        rows = indicator_source("quality_varieties")(farm_ids(farm), PERIOD)
+
+    assert rows == [
+        VarietyQuality(
+            variety_id=variety.pk,
+            name=variety.name,
+            g1_kg=Decimal("80.0"),
+            g2_kg=Decimal("15.0"),
+            discard_kg=Decimal("35.0"),
+            lots_classified=1,
+            lots_discarded=1,
+        )
+    ]

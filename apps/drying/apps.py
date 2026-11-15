@@ -26,6 +26,7 @@ class DryingConfig(AppConfig):
         # Los kg secos de los paneles de indicadores.
         from apps.common.contracts.indicators import register_indicator_source
 
-        from .indicators import dried
+        from .indicators import dried, dried_by_variety
 
         register_indicator_source("drying", dried)
+        register_indicator_source("drying_varieties", dried_by_variety)

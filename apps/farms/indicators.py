@@ -13,12 +13,14 @@ def farm_scope(actor, *, everyone=False, producer_id=None, farm_id=None):
 
     `everyone` pide las de todos los productores, que solo se dan a quien ya las lee todas (la
     asociación y la cuenta técnica); a cualquier otra cuenta le quedan las suyas. Sin `everyone`,
-    las del productor de `actor`, y un empleado solo las que trabaja. `producer_id` solo acota a la
-    cuenta técnica, como en las listas. Las fincas inactivas cuentan: lo que produjeron sigue
-    siendo suyo.
+    las del productor de `actor`, y un empleado solo las que trabaja. `producer_id` acota a un
+    productor: con `everyone` a quien las lee todas, y sin él solo a la cuenta técnica, como en las
+    listas. Las fincas inactivas cuentan: lo que produjeron sigue siendo suyo.
     """
     if everyone:
         farms = readable_farms(actor)
+        if producer_id is not None:
+            farms = farms.filter(producer_id=producer_id)
     else:
         farms = Farm.objects.filter(**owner_filter(actor, farm="id"))
         if producer_id is not None and actor.is_superuser:

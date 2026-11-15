@@ -16,6 +16,7 @@ class HarvestsConfig(AppConfig):
         # Los kg en baba de los paneles de indicadores.
         from apps.common.contracts.indicators import register_indicator_source
 
-        from .indicators import harvested
+        from .indicators import harvested, harvested_by_variety
 
         register_indicator_source("harvests", harvested)
+        register_indicator_source("harvest_varieties", harvested_by_variety)

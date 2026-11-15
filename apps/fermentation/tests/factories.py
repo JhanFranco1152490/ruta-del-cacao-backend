@@ -38,8 +38,9 @@ class FermentationTurnFactory(DjangoModelFactory):
 
     process = factory.SubFactory(FermentationProcessFactory)
     turned_at = factory.LazyAttributeSequence(
-        lambda turn, n: turn.process.started_at.replace(second=0, microsecond=0)
-        + timedelta(hours=n + 1)
+        lambda turn, n: (
+            turn.process.started_at.replace(second=0, microsecond=0) + timedelta(hours=n + 1)
+        )
     )
     temperature_c = Decimal("45.0")
     ph = Decimal("4.90")

@@ -43,8 +43,11 @@ def test_the_known_sources_are_the_ones_the_panels_combine():
         "farms",
         "plots",
         "harvests",
+        "harvest_varieties",
         "drying",
+        "drying_varieties",
         "quality",
+        "quality_varieties",
         "warehouse",
         "sales",
     }

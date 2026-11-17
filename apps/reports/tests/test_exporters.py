@@ -139,7 +139,9 @@ def test_the_excel_keeps_the_numbers_as_numbers():
     assert first[0] == datetime(2026, 2, 3)
     assert first[1] == 'Cacaos "del Norte", S.A.S.'
     assert (first[2], first[3], first[4], first[5]) == (1250.5, 76.3, 2775000, 3)
-    assert second[1] == '\'=HYPERLINK("http://x")'
+    assert second[1] == '=HYPERLINK("http://x")'
+    assert second[1] == sheet.cell(row=7, column=2).value
+    assert sheet.cell(row=7, column=2).data_type == "s"
     assert second[3] is None
     assert sheet.cell(row=6, column=3).number_format == "0.0"
     assert sheet.cell(row=6, column=5).number_format == "#,##0"

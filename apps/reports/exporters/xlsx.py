@@ -7,7 +7,7 @@ from datetime import datetime, time
 import xlsxwriter
 
 from ..report import COUNT, DATE, KG, MONEY, PCT
-from .common import header_lines, safe_cell
+from .common import header_lines
 
 NUMBER_FORMATS = {KG: "0.0", PCT: "0.0", MONEY: "#,##0", COUNT: "0", DATE: "dd/mm/yyyy"}
 # Excel no acepta más de 31 caracteres en el nombre de una hoja.
@@ -25,7 +25,7 @@ def write(report) -> bytes:
     }
 
     for index, line in enumerate(header_lines(report)):
-        sheet.write_string(index, 0, safe_cell(line), bold if index == 0 else None)
+        sheet.write_string(index, 0, line, bold if index == 0 else None)
     header_row = len(header_lines(report)) + 1
     widths = [len(column.label) for column in report.columns]
     for col, column in enumerate(report.columns):
@@ -50,6 +50,8 @@ def write(report) -> bytes:
 
 
 def _write(sheet, row: int, col: int, value, kind: str, formats: dict) -> None:
+    # `write_string` guarda el texto como texto: Excel no lo evalúa como fórmula, así que no lleva
+    # el apóstrofo que sí necesita el CSV.
     if value is None:
         sheet.write_blank(row, col, None)
     elif kind == DATE:
@@ -57,4 +59,4 @@ def _write(sheet, row: int, col: int, value, kind: str, formats: dict) -> None:
     elif kind in formats:
         sheet.write_number(row, col, float(value), formats[kind])
     else:
-        sheet.write_string(row, col, safe_cell(str(value)))
+        sheet.write_string(row, col, str(value))

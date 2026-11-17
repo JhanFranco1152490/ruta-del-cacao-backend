@@ -666,8 +666,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     CSV). Los tres llevan el tipo, los filtros, la fecha y quién lo generó (su nombre, no su
     correo), y un bloque de totales. El CSV va en UTF-8 con BOM, con números sin formato; el Excel,
     con números como número; el PDF, con formato colombiano (`1.250,5`, `$ 2.775.000`), horizontal
-    con más de 7 columnas. En CSV y Excel, un texto que empieza con `=`, `+`, `-`, `@`, tabulador o
-    retorno lleva un apóstrofo delante para que la hoja de cálculo no lo ejecute.
+    con más de 7 columnas. En el CSV, un texto que empieza con `=`, `+`, `-`, `@`, tabulador o
+    retorno lleva un apóstrofo delante para que la hoja de cálculo no lo ejecute; el Excel lo guarda
+    como texto y no lo necesita.
   - Una app con un dato nuevo para los reportes del productor agrega su fuente de filas en
     `apps/common/contracts/reports.py` (nombre fijo en `REPORT_SOURCES`) y la registra en su
     `ready()`; `reports` nunca lee sus modelos.

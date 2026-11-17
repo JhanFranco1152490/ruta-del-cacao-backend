@@ -13,12 +13,9 @@ def farm_scope(actor, *, everyone=False, producer_id=None, farm_id=None, municip
 
     `everyone` pide las de todos los productores, que solo se dan a quien ya las lee todas (la
     asociación y la cuenta técnica); a cualquier otra cuenta le quedan las suyas. Sin `everyone`,
-    las del productor de `actor`, y un empleado solo las que trabaja. Las fincas inactivas cuentan:
-    lo que produjeron sigue siendo suyo.
-
-    `producer_id` acota entre todas (los reportes de la asociación) o, sin `everyone`, solo a la
-    cuenta técnica, como en las listas: un productor que lo mande sigue viendo lo suyo. Entre
-    todas no amplía a nadie, porque se aplica sobre lo que `actor` ya lee.
+    las del productor de `actor`, y un empleado solo las que trabaja. `producer_id` acota a un
+    productor: con `everyone` a quien las lee todas, y sin él solo a la cuenta técnica, como en las
+    listas. Las fincas inactivas cuentan: lo que produjeron sigue siendo suyo.
     """
     if everyone:
         farms = readable_farms(actor)

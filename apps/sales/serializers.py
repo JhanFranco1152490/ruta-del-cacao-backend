@@ -63,7 +63,6 @@ class SaleVoidSerializer(serializers.Serializer):
 
 # Una venta como la muestra la lista: sin sus líneas, con sus kilos y su total.
 class SaleListItemSerializer(serializers.Serializer):
-
     id = serializers.UUIDField()
     code = serializers.CharField()
     farm = SaleFarmSerializer()
@@ -93,7 +92,6 @@ class SaleListItemSerializer(serializers.Serializer):
 
 # La ficha de una venta, con sus líneas.
 class SaleSerializer(SaleListItemSerializer):
-
     lines = SaleLineSerializer(many=True)
 
 

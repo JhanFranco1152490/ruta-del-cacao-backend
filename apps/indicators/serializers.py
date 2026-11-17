@@ -110,16 +110,27 @@ class ProducerSalesSerializer(serializers.Serializer):
     months = SalesMonthSerializer(many=True)
 
 
+class VarietyFiguresSerializer(QualitySplitSerializer):
+    variety_id = serializers.UUIDField()
+    variety_name = serializers.CharField()
+    green_kg = _kg()
+    dry_kg = _kg()
+
+
 class ProducerIndicatorsSerializer(serializers.Serializer):
     period = IndicatorPeriodSerializer()
     production = ProducerProductionSerializer()
     quality = ProducerQualitySerializer()
+    varieties = VarietyFiguresSerializer(many=True)
     inventory = ProducerInventorySerializer()
     sales = ProducerSalesSerializer()
 
 
 class AssociationIndicatorsQuerySerializer(PeriodQuerySerializer):
     max_days = 366
+
+    def extra_fields(self):
+        return {"producer": serializers.UUIDField(required=False)}
 
 
 class AssociationTotalsSerializer(QualitySplitSerializer):
@@ -153,3 +164,4 @@ class AssociationIndicatorsSerializer(serializers.Serializer):
     totals = AssociationTotalsSerializer()
     months = AssociationMonthSerializer(many=True)
     farms = AssociationFarmSerializer(many=True)
+    varieties = VarietyFiguresSerializer(many=True)

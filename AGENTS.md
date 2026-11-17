@@ -620,7 +620,13 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     lo tiene el Administrador): una fila por finca con alguna cifra en el periodo (también de un
     productor inactivo), de la que más kg en baba tiene a la que menos, con su productor
     (`FarmProducerSerializer`). Nunca pide las fuentes de parcelas ni de bodega: no hay nada por
-    parcela, por lote ni de existencias en la respuesta.
+    parcela, por lote ni de existencias en la respuesta. `producer` acota el panel a un productor (un
+    productor sin fincas deja el panel vacío, no da error).
+  - **Por variedad de cacao:** los dos paneles traen `varieties`, una fila por variedad con alguna
+    cifra en el periodo (kg en baba, kg secos y el reparto de calidad), de la que más kg en baba
+    tiene a la que menos. Sale de la variedad de cada cosecha: el seco y la calidad de un lote cuentan
+    para la variedad de su cosecha. Son tres fuentes más (`harvest_varieties`, `drying_varieties`,
+    `quality_varieties`), una consulta cada una sin importar cuántas variedades haya.
   - Una app con un dato nuevo para los paneles agrega su fuente en
     `apps/common/contracts/indicators.py` (nombre fijo en `INDICATOR_SOURCES`, filas como
     dataclasses) y la registra en su `ready()`; `indicators` nunca lee sus modelos. Las fincas se

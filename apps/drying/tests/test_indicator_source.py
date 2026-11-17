@@ -4,7 +4,13 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 
-from apps.common.contracts.indicators import IndicatorPeriod, PlotMonthDried, indicator_source
+from apps.common.contracts.indicators import (
+    IndicatorPeriod,
+    PlotMonthDried,
+    VarietyKg,
+    indicator_source,
+)
+from apps.crops.tests.factories import CacaoVarietyFactory
 from apps.drying.tests.factories import DryingProcessFactory
 from apps.farms.models import Farm
 from apps.farms.tests.factories import FarmFactory
@@ -78,3 +84,18 @@ def test_the_dryings_of_harvests_outside_the_period_or_the_farms_do_not_count():
     )
 
     assert indicator_source("drying")(farm_ids(farm), PERIOD) == []
+
+
+def test_the_dry_kg_are_added_by_variety(django_assert_num_queries):
+    farm = FarmFactory()
+    variety = CacaoVarietyFactory()
+    plot = characterized_plot(farm=farm, variety=variety)
+    dried(HarvestFactory(plot=plot, harvest_date=date(2026, 1, 5)), Decimal("30.0"))
+    dried(HarvestFactory(plot=plot, harvest_date=date(2026, 3, 5)), Decimal("12.5"))
+    # Sin terminar el secado no hay kg secos.
+    DryingProcessFactory(lot__harvest=HarvestFactory(plot=plot, harvest_date=date(2026, 2, 1)))
+
+    with django_assert_num_queries(1):
+        rows = indicator_source("drying_varieties")(farm_ids(farm), PERIOD)
+
+    assert rows == [VarietyKg(variety_id=variety.pk, name=variety.name, kg=Decimal("42.5"))]

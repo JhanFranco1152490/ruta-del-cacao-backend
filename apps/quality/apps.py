@@ -23,9 +23,10 @@ class QualityConfig(AppConfig):
         # Lo clasificado y lo descartado, para los paneles de indicadores.
         from apps.common.contracts.indicators import register_indicator_source
 
-        from .indicators import quality_by_farm
+        from .indicators import quality_by_farm, quality_by_variety
 
         register_indicator_source("quality", quality_by_farm)
+        register_indicator_source("quality_varieties", quality_by_variety)
 
         # Los lotes cerrados uno por uno, para los reportes del productor.
         from apps.common.contracts.reports import register_report_source

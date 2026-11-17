@@ -13,10 +13,11 @@ from apps.common.figures import ZERO, one_decimal, quality_split
 
 from ..rules import month_series
 from .totals import production_by_month, sales_totals, sold_by_month, total_quality
+from .varieties import variety_rows
 
 
-def association_indicators(actor, period: IndicatorPeriod) -> dict:
-    farm_ids = indicator_source("farm_scope")(actor, everyone=True)
+def association_indicators(actor, period: IndicatorPeriod, *, producer_id=None) -> dict:
+    farm_ids = indicator_source("farm_scope")(actor, everyone=True, producer_id=producer_id)
     harvested = indicator_source("harvests")(farm_ids, period)
     dried = indicator_source("drying")(farm_ids, period)
     quality = indicator_source("quality")(farm_ids, period)
@@ -42,6 +43,7 @@ def association_indicators(actor, period: IndicatorPeriod) -> dict:
             ("green_kg", "dry_kg", "sold_kg"),
         ),
         "farms": rows,
+        "varieties": variety_rows(farm_ids, period),
     }
 
 

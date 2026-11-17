@@ -23,8 +23,11 @@ INDICATOR_SOURCES = frozenset(
         "farms",
         "plots",
         "harvests",
+        "harvest_varieties",
         "drying",
+        "drying_varieties",
         "quality",
+        "quality_varieties",
         "warehouse",
         "sales",
     }
@@ -131,6 +134,29 @@ class FarmMonthSales:
     g1_kg: Decimal
     g2_kg: Decimal
     sales: int
+
+
+@dataclass(frozen=True)
+class VarietyKg:
+    """Los kg de una variedad en el periodo: en baba (cosechas) o secos (secados terminados, en el
+    mes de su cosecha), según la fuente que la devuelve."""
+
+    variety_id: Any
+    name: str
+    kg: Decimal
+
+
+@dataclass(frozen=True)
+class VarietyQuality:
+    """Lo clasificado y lo descartado de los lotes cuya cosecha es de esta variedad."""
+
+    variety_id: Any
+    name: str
+    g1_kg: Decimal
+    g2_kg: Decimal
+    discard_kg: Decimal
+    lots_classified: int
+    lots_discarded: int
 
 
 def register_indicator_source(name: str, source: Callable[..., Any]) -> None:

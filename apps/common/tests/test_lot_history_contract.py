@@ -11,6 +11,7 @@ from apps.common.contracts.lot_history import (
     lot_history_source,
     register_lot_history_source,
     register_stage_serializer,
+    stage_days,
     stage_serializers,
 )
 from apps.common.contracts.sources import SourceRegistry
@@ -101,3 +102,18 @@ def test_each_kind_builds_a_new_serializer_for_its_data(empty_registries):
 def test_a_serializer_for_an_unknown_kind_cannot_be_registered(empty_registries):
     with pytest.raises(ValueError):
         register_stage_serializer("activity", _Data)
+
+
+def test_the_days_of_a_stage_count_local_days_from_start_to_end():
+    started = datetime(2026, 3, 15, 12, 0, tzinfo=UTC)
+    # Las 3:00 UTC del 21 todavía son el 20 en Bogotá.
+    ended = datetime(2026, 3, 21, 3, 0, tzinfo=UTC)
+
+    assert stage_days(started, ended, today=date(2026, 4, 1)) == 5
+
+
+def test_a_running_stage_counts_its_days_until_today():
+    started = datetime(2026, 3, 15, 12, 0, tzinfo=UTC)
+
+    assert stage_days(started, None, today=date(2026, 3, 18)) == 3
+    assert stage_days(started, None, today=date(2026, 3, 15)) == 0

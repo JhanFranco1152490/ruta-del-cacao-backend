@@ -80,6 +80,13 @@ class LotHistoryStage:
         return cls(kind, occurred_on, None, recorded_at, data)
 
 
+def stage_days(started_at: datetime, ended_at: datetime | None, *, today: date) -> int:
+    """Cuántos días lleva o duró una etapa, contados por fecha local: de la de inicio a la de fin,
+    o a hoy si sigue en curso."""
+    end = timezone.localdate(ended_at) if ended_at is not None else today
+    return (end - timezone.localdate(started_at)).days
+
+
 @dataclass(frozen=True)
 class LotStock:
     """Lo que le queda hoy en bodega a un lote que ingresó. Un calibre agotado, o que no ingresó,

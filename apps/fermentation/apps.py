@@ -32,3 +32,14 @@ class FermentationConfig(AppConfig):
         from .reports import fermentation_dates
 
         register_report_source("fermentation_dates", fermentation_dates)
+
+        # La fermentación como etapa de la historia del lote, con sus volteos.
+        from apps.common.contracts.lot_history import (
+            register_lot_history_source,
+            register_stage_serializer,
+        )
+
+        from .history import FermentationStageSerializer, fermentation_history
+
+        register_lot_history_source("fermentation_history", fermentation_history)
+        register_stage_serializer("fermentation", FermentationStageSerializer)

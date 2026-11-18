@@ -8,8 +8,8 @@ from .models import Farm
 from .services.scope import readable_farms
 
 
-def farm_scope(actor, *, everyone=False, producer_id=None, farm_id=None):
-    """Los ids de las fincas del panel, como subconsulta.
+def farm_scope(actor, *, everyone=False, producer_id=None, farm_id=None, municipality_code=None):
+    """Los ids de las fincas de un panel o un reporte, como subconsulta.
 
     `everyone` pide las de todos los productores, que solo se dan a quien ya las lee todas (la
     asociación y la cuenta técnica); a cualquier otra cuenta le quedan las suyas. Sin `everyone`,
@@ -27,6 +27,8 @@ def farm_scope(actor, *, everyone=False, producer_id=None, farm_id=None):
             farms = farms.filter(producer_id=producer_id)
     if farm_id is not None:
         farms = farms.filter(pk=farm_id)
+    if municipality_code is not None:
+        farms = farms.filter(municipality_code=municipality_code)
     return farms.values("pk")
 
 
@@ -42,6 +44,8 @@ def scoped_farms(farm_ids) -> list[ScopedFarm]:
             producer_member_code=farm.producer.member_code,
             producer_first_name=farm.producer.first_name,
             producer_last_name=farm.producer.last_name,
+            is_active=farm.is_active,
+            producer_is_active=farm.producer.status == farm.producer.Status.ACTIVE,
         )
         for farm in farms
     ]

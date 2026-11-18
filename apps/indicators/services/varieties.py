@@ -1,9 +1,7 @@
 """Lo que cada variedad de cacao produjo y dejó de calidad en el periodo, para los dos paneles."""
 
 from apps.common.contracts.indicators import IndicatorPeriod, indicator_source
-
-from ..rules import ZERO, one_decimal, quality_split
-from .totals import sum_by
+from apps.common.figures import ZERO, one_decimal, quality_split, sum_by
 
 
 def variety_rows(farm_ids, period: IndicatorPeriod) -> list[dict]:

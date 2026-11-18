@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from ..rules import ZERO, one_decimal, quality_split
+from apps.common.figures import ZERO, one_decimal, quality_split, sum_by
 
 
 def total_quality(rows) -> dict:
@@ -43,11 +43,3 @@ def sold_by_month(rows) -> dict[str, dict]:
     for row in rows:
         months[row.month]["sold_kg"] += row.g1_kg + row.g2_kg
     return dict(months)
-
-
-def sum_by(rows, key: str, value: str) -> dict:
-    """La suma de `value` de las filas agrupadas por `key`, sin las claves que no aparecen."""
-    totals = defaultdict(lambda: ZERO)
-    for row in rows:
-        totals[getattr(row, key)] += getattr(row, value)
-    return dict(totals)

@@ -17,6 +17,7 @@ WITHOUT_ADMIN: dict[str, str] = {
     "indicators.IndicatorAccess": (
         "No tiene tabla ni filas: solo declara los permisos de los paneles de indicadores."
     ),
+    "reports.ReportAccess": "No tiene tabla ni filas: solo declara los permisos de los reportes.",
 }
 
 

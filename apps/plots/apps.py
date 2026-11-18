@@ -18,3 +18,10 @@ class PlotsConfig(AppConfig):
         from .indicators import plot_areas
 
         register_indicator_source("plots", plot_areas)
+
+        # Que la parcela de un filtro de reportes exista y esté en el alcance.
+        from apps.common.contracts.reports import register_report_source
+
+        from .reports import plot_in_scope
+
+        register_report_source("plot_in_scope", plot_in_scope)

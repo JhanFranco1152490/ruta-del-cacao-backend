@@ -20,3 +20,10 @@ class HarvestsConfig(AppConfig):
 
         register_indicator_source("harvests", harvested)
         register_indicator_source("harvest_varieties", harvested_by_variety)
+
+        # Las cosechas una por una, para los reportes del productor.
+        from apps.common.contracts.reports import register_report_source
+
+        from .reports import harvest_rows
+
+        register_report_source("harvest_rows", harvest_rows)

@@ -47,6 +47,7 @@ from .drying import seed_dryings
 from .postharvest import seed_fermentations
 from .postharvest_alerts import seed_postharvest_alerts
 from .quality import seed_quality
+from .reports import seed_reports
 from .warehouse import seed_warehouse
 
 MONITORING = ActivityType.PHYTOSANITARY_MONITORING
@@ -75,6 +76,7 @@ def seed_operations(owner: User, restore_account) -> list[str]:
     # que quedan libres.
     notes += seed_quality(owner, foreman, plot, restore_account)
     notes += seed_warehouse(owner, foreman, plot)
+    notes += seed_reports(owner, foreman)
     return [note for note in notes if note]
 
 

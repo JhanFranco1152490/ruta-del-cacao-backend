@@ -118,5 +118,7 @@ def register_stage_serializer(kind: str, factory: Callable[[], Any]) -> None:
     _serializers[kind] = factory
 
 
-def stage_serializers() -> dict[str, Any]:
-    return {kind: factory() for kind, factory in _serializers.items()}
+def stage_serializers(**kwargs) -> dict[str, Any]:
+    """Un serializer nuevo por tipo, creado con `kwargs` (por ejemplo, `source`): se pasan al
+    crearlo porque DRF copia los campos volviendo a construirlos con sus argumentos."""
+    return {kind: factory(**kwargs) for kind, factory in _serializers.items()}

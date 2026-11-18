@@ -21,3 +21,11 @@ class LotsConfig(AppConfig):
         register_report_source("lot_in_scope", lot_in_scope)
         # Los lotes uno por uno, para el reporte de trazabilidad.
         register_report_source("lot_rows", lot_rows)
+
+        # La cosecha y el conformado, las etapas de la historia que son del propio lote.
+        from apps.common.contracts.lot_history import register_stage_serializer
+
+        from .history import HarvestStageSerializer, LotCreatedStageSerializer
+
+        register_stage_serializer("harvest", HarvestStageSerializer)
+        register_stage_serializer("lot_created", LotCreatedStageSerializer)

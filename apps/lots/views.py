@@ -10,6 +10,7 @@ from apps.common.permissions import ActionPermission
 from apps.common.schema import error_responses
 
 from .exceptions import HarvestAlreadyInLot, StaleLotVersion
+from .history_serializers import LotHistorySerializer
 from .serializers import (
     LotConflictErrorSerializer,
     LotCreateSerializer,
@@ -21,6 +22,7 @@ from .serializers import (
 )
 from .services.create import create_lot
 from .services.delete import delete_lot
+from .services.history import lot_history
 from .services.queries import get_lot, list_lots, lot_summary
 
 
@@ -83,6 +85,7 @@ class LotViewSet(GenericViewSet):
         "create": "lots.add_lot",
         "destroy": "lots.delete_lot",
         "summary": "lots.view_lot",
+        "history": "lots.view_lot",
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -135,6 +138,21 @@ class LotViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         totals = lot_summary(request.user, query.validated_data)
         return Response(LotSummarySerializer({"results": totals}).data)
+
+    @extend_schema(
+        description=(
+            "La historia del lote: la cosecha y el origen, el conformado y cada etapa que pasó "
+            "(fermentación, secado, evaluación, clasificación o descarte, ingreso, cambios de "
+            "lugar, salidas y ventas), de la más antigua a la más reciente, y su estado actual. "
+            "Cada etapa trae sus datos bajo la clave de su `kind`. Lo anulado sigue en la "
+            "historia, marcado; las salidas por venta van en su venta. Sin precios. Un lote que "
+            "no existe o que la cuenta no alcanza responde el mismo 404."
+        ),
+        responses={200: LotHistorySerializer, **error_responses(401, 403, 404)},
+    )
+    @action(detail=True, methods=["get"], pagination_class=None)
+    def history(self, request, pk):
+        return Response(LotHistorySerializer(lot_history(request.user, pk)).data)
 
     def handle_exception(self, exc):
         # El servicio lanza el conflicto con el lote del dominio; aquí se convierte en lo que el

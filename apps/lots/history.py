@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from rest_framework import serializers
+
 from apps.common.contracts.lot_history import LotHistoryStage
 from apps.common.serializers import full_name
 
@@ -49,3 +51,15 @@ def created_stage(lot) -> LotHistoryStage:
         recorded_at=lot.created_at,
         data=LotCreatedData(created_by=None if account is None else full_name(account)),
     )
+
+
+class HarvestStageSerializer(serializers.Serializer):
+    harvest_id = serializers.UUIDField()
+    variety = serializers.CharField()
+    characterization_version = serializers.IntegerField()
+    collector = serializers.CharField()
+    green_weight_kg = serializers.DecimalField(max_digits=7, decimal_places=1)
+
+
+class LotCreatedStageSerializer(serializers.Serializer):
+    created_by = serializers.CharField(allow_null=True)

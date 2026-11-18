@@ -117,3 +117,18 @@ def test_a_running_stage_counts_its_days_until_today():
 
     assert stage_days(started, None, today=date(2026, 3, 18)) == 3
     assert stage_days(started, None, today=date(2026, 3, 15)) == 0
+
+
+def test_every_history_source_was_registered_by_its_app():
+    for name in LOT_HISTORY_SOURCES:
+        assert callable(lot_history_source(name))
+
+
+def test_every_kind_of_stage_has_its_serializer():
+    assert set(stage_serializers()) == set(STAGE_KINDS)
+
+
+def test_the_serializers_are_built_with_what_they_are_given(empty_registries):
+    register_stage_serializer("sale", _Data)
+
+    assert stage_serializers(source="data")["sale"].source == "data"

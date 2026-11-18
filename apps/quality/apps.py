@@ -35,3 +35,21 @@ class QualityConfig(AppConfig):
 
         register_report_source("quality_by_lot", quality_by_lot)
         register_report_source("quality_rows", quality_rows)
+
+        # La evaluación, la clasificación y el descarte como etapas de la historia del lote.
+        from apps.common.contracts.lot_history import (
+            register_lot_history_source,
+            register_stage_serializer,
+        )
+
+        from .history import (
+            ClassificationStageSerializer,
+            DiscardStageSerializer,
+            EvaluationStageSerializer,
+            quality_history,
+        )
+
+        register_lot_history_source("quality_history", quality_history)
+        register_stage_serializer("evaluation", EvaluationStageSerializer)
+        register_stage_serializer("classification", ClassificationStageSerializer)
+        register_stage_serializer("discard", DiscardStageSerializer)

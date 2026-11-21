@@ -194,7 +194,7 @@ AXES_DISABLE_ACCESS_LOG = True
 # REMOTE_ADDR y con proxies cuenta solo los saltos de confianza desde la derecha de
 # X-Forwarded-For. Así las dos ven siempre la misma IP y el cliente no puede inventarse una
 # para esquivar el bloqueo.
-AXES_CLIENT_IP_CALLABLE = "apps.accounts.auth.axes.client_ip"
+AXES_CLIENT_IP_CALLABLE = "apps.common.client_ip.client_ip"
 # axes guarda los parámetros del POST en claro salvo estos; con peticiones de formulario
 # llegarían el correo y el documento. También los enmascara en sus logs.
 AXES_SENSITIVE_PARAMETERS = ["username", "ip_address", "email", "identity_document"]
@@ -227,6 +227,7 @@ REST_FRAMEWORK = {
         "password_reset_confirm": "5/hour",
         "activation_confirm": "5/hour",
         "activation_resend": "10/hour",
+        "public_traceability": "60/min",
     },
 }
 

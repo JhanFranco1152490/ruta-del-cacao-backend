@@ -31,6 +31,7 @@ def visible_lots(actor) -> QuerySet[Lot]:
         "harvest__collector",
         "harvest__registered_by",
         "created_by",
+        "qr_code",
     )
 
 

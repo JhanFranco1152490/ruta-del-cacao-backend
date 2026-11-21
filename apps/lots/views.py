@@ -16,6 +16,7 @@ from .serializers import (
     LotCreateSerializer,
     LotDeleteQuerySerializer,
     LotListQuerySerializer,
+    LotQrSerializer,
     LotSerializer,
     LotSummaryQuerySerializer,
     LotSummarySerializer,
@@ -23,6 +24,7 @@ from .serializers import (
 from .services.create import create_lot
 from .services.delete import delete_lot
 from .services.history import lot_history
+from .services.qr import generate_lot_qr
 from .services.queries import get_lot, list_lots, lot_summary
 
 
@@ -86,6 +88,7 @@ class LotViewSet(GenericViewSet):
         "destroy": "lots.delete_lot",
         "summary": "lots.view_lot",
         "history": "lots.view_lot",
+        "qr": "lots.add_lotqrcode",
     }
     filter_backends = []
     lookup_value_converter = "uuid"
@@ -153,6 +156,21 @@ class LotViewSet(GenericViewSet):
     @action(detail=True, methods=["get"], pagination_class=None)
     def history(self, request, pk):
         return Response(LotHistorySerializer(lot_history(request.user, pk)).data)
+
+    @extend_schema(
+        description=(
+            "Genera el código QR del lote: un token aleatorio y la dirección pública de su "
+            "trazabilidad, que es lo que el QR lleva. Solo un lote Clasificado o En bodega; en "
+            "otro estado, 409 `lot_not_classified` con `current_status`. Uno por lote: si ya "
+            "tiene, 409 `lot_qr_already_exists` (el existente viene en `qr` del lote). Sin cuerpo."
+        ),
+        request=None,
+        responses={201: LotQrSerializer, **error_responses(401, 403, 404, 409)},
+    )
+    @action(detail=True, methods=["post"])
+    def qr(self, request, pk):
+        qr = generate_lot_qr(request.user, pk)
+        return Response(LotQrSerializer(qr).data, status=status.HTTP_201_CREATED)
 
     def handle_exception(self, exc):
         # El servicio lanza el conflicto con el lote del dominio; aquí se convierte en lo que el

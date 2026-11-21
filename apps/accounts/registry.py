@@ -65,6 +65,7 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "lots.view_lot": PermissionInfo(area="lots", delegable=True),
     "lots.add_lot": PermissionInfo(area="lots", delegable=True),
     "lots.delete_lot": PermissionInfo(area="lots", delegable=True),
+    "lots.add_lotqrcode": PermissionInfo(area="lots", delegable=True),
     # No delegable: el catálogo de plagas y enfermedades es común a toda la asociación, como el de
     # variedades.
     "health.manage_pestdisease": PermissionInfo(area="health", delegable=False),
@@ -206,6 +207,8 @@ PERMISSION_DEPENDENCIES: dict[str, str] = {
     "lots.view_lot": "harvests.view_harvest",
     "lots.add_lot": "lots.view_lot",
     "lots.delete_lot": "lots.view_lot",
+    # El QR se genera desde la ficha del lote.
+    "lots.add_lotqrcode": "lots.view_lot",
     # Los cajones y marquesinas se consultan eligiendo primero la finca: sin verlas no hay cómo
     # llegar a ellos.
     "facilities.view_postharvestfacility": "farms.view_farm",

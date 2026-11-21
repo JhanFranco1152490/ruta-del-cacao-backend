@@ -59,6 +59,31 @@ class Lot(models.Model):
         ]
 
 
+class LotQrCode(models.Model):
+    """El código QR de un lote: un token aleatorio que abre su trazabilidad pública sin sesión. Uno
+    por lote; no se edita, no se reemplaza y no se recicla, porque queda impreso en los sacos."""
+
+    lot = models.OneToOneField(Lot, on_delete=models.PROTECT, related_name="qr_code")
+    # Va en la dirección del QR en lugar del código del lote, que se adivina y lleva el código de
+    # socio del productor.
+    token = models.CharField(max_length=16, unique=True, editable=False)
+    created_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.token
+
+    class Meta:
+        ordering = ["-created_at"]
+        default_permissions = ()
+        permissions = [("add_lotqrcode", "Puede generar el código QR de un lote")]
+
+
 class LotCodeSequence(models.Model):
     """El último consecutivo de lote de una parcela en un día de cosecha. No baja al eliminar un
     lote: así el consecutivo no se recicla."""

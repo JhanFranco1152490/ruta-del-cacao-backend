@@ -4,7 +4,7 @@ from factory.django import DjangoModelFactory
 from apps.accounts.tests.factories import UserFactory
 from apps.harvests.tests.factories import HarvestFactory
 from apps.lots.code import build_lot_code
-from apps.lots.models import Lot
+from apps.lots.models import Lot, LotQrCode
 
 
 class LotFactory(DjangoModelFactory):
@@ -26,4 +26,15 @@ class LotFactory(DjangoModelFactory):
             lot.harvest.harvest_date,
             n + 1,
         )
+    )
+
+
+class LotQrCodeFactory(DjangoModelFactory):
+    class Meta:
+        model = LotQrCode
+
+    lot = factory.SubFactory(LotFactory)
+    token = factory.Sequence(lambda n: f"tok{n:013d}")
+    created_by = factory.SubFactory(
+        UserFactory, producer=factory.SelfAttribute("..lot.harvest.plot.farm.producer")
     )

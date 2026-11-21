@@ -46,7 +46,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | Ruta               | Qué contiene                                                                    |
 | ------------------ | ------------------------------------------------------------------------------- |
 | `config/`          | Ajustes, URLs raíz, WSGI/ASGI                                                   |
-| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store`, vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), las etapas que cada app aporta a la historia de un lote (`lot_history.py`: fuentes con nombre fijo, `STAGE_KINDS` en el orden del proceso, `LotHistoryStage`, `stage_days` y el serializer de cada tipo), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`), las fuentes de cifras de los paneles de indicadores (`indicators.py`: cada app registra la suya y devuelve filas ya agregadas), las fuentes de filas de los reportes del productor (`reports.py`), el registro de fuentes con nombre fijo que usan (`sources.py`) y lo demás que comparten dos apps. Fuera de `contracts/`, las cuentas puras de las cifras sumadas (`figures.py`: redondeo, porcentajes, orden de códigos) y las cifras por finca que comparten el panel y los reportes de la asociación (`farm_figures.py`) |
+| `apps/common/`     | Lo transversal: `ApiError` y el manejador de errores, paginación, permisos por acción, CSRF, validadores, catálogo de municipios, área de un polígono (`geo.py`), base de los historiales de auditoría, bloqueo de la raíz de una finca (`locks.py`), las horas entre dos momentos con un decimal (`hours.py`, que usan la fermentación y el secado), guardado con restricción única y `has_records` de lo que se elimina por error, como `Exists` para anotar una consulta (`db.py`), pasos comunes de editar con `version` (`versioning.py`) y de auditar la edición (`record_update_events`), middleware `no-store` (que respeta la caché de una vista solo bajo `/api/public/`), la IP del cliente y el límite de solicitudes por IP (`client_ip.py`: `client_ip`, que usan axes y los límites, y `ClientIPThrottle`), vistas 404/500 en JSON, el almacenamiento de archivos en la base (`storage.py`, con su tabla `StoredFile`) y lo común a un archivo subido: su formato por los primeros bytes, el tamaño que declara el cuerpo y su nombre sin la carpeta (`files.py`, que usan las evidencias y el soporte de una venta). En `contracts/`, lo que una app ofrece a las demás sin que se importen: los registros de dependientes (`dependents.py` y los de finca, parcela y productor), las representaciones de una actividad y de una cosecha (`activity_details.py`, `activity_representation.py`, `harvest_representation.py`), los campos que otras apps suman a un lote (`lot_details.py`), las etapas que cada app aporta a la historia de un lote (`lot_history.py`: fuentes con nombre fijo, `STAGE_KINDS` en el orden del proceso, `LotHistoryStage`, `stage_days` y el serializer de cada tipo), cómo se nombra un lote en un aviso (`lot_representation.py`), las alertas (`alerts.py`: evaluadores, `notify`, `resolve`, `withdraw`, `Deviation` y `deviation_drafts`), quién alcanza una finca con un permiso (`schedulers.py`: `FarmAccounts`, y `Schedulers` para programar), quién responde por una labor (`assignable.py`), los parámetros de poscosecha vigentes de un productor (`postharvest_parameters.py`), las fuentes de cifras de los paneles de indicadores (`indicators.py`: cada app registra la suya y devuelve filas ya agregadas), las fuentes de filas de los reportes del productor (`reports.py`), el registro de fuentes con nombre fijo que usan (`sources.py`) y lo demás que comparten dos apps. Fuera de `contracts/`, las cuentas puras de las cifras sumadas (`figures.py`: redondeo, porcentajes, orden de códigos) y las cifras por finca que comparten el panel y los reportes de la asociación (`farm_figures.py`) |
 | `apps/accounts/`   | Usuario (se identifica por correo), sesión, recuperación de contraseña, bloqueo por intentos, eventos de autenticación |
 | `apps/producers/`  | Productores: alta, consulta, edición y cambio de estado                         |
 | `apps/farms/`      | Fincas, con su código consecutivo por productor (`F02`): alta (también sin conexión), consulta, edición, activación y su auditoría, y los conteos y puntos del mapa por municipios. El productor y sus empleados ven las suyas; la asociación lee las de todos (`services/scope.py`) |
@@ -55,7 +55,7 @@ variables de entorno (`python-decouple`, ver "Variables de entorno").
 | `apps/crops/`      | Catálogo común de variedades de cacao (lo administra la asociación; viene cargado por una migración de datos) y la ficha agronómica de cada parcela: sus siembras (variedad, fecha, árboles, propagación y etapa; la misma variedad puede tener varias tandas), manejo y sombra. La ficha se registra o reemplaza completa (también sin conexión) y su historial guarda los valores de cada versión |
 | `apps/inputs/`     | Catálogo de insumos agrícolas de cada productor (nombre, tipo, unidad y presentación): alta, consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y un historial que guarda el valor anterior y nuevo de cada campo, que sobrevive al borrado; y su inventario por finca (existencias y movimientos de entrada, conteo y salida) |
 | `apps/harvests/`   | Cosechas: una recolección en una parcela y fecha, con su peso en verde, su variedad (de la ficha de la parcela) y su recolector. Registrar (también desde la cola sin conexión), consultar por mes, corregir y eliminar mientras no formen un lote, con su historial de valor anterior y nuevo |
-| `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`Lot.advance_status`, que llama a `advance_lot_status`). Conformar es solo en línea. La historia del lote junta las etapas que aportan las apps del proceso por `lot_history`, sin importarlas |
+| `apps/lots/`       | Lotes: el lote de una cosecha, con su código de trazabilidad (`000123-F02-P05-261014-1`), su consecutivo por parcela y día que no se recicla y la cadena de estados que fermentación y secado usan sin redefinirla (`Lot.advance_status`, que llama a `advance_lot_status`). Conformar es solo en línea. La historia del lote junta las etapas que aportan las apps del proceso por `lot_history`, sin importarlas. El código QR de un lote clasificado (`LotQrCode`) y su trazabilidad pública sin sesión (`/api/public/lots/{token}`) |
 | `apps/facilities/` | Infraestructura de poscosecha: los cajones de fermentación y las marquesinas de secado de cada finca, con su capacidad en kg de cacao en baba. Alta (solo en línea), consulta, edición, activación, eliminación de lo creado por error (si ningún registro lo usa) y su historial, que sobrevive al borrado. Fermentación y secado los ocupan y liberan con `occupy` y `release`, que son métodos del modelo |
 | `apps/fermentation/` | Fermentación del lote: iniciarla en un cajón de la finca del lote (con confirmación si el lote pesa más que la capacidad), corregir el inicio mientras no haya volteos, los volteos con temperatura y pH (también desde la cola sin conexión; corregir y eliminar mientras dura) y finalizarla. El lote pasa de Generado a En fermentación y a Fermentado, y el cajón se ocupa y se libera, en la misma transacción. Suma el campo `fermentation` al lote por `lot_details`. En `alerts.py`, la regla del próximo volteo, el evaluador de los volteos pendientes y los desvíos de temperatura y de pH del grano de cada volteo |
 | `apps/postharvest_parameters/` | Parámetros de poscosecha de cada productor (secado: humedad de entrada y meta, días estimados y umbrales de las alertas de desvío; fermentación: cuándo toca cada volteo y la temperatura y el pH de referencia): consultar con la línea base al lado, guardar los veintiún valores juntos y restablecer la línea base, con su historial. Las demás apps los leen con `drying_parameters(producer_id)` y `fermentation_parameters(producer_id)` de `apps/common/contracts/postharvest_parameters.py` |
@@ -129,7 +129,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   `input_shared`, `harvest_in_lot`, `harvest_already_in_lot`, `harvest_id_conflict`,
   `lot_id_conflict`, `lot_invalid_status`, `duplicate_pest_disease_name`, `evidence_requires_done`,
   `evidence_limit_reached`, `fermentation_has_turns`, `fermentation_not_in_progress`,
-  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time`, `buyer_has_records`, `sale_voided` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
+  `fermentation_without_turns`, `turn_id_conflict`, `duplicate_turn_time`, `buyer_has_records`, `sale_voided`,
+  `lot_not_classified`, `lot_qr_already_exists` (409), `role_scope_conflict` (400), `role_in_use_outside_scope` (403),
   `role_scope_in_use` (409);
   `payload_too_large`, `evidence_too_large`, `invoice_too_large` (413);
   `unsupported_media_type`, `evidence_format_not_allowed`, `invoice_format_not_allowed` (415); `invalid_coordinates`,
@@ -205,7 +206,9 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   de la base de datos necesita permiso para crear extensiones (`unaccent` es de confianza
   desde PostgreSQL 13, no exige ser superusuario).
 - **Todas las respuestas bajo `/api/` llevan `Cache-Control: no-store`** (traen datos
-  personales).
+  personales). La única excepción es `/api/public/`, que no los trae: ahí `ApiNoStoreMiddleware`
+  respeta la caché que puso la vista (la trazabilidad pública, `public, max-age=300`), y si no puso
+  ninguna (un `404`), también `no-store`.
 - **La ficha de una parcela se guarda con `PUT /api/plot-characterizations/{id}`**, donde `id` es
   el de la parcela (hay una sola ficha por parcela, y la cola del dispositivo la sincroniza por
   ese `id`). Lleva siempre `expected_version`: `null` para registrar y la versión leída para
@@ -387,6 +390,26 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
   **Sin precios ni valores.** `order_stages` (`history_order.py`) ordena por fecha local, luego por
   el orden del proceso, luego sin hora antes que con hora, la hora y cuándo se registró. Un lote que
   no existe o no se alcanza es el mismo `404`; las consultas son fijas (17 con la sesión).
+  **El código QR** (`LotQrCode`, uno por lote con `PROTECT`): `POST /api/lots/{id}/qr`, sin cuerpo,
+  con `lots.add_lotqrcode` (delegable y de campo, depende de `lots.view_lot`; entre los roles del
+  sistema solo lo tiene el Productor). Solo un lote Clasificado o En bodega (`can_have_qr`,
+  `qr_rules.py`; si no, `409 lot_not_classified` con `current_status`) y uno por lote (`409
+  lot_qr_already_exists`); el servicio bloquea la finca, así que dos pedidos a la vez dejan uno. El
+  token es `secrets.token_urlsafe(12)` (16 caracteres) y no se edita, no se reemplaza ni se recicla:
+  queda impreso en los sacos. La dirección que lleva el QR es `FRONTEND_URL/trazabilidad/{token}`
+  (`public_traceability_url`), así que **antes de imprimir QR reales el dominio del frontend debe ser
+  el definitivo**. La representación del lote (ficha y lista) trae `qr` (`token`, `public_url`,
+  `created_at`) o `null`. **La trazabilidad pública** (`GET /api/public/lots/{token}`,
+  `public_views.py`) no autentica (`authentication_classes = []`: una cookie vencida no da `401`),
+  limita a 60 por minuto por IP (`public_traceability`, `429`) y responde lo mismo con o sin cuenta y
+  aunque el productor esté inactivo. Arma las etapas con `build_lot_stages` **sin** la fuente de
+  ventas y se queda con una lista blanca (`public_serializers.py`, cada campo a mano): origen (finca,
+  municipio, departamento y variedad), las fechas de cosecha, fermentación y secado (inicio, fin y
+  días), evaluación, clasificación e ingreso a bodega, y la calidad (bien fermentados y G1, G2 y
+  descarte en %). Nunca precios, compradores, ventas, salidas, kilos, temperaturas, pH, personas,
+  código de socio, código del lote ni nombres de cajones, marquesinas o bodegas: un dato nuevo en la
+  historia no sale aquí hasta que alguien lo agregue a esa lista. Un token que no existe o no tiene la
+  forma de uno (que ni consulta la base) es el mismo `404`.
 - **Infraestructura de poscosecha** (`/api/postharvest-facilities`): cajones de fermentación y
   marquesinas de secado, cada uno de **una sola finca** (no cambia de finca). Permisos
   `facilities.{view,add,change,delete}_postharvestfacility`, delegables y de campo; consultar
@@ -912,7 +935,8 @@ al lado, el modelo de datos está en `specs/arquitectura/001-modelo-datos-domini
     `403 permission_denied`.
 - **Intentos de acceso:** `django-axes` bloquea la pareja correo + IP tras 5 fallos durante 15
   minutos (guarda un hash con llave, nunca el correo) y DRF limita las solicitudes de login,
-  de recuperación de contraseña y de confirmación del enlace. Los límites de DRF usan la caché
+  de recuperación de contraseña, de confirmación del enlace y de la trazabilidad pública, todas por
+  la misma IP (`ClientIPThrottle`, `apps/common/client_ip.py`). Los límites de DRF usan la caché
   local por proceso (no hay `CACHES` configurado): con varios workers no se comparten. El
   bloqueo de axes sí, porque va por base de datos.
 - **Desbloquear una cuenta antes de los 15 minutos:** borrar su fila en el admin de
@@ -1001,8 +1025,11 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   Clasificado por ingresar y un lote con existencias), el directorio de compradores
   (`buyers.py`: uno de cada tipo y uno inactivo) y las ventas (`sales.py`, hechas por el
   Comercializador: una registrada con su soporte en PDF, otra registrada sin soporte a otro
-  comprador y otra anulada, que dejan existencias para registrar una venta más en vivo) y los
-  avisos de la campana (corre `evaluate_alerts`). **Villa Rosa**, de otro productor
+  comprador y otra anulada, que dejan existencias para registrar una venta más en vivo), el
+  **código QR** del lote vendido (`qr_codes.py`, generado por el Productor con el servicio; su página
+  pública muestra que no salen el comprador, los precios ni nadie, aunque el lote tenga ventas;
+  el lote Clasificado de la calidad queda sin QR para generarlo en vivo y el Descartado no lo
+  admite) y los avisos de la campana (corre `evaluate_alerts`). **Villa Rosa**, de otro productor
   (`second_producer.py`), recibe una vez un lote que llega a bodega y se vende en parte y una cosecha
   por fermentar, para que el panel de la asociación compare más de una finca. El capataz de La Esperanza
   tiene además el rol propio «Reportes de campo» (`reports.py`), que solo da el permiso de reportes:
@@ -1045,7 +1072,8 @@ uno nuevo se queda sin él. Las reglas comunes viven en `apps/common/admin.py`:
   descarte avisa al equipo de la finca). **Bodegas** (`apps/warehouse/admin.py`): editar y eliminar
   por los servicios, sin alta (la finca la elige quien registra); **ingresos, existencias,
   salidas** y sus historiales, de solo lectura y solo para superusuarios, porque mueven el saldo y
-  el estado del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
+  el estado del lote. **Códigos QR de los lotes** (`apps/lots/admin.py`): de solo lectura y solo para
+  superusuarios, buscables por token y por código del lote. `StoredFile` no tiene admin (está en `WITHOUT_ADMIN` de `test_admin.py`):
   solo guarda bytes. Tampoco `IndicatorAccess`, que no tiene tabla: solo declara los permisos de los
   paneles.
 

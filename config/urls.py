@@ -35,6 +35,7 @@ urlpatterns = [
     path("api/", include("apps.activities.urls")),
     path("api/", include("apps.harvests.urls")),
     path("api/", include("apps.lots.urls")),
+    path("api/public/", include("apps.lots.public_urls")),
     path("api/", include("apps.health.urls")),
     path("api/", include("apps.notifications.urls")),
     path("api/", include("apps.facilities.urls")),

@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from apps.accounts.tests.factories import UserFactory
 from apps.lots.models import LotAuditEvent, LotCodeSequence
-from apps.lots.tests.factories import LotFactory
+from apps.lots.tests.factories import LotFactory, LotQrCodeFactory
 
 pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures("plain_static_files")]
 
@@ -83,3 +83,18 @@ def test_the_sequences_and_the_history_are_read_only():
     assert client.post(event_url, {"action": "deleted"}).status_code == 403
     sequence.refresh_from_db()
     assert sequence.last_value == 1
+
+
+def test_a_superuser_reads_qr_codes_and_nobody_edits_them():
+    qr = LotQrCodeFactory(token="Xq3k9Lm2Pz7tRw1a")
+    client = superuser_client()
+    url = reverse("admin:lots_lotqrcode_change", args=[qr.pk])
+
+    assert client.get(reverse("admin:lots_lotqrcode_changelist")).status_code == 200
+    assert "Xq3k9Lm2Pz7tRw1a" in client.get(url).content.decode()
+    assert client.get(reverse("admin:lots_lotqrcode_add")).status_code == 403
+    assert client.post(url, {"token": "OTRO"}).status_code == 403
+    deletion = reverse("admin:lots_lotqrcode_delete", args=[qr.pk])
+    assert client.post(deletion, {"post": "yes"}).status_code == 403
+    qr.refresh_from_db()
+    assert qr.token == "Xq3k9Lm2Pz7tRw1a"

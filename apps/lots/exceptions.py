@@ -45,6 +45,21 @@ class LotInvalidStatus(ApiError):
         super().__init__(extra={"current_status": current_status})
 
 
+class LotNotClassified(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Solo un lote clasificado puede tener código QR."
+    default_code = "lot_not_classified"
+
+    def __init__(self, current_status: str):
+        super().__init__(extra={"current_status": current_status})
+
+
+class LotQrAlreadyExists(ApiError):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Este lote ya tiene un código QR."
+    default_code = "lot_qr_already_exists"
+
+
 class StaleLotVersion(ApiError):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Otra persona cambió este lote. Revisa los datos actuales antes de guardar."

@@ -37,3 +37,14 @@ class DryingConfig(AppConfig):
         from .reports import drying_results
 
         register_report_source("drying_results", drying_results)
+
+        # El secado como etapa de la historia del lote, con su bitácora.
+        from apps.common.contracts.lot_history import (
+            register_lot_history_source,
+            register_stage_serializer,
+        )
+
+        from .history import DryingStageSerializer, drying_history
+
+        register_lot_history_source("drying_history", drying_history)
+        register_stage_serializer("drying", DryingStageSerializer)

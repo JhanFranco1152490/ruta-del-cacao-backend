@@ -32,6 +32,7 @@ from .catalog import (
     NORTE_DE_SANTANDER,
     PRODUCERS,
 )
+from .lot_dates import align_lot_dates
 from .operations import seed_operations
 from .parameters import seed_drying_parameters
 from .sales import seed_sales
@@ -80,6 +81,8 @@ def seed_demo_data() -> SeedReport:
         report.operations += seed_buyers(owner, _restore_account)
         report.operations += seed_sales(owner)
         report.operations += seed_second_producer()
+        # Al final: los lotes de todas las partes ya están conformados y fermentados.
+        report.operations += align_lot_dates()
     _notify_alerts()
     return report
 

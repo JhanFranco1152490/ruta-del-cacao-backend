@@ -20,3 +20,15 @@ class SalesConfig(AppConfig):
 
         register_report_source("sale_rows", sale_rows)
         register_report_source("sales_by_lot", sales_by_lot)
+
+        # Las ventas como etapas de la historia del lote, y lo vendido.
+        from apps.common.contracts.lot_history import (
+            register_lot_history_source,
+            register_stage_serializer,
+        )
+
+        from .history import SaleStageSerializer, sales_history, sold_now
+
+        register_lot_history_source("sales_history", sales_history)
+        register_lot_history_source("sold_now", sold_now)
+        register_stage_serializer("sale", SaleStageSerializer)

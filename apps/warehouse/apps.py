@@ -42,3 +42,24 @@ class WarehouseConfig(AppConfig):
 
         register_report_source("stock_by_lot", stock_by_lot)
         register_report_source("stock_rows", stock_rows)
+
+        # El ingreso, los cambios de lugar y las salidas como etapas de la historia del lote, y lo
+        # que le queda hoy.
+        from apps.common.contracts.lot_history import (
+            register_lot_history_source,
+            register_stage_serializer,
+        )
+
+        from .history import (
+            StockEntryStageSerializer,
+            StockExitStageSerializer,
+            StockMoveStageSerializer,
+            stock_now,
+            warehouse_history,
+        )
+
+        register_lot_history_source("warehouse_history", warehouse_history)
+        register_lot_history_source("stock_now", stock_now)
+        register_stage_serializer("stock_entry", StockEntryStageSerializer)
+        register_stage_serializer("stock_move", StockMoveStageSerializer)
+        register_stage_serializer("stock_exit", StockExitStageSerializer)

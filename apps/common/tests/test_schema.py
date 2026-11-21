@@ -123,6 +123,7 @@ def responses_of(schema, path, method):
         ("/api/reports/association", "get", {"200", "400", "401", "403", "404"}),
         ("/api/reports/producer/export", "get", {"200", "400", "401", "403", "404"}),
         ("/api/reports/association/export", "get", {"200", "400", "401", "403", "404"}),
+        ("/api/lots/{id}/history", "get", {"200", "401", "403", "404"}),
     ],
 )
 def test_each_endpoint_documents_the_responses_it_returns(schema, path, method, codes):
@@ -208,6 +209,7 @@ DOCUMENTED_OPERATIONS = {
     ("get", "/api/lots/summary"),
     ("post", "/api/lots"),
     ("delete", "/api/lots/{id}"),
+    ("get", "/api/lots/{id}/history"),
     ("get", "/api/notifications"),
     ("get", "/api/notifications/unread-count"),
     ("post", "/api/notifications/{id}/read"),
@@ -342,3 +344,17 @@ def test_schema_and_docs_ignore_an_invalid_session_cookie(client, settings, relo
 
     assert client.get("/api/schema").status_code == 200
     assert client.get("/api/docs").status_code == 200
+
+
+def test_the_lot_history_documents_one_shape_per_kind_of_stage(schema):
+    from apps.common.contracts.lot_history import STAGE_KINDS
+
+    stage = schema["components"]["schemas"]["LotHistoryStage"]
+    history = schema["components"]["schemas"]["LotHistory"]
+
+    assert stage["discriminator"]["propertyName"] == "kind"
+    assert set(stage["discriminator"]["mapping"]) == set(STAGE_KINDS)
+    assert len(stage["oneOf"]) == len(STAGE_KINDS)
+    assert history["properties"]["stages"]["items"] == {
+        "$ref": "#/components/schemas/LotHistoryStage"
+    }

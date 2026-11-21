@@ -55,6 +55,7 @@ FIELD_PERMISSIONS = [
     "facilities.add_postharvestfacility",
     "facilities.change_postharvestfacility",
     "indicators.view_producer_indicators",
+    "lots.view_lot",
 ]
 
 
@@ -77,6 +78,10 @@ class World:
         )
         self.facility_a = PostharvestFacilityFactory(farm=self.farm_a)
         self.facility_b = PostharvestFacilityFactory(farm=self.farm_b)
+        # Con la variedad dada: estas parcelas no tienen ficha de la que tomarla.
+        variety = CacaoVarietyFactory()
+        self.lot_a = LotFactory(harvest__plot=self.plot_a, harvest__variety=variety)
+        self.lot_b = LotFactory(harvest__plot=self.plot_b, harvest__variety=variety)
         self.employee = make_delegate(self.producer, FIELD_PERMISSIONS, farm=self.farm_a)
         self.unassigned = make_delegate(self.producer, FIELD_PERMISSIONS)
         self.window = {
@@ -120,6 +125,7 @@ DETAILS = {
     "plot": ("/api/plots/{}", "plot_a", "plot_b"),
     "activity": ("/api/agricultural-activities/{}", "activity_a", "activity_b"),
     "facility": ("/api/postharvest-facilities/{}", "facility_a", "facility_b"),
+    "lot_history": ("/api/lots/{}/history", "lot_a", "lot_b"),
 }
 
 

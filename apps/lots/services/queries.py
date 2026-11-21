@@ -93,8 +93,11 @@ def lot_summary(actor, filters: dict) -> list[dict]:
     ]
 
 
-def get_lot(actor, lot_id) -> Lot:
-    lot = with_details(visible_lots(actor)).filter(pk=lot_id).first()
+def get_lot(actor, lot_id, *, details: bool = True) -> Lot:
+    """El lote, si `actor` lo alcanza. Sin `details` no precarga lo que otras apps agregan a su
+    representación: la historia lo pide a cada app por su cuenta."""
+    lots = visible_lots(actor)
+    lot = (with_details(lots) if details else lots).filter(pk=lot_id).first()
     if lot is None:
         raise LotNotFound()
     return lot

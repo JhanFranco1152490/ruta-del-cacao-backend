@@ -1,16 +1,9 @@
 import hashlib
 from collections.abc import Mapping
 
-from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle, UserRateThrottle
+from rest_framework.throttling import SimpleRateThrottle, UserRateThrottle
 
-from .auth.axes import client_ip
-
-
-class ClientIPThrottle(AnonRateThrottle):
-    # La misma IP que usa axes para el bloqueo, ya validada y sin el puerto que algunos proxies
-    # agregan (con el puerto, cada conexión abriría un cupo nuevo).
-    def get_ident(self, request):
-        return client_ip(request)
+from apps.common.client_ip import ClientIPThrottle
 
 
 class LoginRateThrottle(ClientIPThrottle):

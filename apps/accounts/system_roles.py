@@ -75,6 +75,7 @@ SYSTEM_ROLES = {
             "lots.view_lot",
             "lots.add_lot",
             "lots.delete_lot",
+            "lots.add_lotqrcode",
             "facilities.view_postharvestfacility",
             "facilities.add_postharvestfacility",
             "facilities.change_postharvestfacility",

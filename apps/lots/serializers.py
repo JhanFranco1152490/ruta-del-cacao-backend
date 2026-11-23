@@ -8,11 +8,21 @@ from apps.common.contracts.lot_details import lot_detail_fields, lot_detail_pref
 from apps.common.serializers import ApiErrorSerializer, RejectUnknownFieldsMixin, full_name
 
 from .choices import LotStatus
+from .qr_rules import public_traceability_url
 
 
 class LotProducerSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     member_code = serializers.CharField()
+
+
+class LotQrSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    public_url = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField()
+
+    def get_public_url(self, qr) -> str:
+        return public_traceability_url(qr.token)
 
 
 class LotSerializer(serializers.Serializer):
@@ -27,6 +37,7 @@ class LotSerializer(serializers.Serializer):
         source="harvest.green_weight_kg", max_digits=7, decimal_places=1
     )
     created_by = serializers.SerializerMethodField()
+    qr = serializers.SerializerMethodField()
     version = serializers.IntegerField()
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
@@ -43,6 +54,10 @@ class LotSerializer(serializers.Serializer):
     def get_created_by(self, lot) -> HarvestRecorderSerializer(allow_null=True):
         account = lot.created_by
         return None if account is None else {"id": account.pk, "full_name": full_name(account)}
+
+    def get_qr(self, lot) -> LotQrSerializer(allow_null=True):
+        qr = getattr(lot, "qr_code", None)
+        return None if qr is None else LotQrSerializer(qr).data
 
 
 class LotFarmSerializer(serializers.Serializer):

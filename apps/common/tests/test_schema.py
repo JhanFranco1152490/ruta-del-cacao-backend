@@ -124,10 +124,18 @@ def responses_of(schema, path, method):
         ("/api/reports/producer/export", "get", {"200", "400", "401", "403", "404"}),
         ("/api/reports/association/export", "get", {"200", "400", "401", "403", "404"}),
         ("/api/lots/{id}/history", "get", {"200", "401", "403", "404"}),
+        ("/api/lots/{id}/qr", "post", {"201", "401", "403", "404", "409"}),
+        ("/api/public/lots/{token}", "get", {"200", "404", "429"}),
     ],
 )
 def test_each_endpoint_documents_the_responses_it_returns(schema, path, method, codes):
     assert set(responses_of(schema, path, method)) == codes
+
+
+def test_the_public_traceability_asks_for_no_session(schema):
+    operation = schema["paths"]["/api/public/lots/{token}"]["get"]
+
+    assert operation.get("security", []) in ([], [{}])
 
 
 def test_only_endpoints_that_read_the_session_declare_the_cookie(schema):
@@ -210,6 +218,8 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/lots"),
     ("delete", "/api/lots/{id}"),
     ("get", "/api/lots/{id}/history"),
+    ("post", "/api/lots/{id}/qr"),
+    ("get", "/api/public/lots/{token}"),
     ("get", "/api/notifications"),
     ("get", "/api/notifications/unread-count"),
     ("post", "/api/notifications/{id}/read"),

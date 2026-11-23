@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from apps.common.admin import SuperuserReadOnlyAdminMixin
 
-from .models import Lot, LotAuditEvent, LotCodeSequence
+from .models import Lot, LotAuditEvent, LotCodeSequence, LotQrCode
 
 
 @admin.register(Lot)
@@ -23,6 +23,16 @@ class LotAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(LotQrCode)
+class LotQrCodeAdmin(SuperuserReadOnlyAdminMixin, admin.ModelAdmin):
+    """Los códigos QR de los lotes, de solo lectura: quedan impresos y no se cambian."""
+
+    list_display = ("token", "lot", "created_by", "created_at")
+    list_select_related = ("lot", "created_by")
+    search_fields = ("token", "lot__code")
+    readonly_fields = ("lot", "token", "created_by", "created_at")
 
 
 @admin.register(LotCodeSequence)

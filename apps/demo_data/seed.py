@@ -35,6 +35,7 @@ from .catalog import (
 from .lot_dates import align_lot_dates
 from .operations import seed_operations
 from .parameters import seed_drying_parameters
+from .qr_codes import seed_lot_qr_codes
 from .sales import seed_sales
 from .second_producer import seed_second_producer
 
@@ -80,6 +81,7 @@ def seed_demo_data() -> SeedReport:
         report.operations += seed_drying_parameters(owner)
         report.operations += seed_buyers(owner, _restore_account)
         report.operations += seed_sales(owner)
+        report.operations += seed_lot_qr_codes(owner)
         report.operations += seed_second_producer()
         # Al final: los lotes de todas las partes ya están conformados y fermentados.
         report.operations += align_lot_dates()

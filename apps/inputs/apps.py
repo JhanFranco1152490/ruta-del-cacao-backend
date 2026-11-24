@@ -16,3 +16,10 @@ class InputsConfig(AppConfig):
 
         register_dependent(inputs_dependent)
         register_farm_dependent(inputs_of_a_farm)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("input", SOURCE)

@@ -43,3 +43,10 @@ class FermentationConfig(AppConfig):
 
         register_lot_history_source("fermentation_history", fermentation_history)
         register_stage_serializer("fermentation", FermentationStageSerializer)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("fermentation", SOURCE)

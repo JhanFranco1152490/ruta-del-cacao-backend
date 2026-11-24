@@ -73,7 +73,7 @@ def update_plot(actor, plot_id, expected_version: int, data: dict) -> Plot:
         plot, update_fields, constraint=NAME_UNIQUE_CONSTRAINT, duplicate=DuplicatePlotName
     )
     record_update_events(
-        partial(record_plot_audit_event, plot=plot, actor=actor),
+        partial(record_plot_audit_event, plot=plot, actor=actor, before=before),
         changed,
         updated=PlotAuditEvent.Action.UPDATED,
         status_changed=PlotAuditEvent.Action.STATUS_CHANGED,

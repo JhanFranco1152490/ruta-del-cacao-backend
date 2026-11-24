@@ -14,6 +14,7 @@ def record_quality_event(*, lot, actor, action: str, before: dict, after: dict, 
     changes = field_changes(before, after, decimal_places=ONE_DECIMAL)
     return QualityAuditEvent.record(
         lot=lot,
+        producer_ref=lot.harvest.plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changes.keys(),

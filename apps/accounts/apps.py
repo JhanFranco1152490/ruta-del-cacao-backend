@@ -40,6 +40,15 @@ class AccountsConfig(AppConfig):
 
         register_account_reactivator(reactivate_with_producer)
 
+        # Las cuentas y los roles en la bitácora de cambios, y las cuentas por las que se filtra.
+        from apps.common.contracts.audit_log import register_audit_actors, register_audit_source
+
+        from .audit_log import ACCOUNT_SOURCE, ROLE_SOURCE, producer_accounts
+
+        register_audit_source("account", ACCOUNT_SOURCE)
+        register_audit_source("role", ROLE_SOURCE)
+        register_audit_actors(producer_accounts)
+
 
 def last_app_with_models(app_configs):
     # Django no emite post_migrate para una app sin modelos: si la última instalada no tiene,

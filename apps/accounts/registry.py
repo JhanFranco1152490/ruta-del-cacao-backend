@@ -113,6 +113,10 @@ PERMISSION_REGISTRY: dict[str, PermissionInfo] = {
     "reports.view_producer_reports": PermissionInfo(area="reports", delegable=True),
     # No delegable: consolida las fincas de todos los productores de la asociación.
     "reports.view_association_reports": PermissionInfo(area="reports", delegable=False),
+    # No delegable: muestra lo que hizo cada cuenta del productor, incluidas las ventas, las
+    # anulaciones y los cambios de roles; es el control del dueño sobre su unidad productiva. No es
+    # de campo: abarca todas las fincas.
+    "audit.view_audit_log": PermissionInfo(area="audit", delegable=False),
 }
 
 

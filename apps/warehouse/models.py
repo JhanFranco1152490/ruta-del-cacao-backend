@@ -261,8 +261,17 @@ class StockAuditEvent(AuditEventBase):
     # las cuentas se guardan por su id.
     changes = models.JSONField(default=dict)
 
+    # El productor del registro, copiado al registrar: el evento sigue en la bitácora aunque el
+    # registro se elimine y su relación quede vacía.
+    producer_ref = models.UUIDField(null=True, blank=True, editable=False)
+
     class Meta(AuditEventBase.Meta):
         default_permissions = ()
+        indexes = [
+            models.Index(
+                fields=["producer_ref", "occurred_at"], name="warehouse_stock_audit_prod_idx"
+            )
+        ]
 
 
 class WarehouseAuditEvent(AuditEventBase):
@@ -291,5 +300,12 @@ class WarehouseAuditEvent(AuditEventBase):
     version = models.PositiveIntegerField()
     changes = models.JSONField(default=dict)
 
+    # El productor del registro, copiado al registrar: el evento sigue en la bitácora aunque el
+    # registro se elimine y su relación quede vacía.
+    producer_ref = models.UUIDField(null=True, blank=True, editable=False)
+
     class Meta(AuditEventBase.Meta):
         default_permissions = ()
+        indexes = [
+            models.Index(fields=["producer_ref", "occurred_at"], name="warehouse_audit_prod_idx")
+        ]

@@ -53,3 +53,10 @@ class QualityConfig(AppConfig):
         register_stage_serializer("evaluation", EvaluationStageSerializer)
         register_stage_serializer("classification", ClassificationStageSerializer)
         register_stage_serializer("discard", DiscardStageSerializer)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("quality", SOURCE)

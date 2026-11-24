@@ -12,6 +12,7 @@ def record_lot_event(
         lot_ref=lot.pk,
         code=lot.code,
         harvest_ref=lot.harvest_id,
+        producer_ref=lot.harvest.plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changes.keys(),

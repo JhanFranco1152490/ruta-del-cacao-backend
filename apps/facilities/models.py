@@ -173,5 +173,12 @@ class PostharvestFacilityAuditEvent(AuditEventBase):
     # tiene datos personales, así que se guardan los valores, como en los insumos.
     changes = models.JSONField(default=dict)
 
+    # El productor del registro, copiado al registrar: el evento sigue en la bitácora aunque el
+    # registro se elimine y su relación quede vacía.
+    producer_ref = models.UUIDField(null=True, blank=True, editable=False)
+
     class Meta(AuditEventBase.Meta):
         default_permissions = ()
+        indexes = [
+            models.Index(fields=["producer_ref", "occurred_at"], name="facilities_audit_prod_idx")
+        ]

@@ -152,9 +152,10 @@ def test_existing_snapshots_move_the_stage_to_each_planting(old_state):
         },
     )
 
-    migrate(AFTER)
+    after = migrate(AFTER)
 
-    snapshot = PlotCharacterizationAuditEvent.objects.get().snapshot
+    # Con el modelo de ese estado: el de hoy tiene columnas que llegan en migraciones posteriores.
+    snapshot = after.get_model("crops", "PlotCharacterizationAuditEvent").objects.get().snapshot
     assert "stage" not in snapshot
     assert [(row["name"], row["stage"], row["propagation"]) for row in snapshot["plantings"]] == [
         ("CCN-51", "renovation", "grafted"),
@@ -170,6 +171,7 @@ def test_a_snapshot_already_in_the_new_shape_is_left_alone(old_state):
         plot_id=plot.pk, action="created", snapshot=new_shape
     )
 
-    migrate(AFTER)
+    after = migrate(AFTER)
 
-    assert PlotCharacterizationAuditEvent.objects.get().snapshot == new_shape
+    event = after.get_model("crops", "PlotCharacterizationAuditEvent").objects.get()
+    assert event.snapshot == new_shape

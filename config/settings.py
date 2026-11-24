@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     "apps.sales",
     "apps.indicators",
     "apps.reports",
+    "apps.audit",
     "apps.demo_data",
 ]
 
@@ -264,6 +265,9 @@ SPECTACULAR_SETTINGS = {
         "StockExitReasonEnum": "apps.warehouse.choices.ExitReason",
         "SaleStatusEnum": "apps.sales.models.Sale.Status",
         "ReportCellKindEnum": "apps.reports.report.KINDS",
+        "AuditValueKindEnum": "apps.common.contracts.audit_log.KINDS",
+        "AuditHiddenReasonEnum": "apps.common.contracts.audit_log.HIDDEN_REASONS",
+        "AuditRecordTypeEnum": "apps.common.contracts.audit_log.AUDIT_RECORD_TYPES",
     },
 }
 

@@ -4,11 +4,13 @@ historial."""
 from django.db import transaction
 from django.utils import timezone
 
+from apps.common.audit import field_changes
 from apps.common.locks import lock_aggregate_root
 from apps.common.versioning import check_expected_version
 
 from ..exceptions import SaleNotFound, SaleVoided, StaleSaleVersion
 from ..models import Sale, SaleAuditEvent
+from .audit import record_sale_event
 from .queries import get_sale, sale_scope
 
 VOIDED_FIELDS = ("voided_at", "voided_by", "void_reason")
@@ -29,16 +31,26 @@ def void_sale(actor, sale_id, expected_version: int, reason: str) -> Sale:
     for line in sale.lines.select_related("stock_exit__lot"):
         line.stock_exit.void_for_sale(actor, reason)
 
+    before = _voided_values(sale)
     sale.voided_by = actor
     sale.voided_at = timezone.now()
     sale.void_reason = reason
     sale.version += 1
     sale.save(update_fields=[*VOIDED_FIELDS, "version", "updated_at"])
-    SaleAuditEvent.record(
+    record_sale_event(
         sale=sale,
         actor=actor,
         action=SaleAuditEvent.Action.VOIDED,
         changed_fields=VOIDED_FIELDS,
-        version=sale.version,
+        changes=field_changes(before, _voided_values(sale), fields=VOIDED_FIELDS),
     )
     return get_sale(actor, sale.pk)
+
+
+def _voided_values(sale: Sale) -> dict:
+    # Quien anuló va por su id, como en el resto del historial.
+    return {
+        "voided_at": sale.voided_at,
+        "voided_by": sale.voided_by_id,
+        "void_reason": sale.void_reason,
+    }

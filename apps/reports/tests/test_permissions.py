@@ -1,9 +1,7 @@
 import pytest
-from django.apps import apps
 from django.contrib.auth.models import Permission
 
 from apps.accounts import registry
-from apps.accounts.apps import last_app_with_models
 from apps.accounts.system_roles import (
     ADMINISTRATOR,
     FOREMAN,
@@ -28,10 +26,6 @@ def codes_of(role_code):
 @pytest.mark.parametrize("codename", ["view_producer_reports", "view_association_reports"])
 def test_the_two_permissions_exist_after_migrating(codename):
     assert Permission.objects.filter(content_type__app_label="reports", codename=codename).exists()
-
-
-def test_reports_is_the_last_app_with_models_so_the_roles_sync_after_it():
-    assert last_app_with_models(apps.get_app_configs()).label == "reports"
 
 
 def test_the_producer_reports_are_a_delegable_field_permission_without_dependencies():

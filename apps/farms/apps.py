@@ -19,3 +19,10 @@ class FarmsConfig(AppConfig):
 
         register_indicator_source("farm_scope", farm_scope)
         register_indicator_source("farms", scoped_farms)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("farm", SOURCE)

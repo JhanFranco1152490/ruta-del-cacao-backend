@@ -51,6 +51,7 @@ def field_changes(
     *,
     fields: Iterable[str] | None = None,
     decimal_places: int | None = None,
+    exclude: Iterable[str] = (),
 ) -> dict:
     """El valor anterior y el nuevo de cada campo que cambió, con los valores como los entrega la
     API (fechas en ISO, UUID y decimales en texto), listos para guardarse en JSON.
@@ -62,6 +63,7 @@ def field_changes(
     Sin `fields`, compara los dos lados y deja solo lo que cambió. Con `fields`, deja esos campos
     tal cual: quien llama ya sabe qué cambió, o en un alta quiere todos aunque alguno siga vacío.
     `decimal_places` escribe los decimales con esas cifras, como los muestra la API del registro.
+    `exclude` deja fuera esos campos (los datos personales de un registro que sí se audita).
     """
     if fields is None:
         names = sorted(
@@ -69,6 +71,8 @@ def field_changes(
         )
     else:
         names = sorted(set(fields))
+    excluded = set(exclude)
+    names = [name for name in names if name not in excluded]
     return {
         name: {
             "before": _as_api_value(before.get(name), decimal_places),
@@ -76,6 +80,34 @@ def field_changes(
         }
         for name in names
     }
+
+
+def record_changes(
+    record,
+    *,
+    value_fields: Iterable[str],
+    changed_fields: Iterable[str] = (),
+    before: Mapping[str, object] | None = None,
+    created: bool = False,
+    deleted: bool = False,
+    exclude: Iterable[str] = (),
+) -> dict:
+    """Los valores que guarda el evento de `record`: un alta, todos los de `value_fields` (el
+    anterior vacío); una eliminación, los que tenía (el nuevo vacío); una edición, el anterior
+    (`before`) y el nuevo de cada campo de `changed_fields`. Nunca los de `exclude`: los datos
+    personales y lo que no se muestra como valor (un polígono)."""
+    if created or deleted:
+        fields = list(value_fields)
+        values = {name: getattr(record, name) for name in fields}
+        old, new = ({}, values) if created else (values, {})
+        return field_changes(old, new, fields=fields, exclude=exclude)
+    fields = list(changed_fields)
+    return field_changes(
+        before or {},
+        {name: getattr(record, name) for name in fields},
+        fields=fields,
+        exclude=exclude,
+    )
 
 
 STATUS_FIELD = "is_active"

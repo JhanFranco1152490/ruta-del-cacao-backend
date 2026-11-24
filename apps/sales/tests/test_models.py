@@ -127,10 +127,12 @@ def test_the_sequence_is_one_per_producer():
         SaleCodeSequence.objects.create(producer=sale.producer, last_value=2)
 
 
-def test_the_audit_event_keeps_no_values():
+def test_the_audit_event_keeps_its_values_and_its_actions():
+    # Guarda lo registrado, la anulación y el soporte con su valor anterior y nuevo; lo lee la
+    # bitácora, que solo consulta el productor.
     stored = {field.name for field in SaleAuditEvent._meta.get_fields()}
 
-    assert "changes" not in stored
+    assert "changes" in stored
     assert SaleAuditEvent.Action.values == [
         "created",
         "voided",

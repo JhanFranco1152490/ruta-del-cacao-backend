@@ -24,9 +24,11 @@ from apps.plots.services import create_plot
 from apps.producers.models import Producer
 from apps.producers.services import change_producer_status, create_producer
 
+from .audit_log import seed_audit_log
 from .buyers import seed_buyers
 from .catalog import (
     DEMO_ADMIN,
+    DEMO_FOREMAN_EMAIL,
     DEMO_PASSWORD,
     DEMO_PRODUCER_EMAIL,
     NORTE_DE_SANTANDER,
@@ -83,6 +85,7 @@ def seed_demo_data() -> SeedReport:
         report.operations += seed_sales(owner)
         report.operations += seed_lot_qr_codes(owner)
         report.operations += seed_second_producer()
+        report.operations += seed_audit_log(owner, User.objects.get(email=DEMO_FOREMAN_EMAIL))
         # Al final: los lotes de todas las partes ya están conformados y fermentados.
         report.operations += align_lot_dates()
     _notify_alerts()

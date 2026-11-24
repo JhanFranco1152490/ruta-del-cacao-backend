@@ -25,3 +25,10 @@ class PlotsConfig(AppConfig):
         from .reports import plot_in_scope
 
         register_report_source("plot_in_scope", plot_in_scope)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("plot", SOURCE)

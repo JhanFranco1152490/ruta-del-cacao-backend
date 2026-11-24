@@ -13,3 +13,10 @@ class CropsConfig(AppConfig):
 
         register_characterized(plot_is_characterized)
         register_tree_count(plot_tree_count)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("plot_characterization", SOURCE)

@@ -27,3 +27,10 @@ class HarvestsConfig(AppConfig):
         from .reports import harvest_rows
 
         register_report_source("harvest_rows", harvest_rows)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("harvest", SOURCE)

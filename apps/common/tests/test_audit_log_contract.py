@@ -13,6 +13,7 @@ from apps.common.contracts.audit_log import (
     AuditSource,
     audit_actors,
     audit_changes,
+    audit_entry,
     audit_source,
     local_day_bounds,
     register_audit_actors,
@@ -191,3 +192,50 @@ def test_field_changes_can_leave_fields_out():
     )
 
     assert changes == {"buyer_type": {"before": "company", "after": "person"}}
+
+
+def test_a_field_not_shown_says_it_changed_without_its_values():
+    [change] = audit_changes(
+        {}, changed_fields=["boundary"], labels={"boundary": "Polígono"}, not_shown=("boundary",)
+    )
+
+    assert (change.label, change.before, change.after, change.hidden) == (
+        "Polígono",
+        None,
+        None,
+        "not_shown",
+    )
+
+
+def test_a_skipped_field_does_not_come_out():
+    stored = {"invoice_name": {"before": "a.pdf", "after": "b.pdf"}}
+
+    changes = audit_changes(stored, changed_fields=["invoice"], labels={}, skip=("invoice",))
+
+    assert [change.field for change in changes] == ["invoice_name"]
+
+
+class _Event:
+    pk = "e1"
+    occurred_at = datetime(2026, 11, 20, 10, 0, tzinfo=BOGOTA)
+    action = "updated"
+    actor_id = None
+    actor = None
+
+    def get_action_display(self):
+        return "Cosecha corregida"
+
+
+def test_an_entry_takes_the_time_the_action_and_a_deleted_account():
+    entry = audit_entry(
+        _Event(),
+        "harvest",
+        record_id="h1",
+        record_label="Cosecha del 14/11/2026 · P01",
+        record_deleted=False,
+        changes=(),
+    )
+
+    assert (entry.id, entry.action, entry.action_label) == ("e1", "updated", "Cosecha corregida")
+    assert (entry.actor_id, entry.actor_name) == (None, None)
+    assert entry.record_label == "Cosecha del 14/11/2026 · P01"

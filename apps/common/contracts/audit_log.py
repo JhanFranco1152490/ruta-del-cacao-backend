@@ -18,6 +18,7 @@ from typing import Any
 
 from django.utils import timezone
 
+from ..serializers import full_name
 from .sources import SourceRegistry
 
 # Los tipos de registro de la bitácora, en el orden en que se ofrecen para filtrar.
@@ -64,6 +65,8 @@ RECORD_TYPE_LABELS = {
 # Por qué un cambio sale sin sus valores.
 HIDDEN_PERSONAL = "personal"
 HIDDEN_NOT_RECORDED = "not_recorded"
+# Lo que no se muestra como valor aunque se sepa que cambió (el polígono de una parcela).
+HIDDEN_NOT_SHOWN = "not_shown"
 
 # Cómo se muestra un valor.
 KIND_TEXT = "text"
@@ -183,26 +186,35 @@ def audit_changes(
     kinds: Mapping[str, str] | None = None,
     personal: Iterable[str] = (),
     names: Mapping[str, Mapping[Any, str]] | None = None,
+    not_shown: Iterable[str] = (),
+    skip: Iterable[str] = (),
 ) -> tuple[AuditChange, ...]:
     """Los cambios guardados de un evento (`{campo: {before, after}}`, el formato de
     `field_changes`) como los muestra la bitácora.
 
     Cada campo lleva su etiqueta de `labels` (o su nombre) y su `kind` (texto por defecto). Un id
     con nombre en `names` sale por su nombre; uno que ya no tiene nombre, tal cual. Un campo de
-    `personal` sale sin valores; uno que solo está en `changed_fields` (un evento guardado sin
-    valores), como no registrado. Van en el orden de `labels` y después por nombre.
+    `personal` sale sin valores; uno de `not_shown`, también (se sabe que cambió, pero no se
+    muestra); uno que solo está en `changed_fields` (un evento guardado sin valores), como no
+    registrado. Los de `skip` no salen. Van en el orden de `labels` y después por nombre.
     """
     kinds = kinds or {}
     names = names or {}
     personal = set(personal)
-    fields = set(stored) | set(changed_fields)
+    not_shown = set(not_shown)
+    fields = (set(stored) | set(changed_fields)) - set(skip)
     order = {field: position for position, field in enumerate(labels)}
     ordered = sorted(fields, key=lambda field: (order.get(field, len(order)), field))
     changes = []
     for field in ordered:
         label = labels.get(field, field)
-        if field in personal or field not in stored:
-            hidden = HIDDEN_PERSONAL if field in personal else HIDDEN_NOT_RECORDED
+        if field in personal or field in not_shown or field not in stored:
+            if field in personal:
+                hidden = HIDDEN_PERSONAL
+            elif field in not_shown:
+                hidden = HIDDEN_NOT_SHOWN
+            else:
+                hidden = HIDDEN_NOT_RECORDED
             changes.append(
                 AuditChange(field, label, kinds.get(field, KIND_TEXT), None, None, hidden)
             )
@@ -224,3 +236,55 @@ def _named(translate: Mapping[Any, str], value):
     if value is None:
         return None
     return translate.get(value, value)
+
+
+def audit_entry(
+    event,
+    record_type: str,
+    *,
+    record_id,
+    record_label: str,
+    record_deleted: bool,
+    changes: tuple[AuditChange, ...],
+) -> AuditEntry:
+    """La entrada de un evento de un historial (con `actor` ya cargado): su hora, quién lo hizo
+    (sin nombre si la cuenta se eliminó) y su acción con la etiqueta de sus opciones. Cada fuente
+    aporta el registro y sus cambios."""
+    actor = event.actor
+    return AuditEntry(
+        id=event.pk,
+        occurred_at=event.occurred_at,
+        actor_id=event.actor_id,
+        actor_name=None if actor is None else full_name(actor),
+        record_type=record_type,
+        record_id=record_id,
+        record_label=record_label,
+        record_deleted=record_deleted,
+        action=event.action,
+        action_label=event.get_action_display(),
+        changes=changes,
+    )
+
+
+def referenced_ids(events, *fields: str) -> set[str]:
+    """Los valores (ids) de esos campos en los cambios guardados de `events`, antes y después,
+    para traducirlos a nombres con una sola consulta."""
+    found = set()
+    for event in events:
+        for field in fields:
+            values = (event.changes or {}).get(field) or {}
+            found.update(
+                str(value)
+                for value in (values.get("before"), values.get("after"))
+                if value is not None
+            )
+    return found
+
+
+def names_by_id(model, ids: Iterable, label: Callable[[Any], str] = str) -> dict[str, str]:
+    """El nombre de cada registro de `model` con esos ids, con la clave como texto (como guarda
+    el historial los ids). Una consulta; un id que ya no existe no sale."""
+    ids = [value for value in ids if value]
+    if not ids:
+        return {}
+    return {str(pk): label(record) for pk, record in model.objects.in_bulk(ids).items()}

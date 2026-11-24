@@ -102,6 +102,7 @@ SYSTEM_ROLES = {
             "sales.void_sale",
             "indicators.view_producer_indicators",
             "reports.view_producer_reports",
+            "audit.view_audit_log",
         ],
     },
     # Eliminar un insumo o una actividad no se deshace y ningún flujo del capataz lo pide: queda en

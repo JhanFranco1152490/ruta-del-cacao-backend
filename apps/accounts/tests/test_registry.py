@@ -47,10 +47,19 @@ def test_users_delete_is_delegable_and_needs_the_view_permission():
     assert registry.area_of("accounts.users_delete") == "users"
 
 
-def test_every_permission_of_the_producer_role_can_be_delegated():
+# Lo único del rol Productor que no se delega: la bitácora es el control del dueño sobre lo que
+# hacen sus empleados.
+PRODUCER_ONLY = {"audit.view_audit_log"}
+
+
+def test_every_permission_of_the_producer_role_but_the_audit_log_can_be_delegated():
     # Por eso la cuenta Productor se protege con una regla explícita (`ensure_can_manage_account`)
-    # y no con un permiso que solo ella tenga: un empleado puede llegar a tener todos los suyos.
-    assert all(is_delegable(code) for code in SYSTEM_ROLES[PRODUCER]["permissions"])
+    # y no con un permiso que solo ella tenga: un empleado puede llegar a tener todos los suyos
+    # menos la bitácora, que no protege la cuenta sino que deja ver lo que hizo cada uno.
+    permissions = set(SYSTEM_ROLES[PRODUCER]["permissions"])
+    assert PRODUCER_ONLY <= permissions
+    assert all(is_delegable(code) for code in permissions - PRODUCER_ONLY)
+    assert not any(is_delegable(code) for code in PRODUCER_ONLY)
 
 
 def test_field_permissions_are_the_delegable_ones_of_what_hangs_from_a_farm():

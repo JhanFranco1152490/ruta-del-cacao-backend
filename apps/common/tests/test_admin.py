@@ -18,6 +18,7 @@ WITHOUT_ADMIN: dict[str, str] = {
         "No tiene tabla ni filas: solo declara los permisos de los paneles de indicadores."
     ),
     "reports.ReportAccess": "No tiene tabla ni filas: solo declara los permisos de los reportes.",
+    "audit.AuditLogAccess": "No tiene tabla ni filas: solo declara el permiso de la bitácora.",
 }
 
 

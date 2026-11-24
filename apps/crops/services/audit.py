@@ -21,6 +21,7 @@ def record_characterization_audit_event(
     personales, así que guardarlos no los repite."""
     return PlotCharacterizationAuditEvent.record(
         plot=characterization.plot,
+        producer_ref=characterization.plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changed_fields,

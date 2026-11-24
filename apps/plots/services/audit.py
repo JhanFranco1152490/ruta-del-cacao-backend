@@ -16,6 +16,7 @@ def record_plot_audit_event(
         plot=plot,
         plot_ref=plot.pk,
         plot_code=plot.code,
+        producer_ref=plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changed_fields,

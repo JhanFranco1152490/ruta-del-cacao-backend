@@ -24,6 +24,7 @@ def record_harvest_event(
         harvest=harvest if action != HarvestAuditEvent.Action.DELETED else None,
         harvest_ref=harvest.pk,
         plot_ref=harvest.plot_id,
+        producer_ref=harvest.plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changes.keys(),

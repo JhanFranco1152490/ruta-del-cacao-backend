@@ -16,6 +16,7 @@ def record_farm_audit_event(
         farm=farm,
         farm_ref=farm.pk,
         farm_name=farm.name,
+        producer_ref=farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changed_fields,

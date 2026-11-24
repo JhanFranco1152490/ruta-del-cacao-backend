@@ -31,6 +31,7 @@ def record_input_audit_event(
         input=item,
         input_ref=item.pk,
         input_name=item.name,
+        producer_ref=item.producer_id,
         actor=actor,
         action=action,
         changed_fields=fields,

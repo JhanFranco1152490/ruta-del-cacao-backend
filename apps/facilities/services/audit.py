@@ -44,6 +44,7 @@ def _record(facility, actor, action, fields, changes) -> PostharvestFacilityAudi
         facility_ref=facility.pk,
         facility_name=facility.name,
         farm_ref=facility.farm_id,
+        producer_ref=facility.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=fields,

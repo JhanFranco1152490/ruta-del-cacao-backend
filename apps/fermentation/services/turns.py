@@ -180,6 +180,7 @@ def _record(turn, actor, action: str, before: dict, after: dict) -> None:
     FermentationProcessAuditEvent.record(
         process_id=turn.process_id,
         turn_ref=turn.pk,
+        producer_ref=turn.process.lot.harvest.plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changes.keys(),

@@ -20,6 +20,7 @@ def record_warehouse_event(
         warehouse_ref=warehouse.pk,
         warehouse_name=warehouse.name,
         farm_ref=warehouse.farm_id,
+        producer_ref=warehouse.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=fields,
@@ -38,6 +39,7 @@ def record_stock_event(
     changes = field_changes(before, after, decimal_places=ONE_DECIMAL)
     return StockAuditEvent.record(
         lot=lot,
+        producer_ref=lot.harvest.plot.farm.producer_id,
         actor=actor,
         action=action,
         changed_fields=changes.keys(),

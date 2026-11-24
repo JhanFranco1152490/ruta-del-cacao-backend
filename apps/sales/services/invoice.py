@@ -14,6 +14,7 @@ from ..exceptions import (
     SaleVoided,
 )
 from ..models import INVOICE_MAX_BYTES, Sale, SaleAuditEvent
+from .audit import record_sale_event
 from .queries import get_sale, sale_scope
 
 # Una factura escaneada o fotografiada, o el PDF que manda el comprador.
@@ -109,9 +110,7 @@ def _locked_open_sale(actor, sale_id) -> Sale:
 def _save(actor, sale, action) -> None:
     sale.version += 1
     sale.save(update_fields=[*INVOICE_FIELDS, "version", "updated_at"])
-    SaleAuditEvent.record(
-        sale=sale, actor=actor, action=action, changed_fields=INVOICE_FIELDS, version=sale.version
-    )
+    record_sale_event(sale=sale, actor=actor, action=action, changed_fields=INVOICE_FIELDS)
 
 
 def _delete_after_commit(storage, name) -> None:

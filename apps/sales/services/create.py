@@ -21,6 +21,7 @@ from ..exceptions import (
 )
 from ..models import Sale, SaleAuditEvent, SaleCodeSequence, SaleLine
 from ..rules import line_subtotal
+from .audit import record_sale_event
 from .queries import get_sale
 
 # Los modelos de las otras apps se toman de las relaciones: ninguna app importa de otra.
@@ -79,12 +80,11 @@ def create_sale(actor, data: dict) -> Sale:
         )
         for line, lot, stock_exit in zip(data["lines"], lots, exits, strict=True)
     )
-    SaleAuditEvent.record(
+    record_sale_event(
         sale=sale,
         actor=actor,
         action=SaleAuditEvent.Action.CREATED,
         changed_fields=CREATED_FIELDS,
-        version=sale.version,
     )
     return get_sale(actor, sale.pk)
 

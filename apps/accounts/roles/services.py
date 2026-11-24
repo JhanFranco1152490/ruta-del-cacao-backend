@@ -225,4 +225,6 @@ def delete_role(actor, role_id, request_id) -> None:
             request_id,
             actor=actor,
             target_role_id=role_id,
+            # El rol ya no existe: su productor se pasa desde lo que se leyó.
+            producer_ref=role.producer_id,
         )

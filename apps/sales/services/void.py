@@ -9,6 +9,7 @@ from apps.common.versioning import check_expected_version
 
 from ..exceptions import SaleNotFound, SaleVoided, StaleSaleVersion
 from ..models import Sale, SaleAuditEvent
+from .audit import record_sale_event
 from .queries import get_sale, sale_scope
 
 VOIDED_FIELDS = ("voided_at", "voided_by", "void_reason")
@@ -34,11 +35,10 @@ def void_sale(actor, sale_id, expected_version: int, reason: str) -> Sale:
     sale.void_reason = reason
     sale.version += 1
     sale.save(update_fields=[*VOIDED_FIELDS, "version", "updated_at"])
-    SaleAuditEvent.record(
+    record_sale_event(
         sale=sale,
         actor=actor,
         action=SaleAuditEvent.Action.VOIDED,
         changed_fields=VOIDED_FIELDS,
-        version=sale.version,
     )
     return get_sale(actor, sale.pk)

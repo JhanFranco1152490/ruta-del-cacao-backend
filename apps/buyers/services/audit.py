@@ -17,6 +17,7 @@ def record_buyer_audit_event(
         buyer=buyer,
         buyer_ref=buyer.pk,
         buyer_type=buyer.buyer_type,
+        producer_ref=buyer.producer_id,
         actor=actor,
         action=action,
         changed_fields=changed_fields,

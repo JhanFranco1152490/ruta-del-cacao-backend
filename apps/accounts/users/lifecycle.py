@@ -113,6 +113,7 @@ def delete_account(actor, user_id, request_id) -> None:
         if locked.last_login is not None:
             raise AccountHasActivity()
         user_ref = locked.pk
+        producer_ref = locked.producer_id
         try:
             with transaction.atomic():
                 locked.delete()
@@ -123,6 +124,8 @@ def delete_account(actor, user_id, request_id) -> None:
             request_id,
             actor=actor,
             target_user_ref=user_ref,
+            # La cuenta ya no existe: su productor se pasa desde lo que se leyó.
+            producer_ref=producer_ref,
         )
 
 

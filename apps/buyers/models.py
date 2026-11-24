@@ -134,5 +134,12 @@ class BuyerAuditEvent(AuditEventBase):
     # La versión del comprador que dejó este cambio.
     version = models.PositiveIntegerField()
 
+    # El productor del registro, copiado al registrar: el evento sigue en la bitácora aunque el
+    # registro se elimine y su relación quede vacía.
+    producer_ref = models.UUIDField(null=True, blank=True, editable=False)
+
     class Meta(AuditEventBase.Meta):
         default_permissions = ()
+        indexes = [
+            models.Index(fields=["producer_ref", "occurred_at"], name="buyers_audit_prod_idx")
+        ]

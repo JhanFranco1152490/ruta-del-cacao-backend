@@ -49,7 +49,7 @@ def update_buyer(actor, buyer_id, expected_version: int, data: dict) -> Buyer:
         duplicate=lambda: duplicate_error(buyer),
     )
     record_update_events(
-        partial(record_buyer_audit_event, buyer=buyer, actor=actor),
+        partial(record_buyer_audit_event, buyer=buyer, actor=actor, before=before),
         changed,
         updated=BuyerAuditEvent.Action.UPDATED,
         status_changed=BuyerAuditEvent.Action.STATUS_CHANGED,

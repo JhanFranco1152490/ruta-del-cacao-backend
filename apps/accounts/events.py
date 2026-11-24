@@ -10,6 +10,7 @@ def record_account_event(
     target_role_id=None,
     target_user_ref=None,
     producer_ref=None,
+    changes=None,
 ) -> None:
     """`producer_ref` es el productor de la cuenta o del rol sobre el que se actúa: se toma de
     `target_user` o del rol. Lo pasa quien llama cuando la cuenta o el rol ya se eliminaron."""
@@ -23,6 +24,7 @@ def record_account_event(
         target_user_ref=target_user_ref,
         request_id=request_id,
         producer_ref=producer_ref,
+        changes=changes or {},
     )
 
 

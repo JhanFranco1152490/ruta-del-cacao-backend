@@ -192,7 +192,7 @@ def update_farm(actor, farm_id, expected_version: int, data: dict) -> Farm:
         farm, update_fields, constraint=NAME_UNIQUE_CONSTRAINT, duplicate=DuplicateFarmName
     )
     record_update_events(
-        partial(record_farm_audit_event, farm=farm, actor=actor),
+        partial(record_farm_audit_event, farm=farm, actor=actor, before=before),
         changed,
         updated=FarmAuditEvent.Action.UPDATED,
         status_changed=FarmAuditEvent.Action.STATUS_CHANGED,

@@ -6,6 +6,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, QuerySet
 from rest_framework.exceptions import ValidationError
 
+from apps.common.audit import field_changes
 from apps.common.validators import strip_document_separators
 
 from ..access import roles_of
@@ -156,11 +157,24 @@ def _apply_scope(actor, user: User, new_scope, request_id) -> None:
     if new_scope is None:
         return
     all_farms, farms = new_scope
+    before = _scope_values(user)
     if user.all_farms != all_farms:
         user.all_farms = all_farms
         user.save(update_fields=["all_farms"])
     user.farms.set(farms)
-    _record_farm_change(actor, user, request_id)
+    _record_farm_change(actor, user, request_id, field_changes(before, _scope_values(user)))
+
+
+def _role_names(user: User) -> list[str]:
+    # Los nombres y no los ids: un rol puede borrarse después, y su nombre no es un dato personal.
+    return sorted(user.groups.values_list("role__name", flat=True))
+
+
+def _scope_values(user: User) -> dict:
+    return {
+        "all_farms": user.all_farms,
+        "farms": sorted(user.farms.values_list("name", flat=True)),
+    }
 
 
 def set_account_roles(
@@ -191,21 +205,24 @@ def set_account_roles(
         )
 
     with transaction.atomic():
+        before = _role_names(user)
         user.groups.set(role.group for role in roles)
         record_account_event(
             AccountManagementEvent.EventType.ACCOUNT_ROLES_CHANGED,
             request_id,
             actor=actor,
             target_user=user,
+            changes=field_changes({"roles": before}, {"roles": _role_names(user)}),
         )
         _apply_scope(actor, user, new_scope, request_id)
     return user
 
 
-def _record_farm_change(actor, user: User, request_id) -> None:
+def _record_farm_change(actor, user: User, request_id, changes: dict) -> None:
     record_account_event(
         AccountManagementEvent.EventType.ACCOUNT_FARM_CHANGED,
         request_id,
         actor=actor,
         target_user=user,
+        changes=changes,
     )

@@ -4,6 +4,7 @@ from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 
 from apps.buyers.models import Buyer, BuyerAuditEvent
+from apps.buyers.services.audit import record_buyer_audit_event
 from apps.producers.tests.factories import ProducerFactory
 
 from .factories import BuyerFactory
@@ -175,4 +176,16 @@ def test_the_audit_event_survives_the_buyer_and_keeps_no_personal_data():
     assert event.buyer_ref == buyer_id
     assert event.buyer_type == "exporter"
     stored = {field.name for field in BuyerAuditEvent._meta.get_fields()}
-    assert not stored & {"name", "buyer_name", "identity_document", "phone", "email", "changes"}
+    assert not stored & {"name", "buyer_name", "identity_document", "phone", "email"}
+
+
+def test_the_values_of_a_buyer_event_never_bring_its_personal_data():
+    buyer = BuyerFactory(phone="3001234567", email="compras@example.com")
+
+    event = record_buyer_audit_event(
+        buyer=buyer, actor=None, action=BuyerAuditEvent.Action.DELETED
+    )
+
+    assert set(event.changes) == {"buyer_type", "is_active"}
+    assert "3001234567" not in str(event.changes)
+    assert buyer.name not in str(event.changes)

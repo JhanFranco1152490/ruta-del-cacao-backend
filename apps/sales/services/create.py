@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from apps.common.audit import field_changes
 from apps.common.exceptions import ApiError
 from apps.common.locks import lock_root_row
 from apps.common.ownership import owner_filter
@@ -68,7 +69,7 @@ def create_sale(actor, data: dict) -> Sale:
         created_by=actor,
         created_at=timezone.now(),
     )
-    SaleLine.objects.bulk_create(
+    lines = SaleLine.objects.bulk_create(
         SaleLine(
             sale=sale,
             lot=lot,
@@ -85,8 +86,29 @@ def create_sale(actor, data: dict) -> Sale:
         actor=actor,
         action=SaleAuditEvent.Action.CREATED,
         changed_fields=CREATED_FIELDS,
+        changes=field_changes({}, _created_values(sale, lines), fields=CREATED_FIELDS),
     )
     return get_sale(actor, sale.pk)
+
+
+def _created_values(sale: Sale, lines) -> dict:
+    """Lo que se registró, como lo guarda el historial: la finca y el comprador por su id, y cada
+    línea con el código de su lote."""
+    return {
+        "farm": sale.farm_id,
+        "buyer": sale.buyer_id,
+        "sale_date": sale.sale_date,
+        "notes": sale.notes,
+        "lines": [
+            {
+                "lot": line.lot.code,
+                "grade": line.grade,
+                "quantity_kg": f"{Decimal(line.quantity_kg):.1f}",
+                "price_per_kg": line.price_per_kg,
+            }
+            for line in lines
+        ],
+    }
 
 
 def _locked_farm(actor, farm_id):

@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.db.models.functions import Lower
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from apps.common.audit import field_changes
 from apps.common.ownership import reaches_all_farms
 
 from ..access import is_association_admin
@@ -163,6 +164,7 @@ def create_role(actor, data: dict, request_id) -> Role:
             request_id,
             actor=actor,
             target_role_id=role.id,
+            changes=field_changes({}, _role_values(role), fields=ROLE_VALUE_FIELDS),
         )
     return role
 
@@ -189,6 +191,7 @@ def update_role(actor, role_id, data: dict, request_id) -> Role:
         _ensure_unique_name(data["name"], role.producer_id, exclude_pk=role.pk)
 
     with transaction.atomic():
+        before = _role_values(role)
         changed_fields = [
             field for field in ("name", "description", "farm_scope") if field in data
         ]
@@ -206,6 +209,7 @@ def update_role(actor, role_id, data: dict, request_id) -> Role:
             request_id,
             actor=actor,
             target_role_id=role.id,
+            changes=field_changes(before, _role_values(role)),
         )
     return role
 
@@ -218,6 +222,7 @@ def delete_role(actor, role_id, request_id) -> None:
 
     with transaction.atomic():
         group = role.group
+        before = _role_values(role)
         role.delete()
         group.delete()
         record_account_event(
@@ -227,4 +232,18 @@ def delete_role(actor, role_id, request_id) -> None:
             target_role_id=role_id,
             # El rol ya no existe: su productor se pasa desde lo que se leyó.
             producer_ref=role.producer_id,
+            changes=field_changes(before, {}, fields=ROLE_VALUE_FIELDS),
         )
+
+
+# Lo que el historial guarda de un rol: ninguno es un dato personal. Los permisos, por su código.
+ROLE_VALUE_FIELDS = ("name", "description", "farm_scope", "permissions")
+
+
+def _role_values(role: Role) -> dict:
+    return {
+        "name": role.name,
+        "description": role.description,
+        "farm_scope": role.farm_scope,
+        "permissions": sorted(role.permission_codes),
+    }

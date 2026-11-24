@@ -3,6 +3,7 @@
 from django.db import transaction
 from django.utils import timezone
 
+from apps.common.audit import field_changes
 from apps.common.files import JPEG, PDF, PNG, clean_file_name, detect_format
 from apps.common.locks import lock_aggregate_root
 
@@ -20,6 +21,13 @@ from .queries import get_sale, sale_scope
 # Una factura escaneada o fotografiada, o el PDF que manda el comprador.
 FORMATS = (PDF, JPEG, PNG)
 NAME_MAX = 255
+# Lo que el historial guarda con su valor: el nombre con que se guarda el archivo es interno.
+INVOICE_VALUE_FIELDS = (
+    "invoice_name",
+    "invoice_content_type",
+    "invoice_size",
+    "invoice_uploaded_at",
+)
 INVOICE_FIELDS = (
     "invoice",
     "invoice_name",
@@ -59,13 +67,14 @@ def attach_invoice(actor, sale_id, uploaded) -> Sale:
 def _register_invoice(actor, sale_id, stored, uploaded, file_format) -> Sale:
     sale = _locked_open_sale(actor, sale_id)
     previous = sale.invoice.name if sale.invoice else None
+    before = _invoice_values(sale)
     sale.invoice = stored
     sale.invoice_name = clean_file_name(uploaded.name, max_length=NAME_MAX, fallback="factura")
     sale.invoice_content_type = file_format.content_type
     sale.invoice_size = uploaded.size
     sale.invoice_uploaded_at = timezone.now()
     replaced = SaleAuditEvent.Action.INVOICE_REPLACED
-    _save(actor, sale, replaced if previous else SaleAuditEvent.Action.INVOICE_ATTACHED)
+    _save(actor, sale, replaced if previous else SaleAuditEvent.Action.INVOICE_ATTACHED, before)
     if previous:
         _delete_after_commit(sale.invoice.storage, previous)
     return get_sale(actor, sale.pk)
@@ -78,12 +87,13 @@ def remove_invoice(actor, sale_id) -> None:
     if not sale.invoice:
         return
     storage, previous = sale.invoice.storage, sale.invoice.name
+    before = _invoice_values(sale)
     sale.invoice = ""
     sale.invoice_name = ""
     sale.invoice_content_type = ""
     sale.invoice_size = None
     sale.invoice_uploaded_at = None
-    _save(actor, sale, SaleAuditEvent.Action.INVOICE_REMOVED)
+    _save(actor, sale, SaleAuditEvent.Action.INVOICE_REMOVED, before)
     _delete_after_commit(storage, previous)
 
 
@@ -107,10 +117,20 @@ def _locked_open_sale(actor, sale_id) -> Sale:
     return sale
 
 
-def _save(actor, sale, action) -> None:
+def _invoice_values(sale) -> dict:
+    return {name: getattr(sale, name) for name in INVOICE_VALUE_FIELDS}
+
+
+def _save(actor, sale, action, before: dict) -> None:
     sale.version += 1
     sale.save(update_fields=[*INVOICE_FIELDS, "version", "updated_at"])
-    record_sale_event(sale=sale, actor=actor, action=action, changed_fields=INVOICE_FIELDS)
+    record_sale_event(
+        sale=sale,
+        actor=actor,
+        action=action,
+        changed_fields=INVOICE_FIELDS,
+        changes=field_changes(before, _invoice_values(sale), fields=INVOICE_VALUE_FIELDS),
+    )
 
 
 def _delete_after_commit(storage, name) -> None:

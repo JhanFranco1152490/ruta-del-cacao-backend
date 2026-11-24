@@ -234,6 +234,9 @@ class AccountManagementEvent(models.Model):
     # El productor del registro, copiado al registrar: el evento sigue en la bitácora aunque el
     # registro se elimine y su relación quede vacía.
     producer_ref = models.UUIDField(null=True, blank=True, editable=False)
+    # El valor anterior y el nuevo de cada campo que cambió (`field_changes`), sin datos
+    # personales. Vacío en los eventos guardados antes de que el historial los tuviera.
+    changes = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-occurred_at"]

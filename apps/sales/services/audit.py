@@ -4,7 +4,7 @@ from ..models import Sale, SaleAuditEvent
 
 
 def record_sale_event(
-    *, sale: Sale, actor, action: str, changed_fields: Iterable[str]
+    *, sale: Sale, actor, action: str, changed_fields: Iterable[str], changes: dict | None = None
 ) -> SaleAuditEvent:
     return SaleAuditEvent.record(
         sale=sale,
@@ -13,4 +13,5 @@ def record_sale_event(
         action=action,
         changed_fields=changed_fields,
         version=sale.version,
+        changes=changes or {},
     )

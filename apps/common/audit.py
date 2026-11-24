@@ -82,6 +82,34 @@ def field_changes(
     }
 
 
+def record_changes(
+    record,
+    *,
+    value_fields: Iterable[str],
+    changed_fields: Iterable[str] = (),
+    before: Mapping[str, object] | None = None,
+    created: bool = False,
+    deleted: bool = False,
+    exclude: Iterable[str] = (),
+) -> dict:
+    """Los valores que guarda el evento de `record`: un alta, todos los de `value_fields` (el
+    anterior vacío); una eliminación, los que tenía (el nuevo vacío); una edición, el anterior
+    (`before`) y el nuevo de cada campo de `changed_fields`. Nunca los de `exclude`: los datos
+    personales y lo que no se muestra como valor (un polígono)."""
+    if created or deleted:
+        fields = list(value_fields)
+        values = {name: getattr(record, name) for name in fields}
+        old, new = ({}, values) if created else (values, {})
+        return field_changes(old, new, fields=fields, exclude=exclude)
+    fields = list(changed_fields)
+    return field_changes(
+        before or {},
+        {name: getattr(record, name) for name in fields},
+        fields=fields,
+        exclude=exclude,
+    )
+
+
 STATUS_FIELD = "is_active"
 
 

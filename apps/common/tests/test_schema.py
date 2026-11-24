@@ -124,6 +124,8 @@ def responses_of(schema, path, method):
         ("/api/reports/producer/export", "get", {"200", "400", "401", "403", "404"}),
         ("/api/reports/association/export", "get", {"200", "400", "401", "403", "404"}),
         ("/api/lots/{id}/history", "get", {"200", "401", "403", "404"}),
+        ("/api/audit-log", "get", {"200", "400", "401", "403", "404"}),
+        ("/api/audit-log/options", "get", {"200", "400", "401", "403", "404"}),
         ("/api/lots/{id}/qr", "post", {"201", "401", "403", "404", "409"}),
         ("/api/public/lots/{token}", "get", {"200", "404", "429"}),
     ],
@@ -218,6 +220,8 @@ DOCUMENTED_OPERATIONS = {
     ("post", "/api/lots"),
     ("delete", "/api/lots/{id}"),
     ("get", "/api/lots/{id}/history"),
+    ("get", "/api/audit-log"),
+    ("get", "/api/audit-log/options"),
     ("post", "/api/lots/{id}/qr"),
     ("get", "/api/public/lots/{token}"),
     ("get", "/api/notifications"),
@@ -368,3 +372,14 @@ def test_the_lot_history_documents_one_shape_per_kind_of_stage(schema):
     assert history["properties"]["stages"]["items"] == {
         "$ref": "#/components/schemas/LotHistoryStage"
     }
+
+
+def test_the_audit_log_is_paginated_and_documents_why_a_value_is_hidden(schema):
+    listed = schema["paths"]["/api/audit-log"]["get"]["responses"]["200"]
+    page = listed["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[1]
+    change = schema["components"]["schemas"]["AuditChange"]
+
+    assert {"count", "results"} <= set(schema["components"]["schemas"][page]["properties"])
+    assert change["properties"]["kind"]["$ref"].endswith("AuditValueKindEnum")
+    hidden = schema["components"]["schemas"]["AuditHiddenReasonEnum"]["enum"]
+    assert {"personal", "not_recorded", "not_shown"} <= set(hidden)

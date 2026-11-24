@@ -67,6 +67,7 @@ HIDDEN_PERSONAL = "personal"
 HIDDEN_NOT_RECORDED = "not_recorded"
 # Lo que no se muestra como valor aunque se sepa que cambió (el polígono de una parcela).
 HIDDEN_NOT_SHOWN = "not_shown"
+HIDDEN_REASONS = (HIDDEN_PERSONAL, HIDDEN_NOT_RECORDED, HIDDEN_NOT_SHOWN)
 
 # Cómo se muestra un valor.
 KIND_TEXT = "text"
@@ -74,6 +75,7 @@ KIND_NUMBER = "number"
 KIND_DATE = "date"
 KIND_DATETIME = "datetime"
 KIND_BOOL = "bool"
+KINDS = (KIND_TEXT, KIND_NUMBER, KIND_DATE, KIND_DATETIME, KIND_BOOL)
 
 
 @dataclass(frozen=True)

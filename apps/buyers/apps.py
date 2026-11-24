@@ -12,3 +12,10 @@ class BuyersConfig(AppConfig):
         from .producer_dependent import buyers_dependent
 
         register_dependent(buyers_dependent)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("buyer", SOURCE)

@@ -32,3 +32,10 @@ class SalesConfig(AppConfig):
         register_lot_history_source("sales_history", sales_history)
         register_lot_history_source("sold_now", sold_now)
         register_stage_serializer("sale", SaleStageSerializer)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("sale", SOURCE)

@@ -63,3 +63,11 @@ class WarehouseConfig(AppConfig):
         register_stage_serializer("stock_entry", StockEntryStageSerializer)
         register_stage_serializer("stock_move", StockMoveStageSerializer)
         register_stage_serializer("stock_exit", StockExitStageSerializer)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import STOCK_SOURCE, WAREHOUSE_SOURCE
+
+        register_audit_source("stock", STOCK_SOURCE)
+        register_audit_source("warehouse", WAREHOUSE_SOURCE)

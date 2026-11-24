@@ -29,3 +29,10 @@ class LotsConfig(AppConfig):
 
         register_stage_serializer("harvest", HarvestStageSerializer)
         register_stage_serializer("lot_created", LotCreatedStageSerializer)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("lot", SOURCE)

@@ -12,3 +12,10 @@ class FacilitiesConfig(AppConfig):
         from .farm_dependent import facilities_dependent
 
         register_dependent(facilities_dependent)
+
+        # Su historial, en la bitácora de cambios.
+        from apps.common.contracts.audit_log import register_audit_source
+
+        from .audit_log import SOURCE
+
+        register_audit_source("facility", SOURCE)

@@ -37,7 +37,7 @@ def _source():
     return AuditSource(events=lambda producer_id, **filters: None, describe=lambda ids: [])
 
 
-def test_the_record_types_follow_the_spec_without_repeating():
+def test_the_record_types_come_in_their_order_without_repeating():
     assert AUDIT_RECORD_TYPES == (
         "farm",
         "plot",
